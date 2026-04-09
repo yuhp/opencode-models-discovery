@@ -197,8 +197,6 @@ A provider is considered discoverable if **either** condition matches.
 
 This means providers using `@ai-sdk/anthropic` with OpenAI-compatible backends (like Ollama's Anthropic compatibility mode) are also supported, as long as the `baseURL` contains `/v1/`.
 
-If a provider is not configured but LM Studio or Ollama is detected running locally, the plugin will log suggestions to add it to your configuration.
-
 ## Requirements
 
 - OpenCode with plugin support
