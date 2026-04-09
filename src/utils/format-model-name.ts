@@ -1,4 +1,4 @@
-import type { LMStudioModel } from '../types'
+import type { OpenAIModel } from '../types'
 
 /**
  * Extract owner from model ID (e.g., "qwen" from "qwen/qwen3-30b")
@@ -15,7 +15,7 @@ export function extractModelOwner(modelId: string): string | undefined {
  * Format model name for display using available metadata
  * Creates readable titles like "Qwen3 30B A3B" instead of "qwen/qwen3-30b-a3b"
  */
-export function formatModelName(model: LMStudioModel): string {
+export function formatModelName(model: OpenAIModel): string {
   const { id } = model
   
   // Extract parts from model ID

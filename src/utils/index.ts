@@ -90,7 +90,7 @@ export async function retryWithBackoff<T>(
       }
       
       const delay = baseDelay * Math.pow(2, attempt)
-      console.warn(`[opencode-lmstudio] Retrying operation after ${delay}ms`, { 
+      console.warn(`[opencode-model-discovery] Retrying operation after ${delay}ms`, { 
         attempt: attempt + 1, 
         maxRetries: maxRetries + 1,
         error: error instanceof Error ? error.message : String(error)
@@ -111,40 +111,40 @@ export function categorizeError(error: any, context: { baseURL: string; modelId:
     return {
       type: 'offline',
       severity: 'critical',
-      message: `Cannot connect to LM Studio at ${baseURL}. Ensure LM Studio is running and server is active.`,
+      message: `Cannot connect to provider at ${baseURL}. Ensure the server is running and accessible.`,
       canRetry: true,
       autoFixAvailable: true
     }
   }
-  
+
   // Timeout issues
   if (errorStr.includes('timeout') || errorStr.includes('aborted')) {
     return {
       type: 'timeout',
       severity: 'medium',
-      message: `Request to LM Studio timed out. This might happen with large models or slow systems.`,
+      message: `Request timed out. This might happen with large models or slow systems.`,
       canRetry: true,
       autoFixAvailable: false
     }
   }
-  
+
   // Model not found
   if (errorStr.includes('404') || errorStr.includes('not found')) {
     return {
       type: 'not_found',
       severity: 'high',
-      message: `Model '${modelId}' not found. Check if model is installed in LM Studio.`,
+      message: `Model '${modelId}' not found. Check if model is available in the provider.`,
       canRetry: false,
       autoFixAvailable: false
     }
   }
-  
+
   // Permission issues
   if (errorStr.includes('401') || errorStr.includes('403') || errorStr.includes('unauthorized')) {
     return {
       type: 'permission',
       severity: 'high',
-      message: `Authentication or permission issue with LM Studio. Check your configuration.`,
+      message: `Authentication or permission issue. Check your provider configuration.`,
       canRetry: false,
       autoFixAvailable: false
     }
@@ -163,14 +163,14 @@ export function categorizeError(error: any, context: { baseURL: string; modelId:
 // Generate auto-fix suggestions
 export function generateAutoFixSuggestions(errorCategory: ModelValidationError): AutoFixSuggestion[] {
   const suggestions: AutoFixSuggestion[] = []
-  
+
   switch (errorCategory.type) {
     case 'offline':
       suggestions.push({
-        action: "Check if LM Studio is running",
+        action: "Check if provider server is running",
         steps: [
-          "1. Open LM Studio application",
-          "2. Verify the server is started (green indicator)",
+          "1. Verify the server application is running",
+          "2. Verify the server is started",
           "3. Check the server URL and port",
           "4. Ensure the server is not blocked by firewall"
         ],
@@ -179,28 +179,26 @@ export function generateAutoFixSuggestions(errorCategory: ModelValidationError):
       suggestions.push({
         action: "Try alternative ports",
         steps: [
-          "1. Check if LM Studio is running on a different port",
-          "2. Common ports: 1234, 8080, 11434",
+          "1. Check if provider is running on a different port",
+          "2. Common ports: 1234 (LM Studio), 8080 (LocalAI), 11434 (Ollama)",
           "3. Update your OpenCode configuration with the correct port"
         ],
         automated: false
       })
       break
-      
+
     case 'not_found':
       suggestions.push({
-        action: "Browse and install model",
+        action: "Check model availability",
         steps: [
-          "1. Open LM Studio",
-          "2. Click the search icon (🔍) in the sidebar",
-          "3. Search for your desired model",
-          "4. Click 'Download' and wait for completion",
-          "5. Load the model after download"
+          "1. Verify the model is available in your provider",
+          "2. Download or load the model if needed",
+          "3. Ensure the model is properly installed"
         ],
         automated: false
       })
       break
-      
+
     case 'timeout':
       suggestions.push({
         action: "Increase timeout or use smaller model",
@@ -213,6 +211,6 @@ export function generateAutoFixSuggestions(errorCategory: ModelValidationError):
       })
       break
   }
-  
+
   return suggestions
 }

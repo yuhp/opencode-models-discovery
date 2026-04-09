@@ -1,4 +1,5 @@
 import type { ValidationResult } from './validation-result'
+import { canDiscoverModels } from '../openai-compatible-api'
 
 export function validateConfig(config: any): ValidationResult {
   const errors: string[] = []
@@ -9,36 +10,17 @@ export function validateConfig(config: any): ValidationResult {
     return { isValid: false, errors, warnings }
   }
 
-  // Validate provider configuration
   if (config.provider && typeof config.provider === 'object') {
-    const lmstudio = config.provider.lmstudio
-    if (lmstudio) {
-      // Auto-fix missing required fields instead of failing
-      if (!lmstudio.npm) {
-        lmstudio.npm = "@ai-sdk/openai-compatible"
-        warnings.push('LM Studio provider missing npm field, auto-set to @ai-sdk/openai-compatible')
-      }
-      if (!lmstudio.name) {
-        lmstudio.name = "LM Studio (local)"
-        warnings.push('LM Studio provider missing name field, auto-set to "LM Studio (local)"')
-      }
-      if (!lmstudio.options) {
-        lmstudio.options = {}
-        warnings.push('LM Studio provider missing options field, auto-created empty options')
-      } else {
-        // Validate options
-        if (!lmstudio.options.baseURL) {
-          warnings.push('LM Studio provider missing baseURL, will use default')
-        } else if (typeof lmstudio.options.baseURL !== 'string') {
-          errors.push('LM Studio provider baseURL must be a string')
-        } else if (!isValidURL(lmstudio.options.baseURL)) {
-          warnings.push('LM Studio provider baseURL may be invalid')
-        }
-      }
+    for (const [providerName, providerConfig] of Object.entries(config.provider)) {
+      const p = providerConfig as any
 
-      // Validate models configuration
-      if (lmstudio.models && typeof lmstudio.models !== 'object') {
-        errors.push('LM Studio provider models must be an object')
+      if (canDiscoverModels(p)) {
+        if (!p.options?.baseURL) {
+          warnings.push(`Provider '${providerName}' missing baseURL`)
+        }
+        if (p.models && typeof p.models !== 'object') {
+          errors.push(`Provider '${providerName}' models must be an object`)
+        }
       }
     }
   }
@@ -49,13 +31,3 @@ export function validateConfig(config: any): ValidationResult {
     warnings
   }
 }
-
-function isValidURL(url: string): boolean {
-  try {
-    new URL(url)
-    return true
-  } catch {
-    return false
-  }
-}
-

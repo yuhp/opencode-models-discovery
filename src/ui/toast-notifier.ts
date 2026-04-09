@@ -10,7 +10,7 @@ export class ToastNotifier {
   async success(message: string, title?: string, duration?: number): Promise<void> {
     try {
       if (!this.client?.tui?.showToast) {
-        console.warn('[opencode-lmstudio] Toast API not available (client.tui.showToast missing)')
+        console.warn('[opencode-model-discovery] Toast API not available (client.tui.showToast missing)')
         return
       }
       await this.client.tui.showToast({
@@ -22,7 +22,7 @@ export class ToastNotifier {
         }
       })
     } catch (error) {
-      console.error(`[opencode-lmstudio] Failed to show success toast`, error)
+      console.error(`[opencode-model-discovery] Failed to show success toast`, error)
     }
   }
   
@@ -30,7 +30,7 @@ export class ToastNotifier {
   async error(message: string, title?: string, duration?: number): Promise<void> {
     try {
       if (!this.client?.tui?.showToast) {
-        console.warn('[opencode-lmstudio] Toast API not available (client.tui.showToast missing)')
+        console.warn('[opencode-model-discovery] Toast API not available (client.tui.showToast missing)')
         return
       }
       await this.client.tui.showToast({
@@ -42,7 +42,7 @@ export class ToastNotifier {
         }
       })
     } catch (error) {
-      console.error(`[opencode-lmstudio] Failed to show error toast`, error)
+      console.error(`[opencode-model-discovery] Failed to show error toast`, error)
     }
   }
   
@@ -50,7 +50,7 @@ export class ToastNotifier {
   async warning(message: string, title?: string, duration?: number): Promise<void> {
     try {
       if (!this.client?.tui?.showToast) {
-        console.warn('[opencode-lmstudio] Toast API not available (client.tui.showToast missing)')
+        console.warn('[opencode-model-discovery] Toast API not available (client.tui.showToast missing)')
         return
       }
       await this.client.tui.showToast({
@@ -62,7 +62,7 @@ export class ToastNotifier {
         }
       })
     } catch (error) {
-      console.error(`[opencode-lmstudio] Failed to show warning toast`, error)
+      console.error(`[opencode-model-discovery] Failed to show warning toast`, error)
     }
   }
   
@@ -70,7 +70,7 @@ export class ToastNotifier {
   async info(message: string, title?: string, duration?: number): Promise<void> {
     try {
       if (!this.client?.tui?.showToast) {
-        console.warn('[opencode-lmstudio] Toast API not available (client.tui.showToast missing)')
+        console.warn('[opencode-model-discovery] Toast API not available (client.tui.showToast missing)')
         return
       }
       await this.client.tui.showToast({
@@ -82,7 +82,7 @@ export class ToastNotifier {
         }
       })
     } catch (error) {
-      console.error(`[opencode-lmstudio] Failed to show info toast`, error)
+      console.error(`[opencode-model-discovery] Failed to show info toast`, error)
     }
   }
   
@@ -90,7 +90,7 @@ export class ToastNotifier {
   async progress(message: string, title?: string, progress?: number): Promise<void> {
     try {
       if (!this.client?.tui?.showToast) {
-        console.warn('[opencode-lmstudio] Toast API not available (client.tui.showToast missing)')
+        console.warn('[opencode-model-discovery] Toast API not available (client.tui.showToast missing)')
         return
       }
       await this.client.tui.showToast({
@@ -102,7 +102,7 @@ export class ToastNotifier {
         }
       })
     } catch (error) {
-      console.error(`[opencode-lmstudio] Failed to show progress toast`, error)
+      console.error(`[opencode-model-discovery] Failed to show progress toast`, error)
     }
   }
   
@@ -115,7 +115,7 @@ export class ToastNotifier {
   }): Promise<void> {
     try {
       if (!this.client?.tui?.showToast) {
-        console.warn('[opencode-lmstudio] Toast API not available (client.tui.showToast missing)')
+        console.warn('[opencode-model-discovery] Toast API not available (client.tui.showToast missing)')
         return
       }
       await this.client.tui.showToast({
@@ -127,7 +127,7 @@ export class ToastNotifier {
         }
       })
     } catch (error) {
-      console.error(`[opencode-lmstudio] Failed to show detailed toast`, error)
+      console.error(`[opencode-model-discovery] Failed to show detailed toast`, error)
     }
   }
 }

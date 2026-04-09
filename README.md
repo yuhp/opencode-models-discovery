@@ -1,25 +1,28 @@
-# opencode-lmstudio
+# opencode-model-discovery
 
-OpenCode plugin for enhanced LM Studio support with auto-detection and dynamic model discovery.
+> Forked from [opencode-lmstudio](https://github.com/nicktasios/opencode-lmstudio) and expanded to support **any OpenAI-compatible provider**.
+
+OpenCode plugin for auto-discovery of OpenAI-compatible models with dynamic provider configuration.
 
 ## Features
 
-- **Auto-detection**: Automatically detects LM Studio running on common ports (1234, 8080, 11434)
-- **Dynamic Model Discovery**: Queries LM Studio's `/v1/models` endpoint to discover available models
+- **Multi-Provider Support**: Works with any OpenAI-compatible provider (LM Studio, Ollama, LocalAI, etc.)
+- **Dynamic Model Discovery**: Queries provider's `/v1/models` endpoint to discover available models
+- **Auto-Injection**: Automatically adds unconfigured models to provider configuration
 - **Smart Model Formatting**: Automatically formats model names for better readability (e.g., "Qwen3 30B A3B" instead of "qwen/qwen3-30b-a3b")
 - **Organization Owner Extraction**: Extracts and sets `organizationOwner` field from model IDs
-- **Health Check Monitoring**: Verifies LM Studio is accessible before attempting operations
-- **Automatic Configuration**: Auto-creates `lmstudio` provider if detected but not configured
+- **Health Check Monitoring**: Verifies providers are accessible before attempting operations
 - **Model Merging**: Intelligently merges discovered models with existing configuration
 - **Comprehensive Caching**: Reduces API calls with intelligent caching system
 - **Error Handling**: Smart error categorization with auto-fix suggestions
+- **Configurable Discovery**: Enable/disable discovery and filter providers
 
 ## Installation
 
 ```bash
-npm install opencode-lmstudio
+npm install opencode-model-discovery
 # or
-bun add opencode-lmstudio
+bun add opencode-model-discovery
 ```
 
 ## Usage
@@ -30,9 +33,16 @@ Add the plugin to your `opencode.json`:
 {
   "$schema": "https://opencode.ai/config.json",
   "plugin": [
-    "opencode-lmstudio@latest"
+    "opencode-model-discovery@latest"
   ],
   "provider": {
+    "ollama": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "Ollama (local)",
+      "options": {
+        "baseURL": "http://127.0.0.1:11434/v1"
+      }
+    },
     "lmstudio": {
       "npm": "@ai-sdk/openai-compatible",
       "name": "LM Studio (local)",
@@ -44,53 +54,156 @@ Add the plugin to your `opencode.json`:
 }
 ```
 
-### Auto-detection
+### Configuration
 
-If you don't configure the `lmstudio` provider, the plugin will automatically detect LM Studio if it's running on one of the common ports and create the provider configuration for you.
-
-### Manual Configuration
-
-You can also manually configure the provider with specific models:
+The plugin configuration is placed in the `plugin` array using tuple format `["plugin-name", { config }]`:
 
 ```json
 {
-  "$schema": "https://opencode.ai/config.json",
   "plugin": [
-    "opencode-lmstudio@latest"
-  ],
-  "provider": {
-    "lmstudio": {
-      "npm": "@ai-sdk/openai-compatible",
-      "name": "LM Studio (local)",
-      "options": {
-        "baseURL": "http://127.0.0.1:1234/v1"
+    ["opencode-model-discovery", {
+      "providers": {
+        "include": [],
+        "exclude": []
       },
-      "models": {
-        "google/gemma-3n-e4b": {
-          "name": "Gemma 3n-e4b (local)"
-        }
+      "discovery": {
+        "enabled": true,
+        "ttl": 15000
       }
+    }]
+  ]
+}
+```
+
+#### Provider Filtering
+
+Control which providers are discovered:
+
+| Option | Type | Description |
+|--------|------|-------------|
+| `providers.include` | `string[]` | If non-empty, **only** these providers will be discovered |
+| `providers.exclude` | `string[]` | These providers will be skipped (only used when `include` is empty) |
+
+```json
+{
+  "plugin": [
+    ["opencode-model-discovery", {
+      "providers": {
+        "include": ["ollama"],
+        "exclude": ["lmstudio"]
+      }
+    }]
+  ]
+}
+```
+
+### How It Works
+
+1. On OpenCode startup, the plugin's `config` hook is called
+2. The plugin iterates through all configured providers
+3. For each provider, it checks if the baseURL contains `/v1/` (supports any npm package)
+4. For each accessible provider, it queries the `/v1/models` endpoint
+5. Discovered models are automatically merged into the provider's configuration
+6. The enhanced configuration is used for the current session
+
+### Supported Providers
+
+The plugin supports any OpenAI-compatible provider. Here are the most common ones:
+
+| Provider | Default Port | Use Case | npm Package |
+|----------|-------------|----------|-------------|
+| **Ollama** | 11434 | Local model inference engine | `@ai-sdk/openai-compatible` |
+| **LM Studio** | 1234 | Local LLM with UI | `@ai-sdk/openai-compatible` |
+| **LocalAI** | 8080 | Self-hosted AI inference | `@ai-sdk/openai-compatible` |
+| **llama.cpp Server** | 8080 | Standalone llama.cpp server | `@ai-sdk/openai-compatible` |
+| **Text Generation WebUI** | 5000 | OpenAI-compatible extension | `@ai-sdk/openai-compatible` |
+| **FastChat (Vicuna)** | 8001 | Multi-model serving | `@ai-sdk/openai-compatible` |
+| **vLLM** | 8000 | High-performance inference | `@ai-sdk/openai-compatible` |
+| **Anysphere (Cursor)** |  | IDE with AI completion | `@ai-sdk/anthropic` (with `/v1` backend) |
+
+#### Anthropic API with Custom Backend
+
+Providers using `@ai-sdk/anthropic` but backed by OpenAI-compatible servers (like Ollama's Anthropic compatibility mode) are also supported:
+
+```json
+{
+  "provider": {
+    "ollama": {
+      "npm": "@ai-sdk/anthropic",
+      "name": "Ollama (Anthropic Mode)",
+      "options": { "baseURL": "http://127.0.0.1:11434/v1" }
     }
   }
 }
 ```
 
-The plugin will automatically discover and add any additional models available in LM Studio that aren't already configured.
+#### Cloud OpenAI-Compatible Services
 
-## How It Works
+Cloud services with OpenAI-compatible APIs are also supported:
 
-1. On OpenCode startup, the plugin's `config` hook is called
-2. If an `lmstudio` provider is found, it checks if LM Studio is accessible
-3. If not configured, it attempts to auto-detect LM Studio on common ports
-4. If accessible, it queries the `/v1/models` endpoint
-5. Discovered models are merged into your configuration
-6. The enhanced configuration is used for the current session
+- **Cloudflare Workers AI**
+- **Azure OpenAI Service** (with appropriate endpoint configuration)
+- **Groq** (ultra-fast inference)
+- **Together AI**
+- **Perplexity AI**
+- **Any custom OpenAI-compatible API**
+
+### Provider Detection
+
+The plugin identifies OpenAI-compatible providers using **two detection methods**:
+
+1. **Strict Detection**: `npm === "@ai-sdk/openai-compatible"`
+2. **URL-based Detection**: `baseURL` contains `/v1/` pattern
+
+A provider is considered discoverable if **either** condition matches.
+
+#### Examples of Supported Configurations
+
+```json
+{
+  "provider": {
+    "ollama": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "Ollama",
+      "options": { "baseURL": "http://127.0.0.1:11434/v1" }
+    }
+  }
+}
+```
+
+```json
+{
+  "provider": {
+    "ollama-anthropic": {
+      "npm": "@ai-sdk/anthropic",
+      "name": "Ollama (Anthropic Mode)",
+      "options": { "baseURL": "http://127.0.0.1:11434/v1" }
+    }
+  }
+}
+```
+
+```json
+{
+  "provider": {
+    "lmstudio": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "LM Studio",
+      "options": { "baseURL": "http://127.0.0.1:1234/v1" }
+    }
+  }
+}
+```
+
+This means providers using `@ai-sdk/anthropic` with OpenAI-compatible backends (like Ollama's Anthropic compatibility mode) are also supported, as long as the `baseURL` contains `/v1/`.
+
+If a provider is not configured but LM Studio or Ollama is detected running locally, the plugin will log suggestions to add it to your configuration.
 
 ## Requirements
 
 - OpenCode with plugin support
-- LM Studio running locally (default port: 1234)
-- LM Studio server API accessible at `http://127.0.0.1:1234/v1`
+- At least one OpenAI-compatible provider running locally or remotely
+- Provider server API accessible (e.g., `http://127.0.0.1:11434/v1`)
 
 ## License
 
@@ -99,4 +212,3 @@ MIT
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
-

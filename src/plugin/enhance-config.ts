@@ -1,94 +1,93 @@
 import { ModelStatusCache } from '../cache/model-status-cache'
 import { ToastNotifier } from '../ui/toast-notifier'
 import { categorizeModel, formatModelName, extractModelOwner } from '../utils'
-import { normalizeBaseURL, checkLMStudioHealth, discoverLMStudioModels, autoDetectLMStudio } from '../utils/lmstudio-api'
+import { normalizeBaseURL, checkProviderHealth, discoverModelsFromProvider, autoDetectOpenAICompatibleProvider, canDiscoverModels } from '../utils/openai-compatible-api'
+import { getProviderFilter, getDiscoveryConfig, shouldDiscoverProvider } from '../types/plugin-config'
 import type { PluginInput } from '@opencode-ai/plugin'
-import type { LMStudioModel } from '../types'
+import type { OpenAIModel } from '../types'
+import type { PluginConfig } from '../types/plugin-config'
 
 const modelStatusCache = new ModelStatusCache()
 
+interface DiscoveredProvider {
+  name: string
+  baseURL: string
+  models: Record<string, any>
+}
+
 export async function enhanceConfig(
   config: any,
-  _client: PluginInput['client'], // client not used but kept for interface compatibility
-  toastNotifier: ToastNotifier
+  client: PluginInput['client'],
+  toastNotifier: ToastNotifier,
+  pluginConfig: PluginConfig
 ): Promise<void> {
+  modelStatusCache.invalidateAll()
+  
   try {
-    let lmstudioProvider = config.provider?.lmstudio
-    let baseURL: string
+    const providers = config.provider || {}
+    const openAICompatibleProviders: DiscoveredProvider[] = []
+    const providerFilter = getProviderFilter(pluginConfig)
+    const discoveryConfig = getDiscoveryConfig(pluginConfig)
 
-    // If lmstudio provider exists, use its baseURL
-    if (lmstudioProvider) {
-      baseURL = normalizeBaseURL(lmstudioProvider.options?.baseURL || "http://127.0.0.1:1234")
-    } else {
-      // Try to auto-detect LM Studio
-      const detectedURL = await autoDetectLMStudio()
-      if (!detectedURL) {
-        return // No LM Studio found
-      }
+    for (const [providerName, providerConfig] of Object.entries(providers)) {
+      const p = providerConfig as any
       
-      // Auto-create lmstudio provider if detected
-      baseURL = detectedURL
-      if (!config.provider) {
-        config.provider = {}
+      if (!canDiscoverModels(p)) {
+        continue
       }
-      config.provider.lmstudio = {
-        npm: "@ai-sdk/openai-compatible",
-        name: "LM Studio (local)",
-        options: {
-          baseURL: `${baseURL}/v1`,
-        },
-        models: {},
+
+      if (!shouldDiscoverProvider(providerName, providerFilter)) {
+        continue
       }
-      lmstudioProvider = config.provider.lmstudio
-    }
 
-    // Check health first
-    const isHealthy = await checkLMStudioHealth(baseURL)
-    if (!isHealthy) {
-      console.warn("[opencode-lmstudio] LM Studio appears to be offline", { baseURL })
-      return
-    }
+      let baseURL: string
+      let displayName = providerName
 
-    // Try to discover models from LM Studio API
-    let models: LMStudioModel[]
-    try {
-      models = await discoverLMStudioModels(baseURL)
-    } catch (error) {
-      console.warn("[opencode-lmstudio] Model discovery failed", { 
-        error: error instanceof Error ? error.message : String(error) 
-      })
-      return
-    }
-    
-    if (models.length > 0) {
-      // Merge discovered models with configured models
-      const existingModels = lmstudioProvider.models || {}
+      if (p.options?.baseURL) {
+        baseURL = normalizeBaseURL(p.options.baseURL)
+      } else {
+        continue
+      }
+
+      const apiKey = p.options?.apiKey
+
+      const isHealthy = await checkProviderHealth(baseURL, apiKey)
+      if (!isHealthy) {
+        // Provider offline - silent, this is normal for health checks
+        continue
+      }
+
+      let models: OpenAIModel[]
+      try {
+        models = await discoverModelsFromProvider(baseURL, apiKey)
+      } catch (error) {
+        continue
+      }
+
+      if (models.length === 0) {
+        continue
+      }
+
+      const existingModels = p.models || {}
       const discoveredModels: Record<string, any> = {}
       let chatModelsCount = 0
       let embeddingModelsCount = 0
 
       for (const model of models) {
-        // Use model ID as key directly for better readability, fallback to sanitized version
-        let modelKey = model.id
-        if (!/^[a-zA-Z0-9_-]+$/.test(modelKey)) {
-          modelKey = model.id.replace(/[^a-zA-Z0-9_-]/g, "_")
-        }
-        
-        // Only add if not already configured
-        if (!existingModels[modelKey] && !existingModels[model.id]) {
+        const modelKey = model.id
+
+        if (!existingModels[modelKey]) {
           const modelType = categorizeModel(model.id)
           const owner = extractModelOwner(model.id)
           const modelConfig: any = {
             id: model.id,
             name: formatModelName(model),
           }
-          
-          // Add owner if available
+
           if (owner) {
             modelConfig.organizationOwner = owner
           }
 
-          // Add additional metadata based on model type
           if (modelType === 'embedding') {
             embeddingModelsCount++
             modelConfig.modalities = {
@@ -107,50 +106,58 @@ export async function enhanceConfig(
         }
       }
 
-      // Merge discovered models into config
       if (Object.keys(discoveredModels).length > 0) {
-        if (!config.provider.lmstudio) {
-          return
-        }
-        
-        config.provider.lmstudio.models = {
+        p.models = {
           ...existingModels,
           ...discoveredModels,
         }
 
-        // Provide helpful guidance if no chat models are available
+        openAICompatibleProviders.push({
+          name: displayName,
+          baseURL,
+          models: discoveredModels
+        })
+
         if (chatModelsCount === 0 && embeddingModelsCount > 0) {
-          console.warn("[opencode-lmstudio] Only embedding models found. To use chat models:", {
-            steps: [
-              "1. Open LM Studio application",
-              "2. Download a chat model (e.g., llama-3.2-3b-instruct)",
-              "3. Load the model in LM Studio",
-              "4. Ensure server is running"
-            ]
-          })
+          // Provider only has embedding models
         }
       }
-    } else {
-      console.warn("[opencode-lmstudio] No models found in LM Studio. Please:", {
-        steps: [
-          "1. Open LM Studio application",
-          "2. Download and load a model",
-          "3. Start the server"
-        ]
-      })
     }
-    
-    // Warm up the cache with current model status
+
+    if (openAICompatibleProviders.length > 0) {
+      const totalModels = openAICompatibleProviders.reduce((sum, p) => sum + Object.keys(p.models).length, 0)
+      // Discovery complete - models are now available
+    }
+
+    if (Object.keys(providers).length === 0) {
+      const detected = await autoDetectOpenAICompatibleProvider()
+      if (detected) {
+        // Auto-detection found a provider, but no config exists
+      }
+    }
+
     try {
-      await modelStatusCache.getModels(baseURL, async () => {
-        return await discoverLMStudioModels(baseURL).then(models => models.map(m => m.id))
-      })
+      for (const [providerName, providerConfig] of Object.entries(providers)) {
+        const p = providerConfig as any
+        if (!canDiscoverModels(p) || !shouldDiscoverProvider(providerName, providerFilter)) {
+          continue
+        }
+        if (p.options?.baseURL) {
+          const baseURL = normalizeBaseURL(p.options.baseURL)
+          if (discoveryConfig.ttl) {
+            modelStatusCache.setTTL(baseURL, discoveryConfig.ttl)
+          }
+          if (!modelStatusCache.isValid(baseURL)) {
+            await modelStatusCache.getModels(baseURL, async () => {
+              return await discoverModelsFromProvider(baseURL).then(models => models.map(m => m.id))
+            })
+          }
+        }
+      }
     } catch (error) {
-      // Cache warming failed, but not critical
     }
   } catch (error) {
-    console.error("[opencode-lmstudio] Unexpected error in enhanceConfig:", error)
+    console.error("[opencode-model-discovery] Unexpected error in enhanceConfig:", error)
     toastNotifier.warning("Plugin configuration failed", "Configuration Error").catch(() => {})
   }
 }
-

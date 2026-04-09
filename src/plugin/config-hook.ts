@@ -2,64 +2,39 @@ import { ToastNotifier } from '../ui/toast-notifier'
 import { validateConfig } from '../utils/validation'
 import { enhanceConfig } from './enhance-config'
 import type { PluginInput } from '@opencode-ai/plugin'
+import type { PluginConfig } from '../types/plugin-config'
 
-export function createConfigHook(client: PluginInput['client'], toastNotifier: ToastNotifier) {
+export function createConfigHook(
+  client: PluginInput['client'],
+  toastNotifier: ToastNotifier,
+  pluginConfig: PluginConfig
+) {
   return async (config: any) => {
-    const initialModelCount = config?.provider?.lmstudio?.models ? Object.keys(config.provider.lmstudio.models).length : 0
-    
-    // Check if config is modifiable
     if (config && (Object.isFrozen?.(config) || Object.isSealed?.(config))) {
-      console.warn("[opencode-lmstudio] Config object is frozen/sealed - cannot modify directly")
+      console.warn("[opencode-model-discovery] Config object is frozen/sealed - cannot modify directly")
       return
     }
-    
+
     const validation = validateConfig(config)
     if (!validation.isValid) {
-      console.error("[opencode-lmstudio] Invalid config provided:", validation.errors)
-      // Don't await toast - don't block startup
+      console.error("[opencode-model-discovery] Invalid config provided:", validation.errors)
       toastNotifier.error("Plugin configuration is invalid", "Configuration Error").catch(() => {})
       return
     }
-    
+
     if (validation.warnings.length > 0) {
-      console.warn("[opencode-lmstudio] Config warnings:", validation.warnings)
+      console.warn("[opencode-model-discovery] Config warnings:", validation.warnings)
     }
-    
-    // Ensure provider exists and wait for initial model discovery
-    // We wait with a timeout to ensure models are loaded before OpenCode reads the config
-    if (!config.provider?.lmstudio) {
-      // Quick check - try default port first with timeout
-      try {
-        const response = await fetch("http://127.0.0.1:1234/v1/models", {
-          method: "GET",
-          signal: AbortSignal.timeout(1000), // 1 second timeout for quick check
-        })
-        
-        if (response.ok) {
-          if (!config.provider) config.provider = {}
-          if (!config.provider.lmstudio) {
-            config.provider.lmstudio = {
-              npm: "@ai-sdk/openai-compatible",
-              name: "LM Studio (local)",
-              options: {
-                baseURL: "http://127.0.0.1:1234/v1",
-              },
-              models: {},
-            }
-          }
-        }
-      } catch {
-        // Ignore - will be handled by full enhanceConfig
-      }
+
+    if (pluginConfig.discovery?.enabled === false) {
+      console.log("[opencode-model-discovery] Discovery disabled by configuration")
+      return
     }
-    
-    // Wait for initial model discovery with timeout (max 5 seconds)
-    // This ensures models are available when OpenCode reads the config
-    // We use Promise.race to avoid blocking too long, but we check if models were added
+
     const startTime = Date.now()
-    const discoveryPromise = enhanceConfig(config, client, toastNotifier)
-    const timeoutMs = 5000 // 5 second timeout
-    
+    const discoveryPromise = enhanceConfig(config, client, toastNotifier, pluginConfig)
+    const timeoutMs = 5000
+
     try {
       await Promise.race([
         discoveryPromise,
@@ -68,17 +43,7 @@ export function createConfigHook(client: PluginInput['client'], toastNotifier: T
         })
       ])
     } catch (error) {
-      console.error("[opencode-lmstudio] Config enhancement failed:", error)
-      console.error("[opencode-lmstudio:DEBUG] Error stack:", error instanceof Error ? error.stack : String(error))
-    }
-    
-    const finalModelCount = config.provider?.lmstudio?.models ? Object.keys(config.provider.lmstudio.models).length : 0
-    
-    if (finalModelCount === 0 && config.provider?.lmstudio) {
-      console.warn("[opencode-lmstudio] No models discovered - LM Studio might be offline")
-    } else if (finalModelCount > 0) {
-      console.log(`[opencode-lmstudio] Loaded ${finalModelCount} models`)
+      console.error("[opencode-model-discovery] Config enhancement failed:", error)
     }
   }
 }
-

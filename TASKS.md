@@ -1,388 +1,266 @@
-# LM Studio Plugin Enhancement Tasks
+# OpenCode Model Discovery Plugin - Tasks
 
-## Epic 1: Core Model Validation System
+## Vision
 
-### Phase 1: Fix chat.params Hook Implementation
+Transform this plugin into a **universal OpenAI-compatible model discovery system** that:
+- Scans ALL providers with OpenAI-compatible endpoints (regardless of npm package)
+- Automatically discovers available models via `/v1/models` endpoint
+- Injects unconfigured models into provider configurations
+- Works seamlessly with LM Studio, Ollama, LocalAI, and any OpenAI-compatible API
+- Supports providers using `@ai-sdk/anthropic` with OpenAI-compatible backends (e.g., Ollama Anthropic mode)
 
-#### Task 1.1: Implement chat.params Hook
-- **Goal**: Add real-time model validation before each request
-- **Description**: Implement the `chat.params` hook with correct TypeScript signature to validate that selected LM Studio models are actually loaded
-- **Files**: `src/index.ts`
+**Note**: This plugin focuses exclusively on **automatic model discovery**. It does NOT perform validation (e.g., checking if a model is loaded/available before making requests). Validation is the responsibility of the AI SDK or the underlying provider.
+
+---
+
+## Epic 1: Core Multi-Provider Discovery
+
+### Phase 1: Provider Detection & Classification
+
+#### Task 1.1: OpenAI-Compatible Provider Detection
+- **Goal**: Identify all OpenAI-compatible providers in config
+- **Detection Logic**:
+  1. Strict: `npm === "@ai-sdk/openai-compatible"`
+  2. URL-based: `baseURL` contains `/v1/` pattern (supports `@ai-sdk/anthropic` with OpenAI-compatible backends)
+  3. Combined: `canDiscoverModels()` returns true if either condition matches
 - **Changes**:
-  - Add `chat.params` hook implementation
-  - Use correct ProviderContext and Model types
-  - Integrate with existing `getLoadedModels()` function
-  - Add proper error handling and user guidance
+  - Add `hasOpenAICompatibleURL()` function
+  - Add `canDiscoverModels()` function combining both checks
+  - Support multiple providers simultaneously
+  - Handle mixed provider configurations (OpenAI, Anthropic, + OpenAI-compatible)
 - **Acceptance Criteria**:
   - TypeScript compilation passes
-  - Hook validates model availability before each request
-  - Provides helpful error messages when models aren't loaded
-  - Lists available models as suggestions
+  - Correctly identifies all OpenAI-compatible providers
+  - Skips non-compatible providers gracefully
+  - Supports `@ai-sdk/anthropic` with OpenAI-compatible URLs
 
-#### Task 1.2: Enhanced Error Handling in chat.params
-- **Goal**: Provide comprehensive error handling and recovery options
-- **Description**: Expand error handling to include model suggestions, auto-recovery attempts, and detailed troubleshooting
-- **Files**: `src/index.ts`
+#### Task 1.2: Provider Health Monitoring
+- **Goal**: Verify provider accessibility before model discovery
 - **Changes**:
-  - Add model similarity matching for suggestions
-  - Include step-by-step loading instructions
-  - Add retry logic for transient failures
-  - Implement smart error categorization
+  - Add health check for each provider's `/v1/models` endpoint
+  - Implement connection timeout handling
+  - Provide clear offline/online status reporting
 - **Acceptance Criteria**:
-  - Provides alternative model suggestions
-  - Includes clear step-by-step troubleshooting
-  - Handles temporary network issues gracefully
-  - Categorizes errors (not loaded, offline, etc.)
+  - Handles offline providers without blocking
+  - Reports provider status clearly in logs
 
-### Phase 2: Real-time Model Status Integration
+---
 
-#### Task 1.3: Model Status Caching
-- **Goal**: Cache model status to reduce API calls and improve responsiveness
-- **Description**: Implement in-memory caching of LM Studio model status with appropriate TTL
-- **Files**: `src/index.ts`
+## Epic 2: Dynamic Model Discovery & Injection
+
+### Phase 2: Model Discovery Engine
+
+#### Task 2.1: Multi-Provider Model Fetching
+- **Goal**: Query models from all accessible providers
 - **Changes**:
-  - Add ModelStatusCache class
-  - Implement TTL-based caching logic
+  - Iterate through all OpenAI-compatible providers
+  - Fetch models via `/v1/models` endpoint for each
+  - Handle partial failures (some providers offline)
+  - Aggregate discovery results
+- **Acceptance Criteria**:
+  - Discovers models from multiple providers
+  - Continues if one provider fails
+  - Reports discovery summary
+
+#### Task 2.2: Smart Model Injection
+- **Goal**: Add discovered models to provider configs without overwriting explicit config
+- **Changes**:
+  - Preserve explicitly configured models
+  - Merge only new/unconfigured models
+  - Apply smart model formatting (name, modalities, owner)
+  - Handle model key normalization
+- **Acceptance Criteria**:
+  - Doesn't overwrite user-defined model configs
+  - Correctly formats model metadata
+  - Handles special characters in model IDs
+
+#### Task 2.3: Model Categorization
+- **Goal**: Classify discovered models by type
+- **Changes**:
+  - Detect chat vs embedding models by ID patterns
+  - Set appropriate modalities
+  - Extract organization owner from model ID
+- **Acceptance Criteria**:
+  - Correctly categorizes chat/embedding models
+  - Sets modalities appropriately
+
+---
+
+## Epic 3: Enhanced Error Handling & UX
+
+### Phase 3: Error Recovery & User Guidance
+
+#### Task 3.1: Comprehensive Error Categorization
+- **Goal**: Provide actionable error messages for common issues
+- **Changes**:
+  - Categorize errors: offline, timeout, not_found, permission, network
+  - Generate step-by-step fix suggestions
+  - Provide provider-specific guidance
+- **Acceptance Criteria**:
+  - Errors are categorized correctly
+  - Users receive actionable fix suggestions
+
+#### Task 3.2: Retry Logic & Resilience
+- **Goal**: Handle transient failures gracefully
+- **Changes**:
+  - Implement exponential backoff retry
+  - Add max retry limits
+  - Provide fallback behavior
+- **Acceptance Criteria**:
+  - Retries transient failures
+  - Doesn't block startup on failures
+
+#### Task 3.3: Toast Notifications
+- **Goal**: Provide non-intrusive status updates
+- **Changes**:
+  - Success/failure toasts for model discovery
+  - Progress indicators during discovery
+  - Error notifications with suggestions
+- **Acceptance Criteria**:
+  - Shows appropriate toasts
+  - Handles missing toast API gracefully
+
+---
+
+## Epic 4: Caching & Performance
+
+### Phase 4: Intelligent Caching
+
+#### Task 4.1: Model Status Cache
+- **Goal**: Reduce API calls with intelligent caching
+- **Changes**:
+  - Implement TTL-based cache (15s default)
   - Cache invalidation on errors
-  - Add cache warming on startup
+  - Cache warming on startup
+  - Prevent memory leaks (max 50 entries)
 - **Acceptance Criteria**:
-  - Reduces API calls by >80% for repeated requests
-  - Cache expires appropriately (30s TTL)
-  - Handles cache misses gracefully
-  - Provides cache hit/miss metrics
+  - Reduces API calls significantly
+  - Cache expires appropriately
+  - Handles stale data gracefully
 
-#### Task 1.4: Model Loading State Monitoring
-- **Goal**: Track when models are being loaded and notify users
-- **Description**: Monitor LM Studio for model loading progress and provide real-time status updates
-- **Files**: `src/index.ts`
+#### Task 4.2: Cache Statistics & Debugging
+- **Goal**: Provide visibility into cache behavior
 - **Changes**:
-  - Add periodic model status polling
-  - Track loading progress indicators
-  - Implement loading state machine
-  - Add loading time estimation
+  - Expose cache stats (size, entries, age)
+  - Add cache invalidation methods
+  - Log cache operations
 - **Acceptance Criteria**:
-  - Detects when models start loading
-  - Provides loading progress feedback
-  - Estimates loading completion time
-  - Handles loading failures gracefully
+  - Can inspect cache state
+  - Provides hit/miss visibility
 
-## Epic 2: Enhanced Event Monitoring & User Experience
+---
 
-### Phase 3: Comprehensive Event Handling
+## Epic 5: Event Monitoring (Future)
 
-#### Task 2.1: Enhanced Event Hook Implementation
-- **Goal**: Expand event monitoring to provide better LM Studio integration
-- **Description**: Add comprehensive event handling for session status, errors, and usage tracking
-- **Files**: `src/index.ts`
+### Phase 6: Session & Provider Events
+
+#### Task 6.1: Event Hook Enhancement
+- **Goal**: Monitor session events for provider status
 - **Changes**:
-  - Expand `event` hook with session.status monitoring
-  - Add session.error handling with LM Studio-specific guidance
-  - Implement session.idle tracking for usage analytics
-  - Add message.updated tracking for model usage patterns
+  - Track session.created/updated events
+  - Log provider health during session
+  - Provide proactive alerts
 - **Acceptance Criteria**:
-  - Monitors session health and provides proactive alerts
-  - Catches LM Studio errors and suggests solutions
-  - Tracks which models are most frequently used
-  - Provides session usage statistics
+  - Monitors session health
+  - Doesn't block event processing
 
-#### Task 2.2: Proactive Error Recovery
-- **Goal**: Automatically detect and suggest fixes for common LM Studio issues
-- **Description**: Implement proactive error detection and automatic suggestion system
-- **Files**: `src/index.ts`
+---
+
+## Epic 7: Configuration & Extensibility
+
+### Phase 7: Plugin Configuration
+
+#### Task 7.1: Plugin Config Schema
+- **Goal**: Define configuration schema for plugin
 - **Changes**:
-  - Add offline detection and reconnection logic
-  - Implement model mismatch detection
-  - Add server health monitoring
-  - Create troubleshooting suggestion engine
+  - Define `PluginConfig` interface with providers and discovery sections
+  - Support tuple format: `["plugin-name", { config }]`
+  - Document configuration options
 - **Acceptance Criteria**:
-  - Detects when LM Studio goes offline
-  - Identifies model configuration mismatches
-  - Monitors server health endpoints
-  - Provides actionable troubleshooting steps
+  - Config schema is well-defined
+  - Supports OpenCode's tuple format
 
-#### Task 2.3: Usage Analytics & Optimization
-- **Goal**: Track usage patterns and suggest optimizations
-- **Description**: Implement usage tracking and provide optimization suggestions based on patterns
-- **Files**: `src/index.ts`
+#### Task 7.2: Provider Filtering
+- **Goal**: Allow filtering which providers to discover models for
 - **Changes**:
-  - Add model usage frequency tracking
-  - Track session duration and success rates
-  - Implement resource usage monitoring
-  - Create optimization suggestion engine
+  - Implement `providers.include` (whitelist)
+  - Implement `providers.exclude` (blacklist)
+  - Priority logic: `include` non-empty → ignore `exclude`
+  - Update `enhanceConfig()` to respect filters
 - **Acceptance Criteria**:
-  - Tracks model usage frequency
-  - Measures session success rates
-  - Monitors memory/CPU usage when available
-  - Suggests model optimizations based on usage
+  - Only discovers models for included providers (when include non-empty)
+  - Excludes work only when include is empty
+  - Logs which providers were filtered
 
-### Phase 4: User Feedback Integration
-
-#### Task 2.4: Enhanced Logging and Telemetry
-- **Goal**: Improve logging and add optional telemetry for better debugging
-- **Description**: Enhance logging system and add optional telemetry collection
-- **Files**: `src/index.ts`
+#### Task 7.3: Discovery Configuration
+- **Goal**: Allow configuring discovery behavior
 - **Changes**:
-  - Add structured logging with levels
-  - Implement optional telemetry collection
-  - Add performance metrics tracking
-  - Create debug information export
+  - `discovery.enabled` - toggle discovery on/off
+  - `discovery.ttl` - configure cache TTL (default 15000ms)
 - **Acceptance Criteria**:
-  - Provides clear, structured logs
-  - Optional telemetry respects privacy
-  - Tracks request/response times
-  - Can export debug information
+  - Discovery can be disabled entirely
+  - Cache TTL is configurable
 
-#### Task 2.5: Toast Notifications Integration
-- **Goal**: Show non-intrusive status updates via toast notifications
-- **Description**: Integrate with OpenCode's toast system for status updates
-- **Files**: `src/index.ts`
+#### Task 7.4: Plugin Configuration via OpenCode Options
+- **Goal**: Receive plugin config from OpenCode
+- **Status**: CONFIRMED WORKING
+- **Finding**: OpenCode passes plugin configuration via the `options` parameter (second argument to Plugin function)
+- **Plugin Signature**: `Plugin = (input: PluginInput, options?: PluginOptions) => Promise<Hooks>`
 - **Changes**:
-  - Add toast notification helpers
-  - Implement status change notifications
-  - Add success/failure toast handlers
-  - Create notification preference system
+  - Updated plugin to use `options` parameter directly
+  - Simplified config parsing since OpenCode passes config correctly
 - **Acceptance Criteria**:
-  - Shows model loading status via toasts
-  - Notifies of successful connections
-  - Provides error notifications with actions
-  - Respects user notification preferences
+  - Plugin correctly receives configuration from OpenCode options
+  - Tuple format `["plugin-name", { config }]` works correctly
 
-## Epic 3: LM Studio Management Tools
+---
 
-### Phase 5: Core Management Tools
+## Implementation Notes
 
-#### Task 3.1: Model Loading Tool
-- **Goal**: Allow users to load models directly from OpenCode
-- **Description**: Implement tool to trigger model loading in LM Studio
-- **Files**: `src/index.ts`
-- **Changes**:
-  - Add `lmstudio.load-model` tool definition
-  - Implement LM Studio API calls for model loading
-  - Add loading progress monitoring
-  - Create error handling for loading failures
-- **Acceptance Criteria**:
-  - Can load models via tool call
-  - Shows loading progress
-  - Handles loading failures gracefully
-  - Validates model availability before loading
+### Provider Detection Logic
+```typescript
+// Provider is OpenAI-compatible if:
+provider.npm === "@ai-sdk/openai-compatible"
+```
 
-#### Task 3.2: Model Management Tools
-- **Goal**: Provide comprehensive model management capabilities
-- **Description**: Add tools for listing, unloading, and switching models
-- **Files**: `src/index.ts`
-- **Changes**:
-  - Add `lmstudio.list-models` tool
-  - Add `lmstudio.unload-model` tool  
-  - Add `lmstudio.switch-model` tool
-  - Implement batch operations
-- **Acceptance Criteria**:
-  - Lists all available and loaded models
-  - Can unload unused models
-  - Switches between active models
-  - Supports batch operations
+### Supported Providers
+- LM Studio (ports: 1234, 8080, 11434)
+- Ollama (port: 11434)
+- LocalAI (port: 8080)
+- Any provider using `@ai-sdk/openai-compatible`
+- Any provider with OpenAI-compatible URL (baseURL contains `/v1/`)
+  - Including `@ai-sdk/anthropic` with OpenAI-compatible backends (e.g., Ollama Anthropic mode)
 
-#### Task 3.3: Server Management Tools
-- **Goal**: Allow control over LM Studio server from OpenCode
-- **Description**: Add tools to start, stop, and configure LM Studio server
-- **Files**: `src/index.ts`
-- **Changes**:
-  - Add `lmstudio.server-start` tool
-  - Add `lmstudio.server-stop` tool
-  - Add `lmstudio.server-status` tool
-  - Implement server configuration management
-- **Acceptance Criteria**:
-  - Can detect server status
-  - Provides server start/stop controls
-  - Manages server configuration
-  - Handles server errors gracefully
-
-### Phase 6: Advanced Management Features
-
-#### Task 3.4: Model Search and Discovery
-- **Goal**: Help users find and discover models more easily
-- **Description**: Add search and recommendation capabilities for models
-- **Files**: `src/index.ts`
-- **Changes**:
-  - Add `lmstudio.search-models` tool
-  - Implement model similarity matching
-  - Add model recommendation engine
-  - Create model comparison features
-- **Acceptance Criteria**:
-  - Searches available models by name/type
-  - Recommends models based on usage patterns
-  - Compares model specifications
-  - Suggests alternatives for unavailable models
-
-#### Task 3.5: Model Performance Analytics
-- **Goal**: Track and analyze model performance metrics
-- **Description**: Add performance tracking and analytics for models
-- **Files**: `src/index.ts`
-- **Changes**:
-  - Add performance metrics collection
-  - Implement model benchmarking
-  - Create performance comparison tools
-  - Add optimization recommendations
-- **Acceptance Criteria**:
-  - Tracks response times per model
-  - Measures token usage efficiency
-  - Compares performance across models
-  - Suggests performance optimizations
-
-## Epic 4: System Integration & Context
-
-### Phase 7: Context Enhancement
-
-#### Task 4.1: System Message Integration
-- **Goal**: Inject LM Studio context into system messages
-- **Description**: Use `experimental.chat.system.transform` to provide relevant context
-- **Files**: `src/index.ts`
-- **Changes**:
-  - Add system message transformation hook
-  - Inject model availability information
-  - Add usage context and suggestions
-  - Create dynamic context updates
-- **Acceptance Criteria**:
-  - Provides current model status in context
-  - Suggests available models automatically
-  - Updates context as models change
-  - Maintains context relevance
-
-#### Task 4.2: Message Transformation Integration
-- **Goal**: Transform messages for better LM Studio compatibility
-- **Description**: Use `experimental.chat.messages.transform` for message optimization
-- **Files**: `src/index.ts`
-- **Changes**:
-  - Add message transformation hook
-  - Optimize prompts for local models
-  - Add model-specific formatting
-  - Implement context window management
-- **Acceptance Criteria**:
-  - Optimizes prompts for local model constraints
-  - Manages context window effectively
-  - Adds model-specific formatting
-  - Maintains message intent
-
-### Phase 8: Advanced Features
-
-#### Task 4.3: Model Compaction Support
-- **Goal**: Enhance session compaction with model-specific context
-- **Description**: Improve `experimental.session.compacting` with LM Studio context
-- **Files**: `src/index.ts`
-- **Changes**:
-  - Add compaction context injection
-  - Include model behavior patterns
-  - Add model switching history
-  - Create model-specific summaries
-- **Acceptance Criteria**:
-  - Preserves model-specific context
-  - Tracks model switching patterns
-  - Maintains conversation relevance
-  - Optimizes compaction for local models
-
-#### Task 4.4: Text Completion Integration
-- **Goal**: Provide text completion capabilities
-- **Description**: Use `experimental.text.complete` for enhanced text completion
-- **Files**: `src/index.ts`
-- **Changes**:
-  - Add text completion hook
-  - Implement model-aware completions
-  - Add context-aware suggestions
-  - Create completion quality scoring
-- **Acceptance Criteria**:
-  - Provides model-appropriate completions
-  - Maintains context relevance
-  - Suggests based on available models
-  - Ranks completion quality
-
-## Epic 5: Configuration & Customization
-
-### Phase 9: Advanced Configuration
-
-#### Task 5.1: Configuration Schema Enhancement
-- **Goal**: Add comprehensive configuration options
-- **Description**: Extend configuration system with advanced options
-- **Files**: `src/index.ts`
-- **Changes**:
-  - Add configuration validation schema
-  - Implement advanced configuration options
-  - Add configuration presets
-  - Create configuration migration system
-- **Acceptance Criteria**:
-  - Validates configuration on load
-  - Provides sensible defaults
-  - Supports multiple configuration profiles
-  - Migrates old configurations
-
-#### Task 5.2: Preference Management
-- **Goal**: Allow users to customize plugin behavior
-- **Description**: Add preference system for customization
-- **Files**: `src/index.ts`
-- **Changes**:
-  - Add user preference storage
-  - Implement preference UI hooks
-  - Create preference validation
-  - Add preference import/export
-- **Acceptance Criteria**:
-  - Stores user preferences persistently
-  - Validates preference values
-  - Imports/exports preferences
-  - Provides preference documentation
-
-### Phase 10: Enterprise Features
-
-#### Task 5.3: Multi-Instance Support
-- **Goal**: Support multiple LM Studio instances
-- **Description**: Add support for managing multiple LM Studio instances
-- **Files**: `src/index.ts`
-- **Changes**:
-  - Add multi-instance detection
-  - Implement instance switching
-  - Add load balancing capabilities
-  - Create instance health monitoring
-- **Acceptance Criteria**:
-  - Detects multiple LM Studio instances
-  - Switches between instances seamlessly
-  - Balances load across instances
-  - Monitors all instance health
-
-#### Task 5.4: Team Collaboration Features
-- **Goal**: Enable team collaboration with shared models
-- **Description**: Add features for team-based LM Studio usage
-- **Files**: `src/index.ts`
-- **Changes**:
-  - Add team model sharing
-  - Implement synchronized loading
-  - Add usage analytics for teams
-  - Create team preference system
-- **Acceptance Criteria**:
-  - Shares model availability across team
-  - Synchronizes model loading state
-  - Tracks team usage patterns
-  - Manages team-level preferences
-
-## Implementation Guidelines
-
-### Pull Request Structure
-- Each task should be a separate PR
-- PRs should be stackable and independent
-- Include comprehensive tests
-- Update documentation as needed
-- Follow conventional commit messages
+### Model Discovery Flow
+1. Iterate all providers in config
+2. Filter using `canDiscoverModels()` (strict npm OR URL-based)
+3. Check health via `/v1/models`
+4. Fetch available models
+5. Merge into config (preserve existing)
+6. Warm cache
 
 ### Testing Strategy
-- Unit tests for all new functions
-- Integration tests for hooks
-- End-to-end tests for user workflows
-- Performance tests for caching
+- Unit tests for provider detection
+- Integration tests for discovery flow
+- Mock tests for error scenarios
+- Multi-provider scenarios
 
-### Documentation Requirements
-- Update README.md with new features
-- Add inline code documentation
-- Create usage examples
-- Document configuration options
+---
 
-### Code Quality Standards
-- TypeScript strict mode compliance
-- ESLint rules passing
-- Code coverage >80%
-- Consistent error handling patterns
+## Out of Scope (for this iteration)
+
+The following items are **not planned** for this plugin:
+
+- **Validation**: This plugin focuses on automatic model discovery only. Validation (checking if a model is loaded/available) is handled by the AI SDK or provider.
+- LM Studio-specific management tools (load/unload/switch models)
+- Server start/stop controls
+- Model search tools
+- Performance analytics
+- System message transformation hooks
+- Session compaction hooks
+- Text completion hooks
+- Multi-instance support
+- Team collaboration features
+- Telemetry collection
+
+These could be revisited in future iterations if there's demand.

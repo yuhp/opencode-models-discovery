@@ -1,8 +1,8 @@
 {
   "$schema": "https://json.schemastore.org/package.json",
-  "name": "opencode-lmstudio",
-  "version": "0.3.0",
-  "description": "OpenCode plugin for enhanced LM Studio support with auto-detection and dynamic model discovery",
+  "name": "opencode-model-discovery",
+  "version": "0.4.9",
+  "description": "OpenCode plugin for auto-discovery of OpenAI-compatible models with dynamic provider configuration",
   "type": "module",
   "main": "./src/index.ts",
   "exports": {
@@ -27,20 +27,27 @@
   },
   "keywords": [
     "opencode",
-    "lmstudio",
-    "lm-studio",
+    "openai-compatible",
+    "model-discovery",
     "plugin",
     "local-llm",
-    "openai-compatible"
+    "ollama",
+    "lmstudio",
+    "lm-studio",
+    "localai"
   ],
   "author": "",
   "license": "MIT",
+  "engines": {
+    "opencode": ">=1.4.0"
+  },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/agustif/opencode-lmstudio.git"
+    "url": "git+https://github.com/yuhp/opencode-models-discovery.git"
   },
   "dependencies": {
-    "@opencode-ai/plugin": "^1.0.166"
+    "@opencode-ai/plugin": "^1.0.166",
+    "opencode-model-discovery": "^0.4.0"
   },
   "devDependencies": {
     "@types/node": "^25.0.3",

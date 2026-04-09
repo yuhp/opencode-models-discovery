@@ -5,7 +5,7 @@ export function createEventHook() {
     // Validate event input
     const validation = validateHookInput('event', { event })
     if (!validation.isValid) {
-      console.error("[opencode-lmstudio] Invalid event input:", validation.errors)
+      console.error("[opencode-model-discovery] Invalid event input:", validation.errors)
       return
     }
     

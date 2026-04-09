@@ -1,14 +1,13 @@
-// Core types for LM Studio plugin
-export interface LMStudioModel {
+export interface OpenAIModel {
   id: string
   object: string
   created: number
   owned_by: string
 }
 
-export interface LMStudioModelsResponse {
+export interface OpenAIModelsResponse {
   object: string
-  data: LMStudioModel[]
+  data: OpenAIModel[]
 }
 
 export type ModelType = 'chat' | 'embedding' | 'unknown'
@@ -54,7 +53,7 @@ export interface CacheStats {
   }>
 }
 
-export interface LMStudioValidationResult {
+export interface ModelValidationResult {
   status: 'success' | 'error'
   model: string
   availableModels: string[]
@@ -77,3 +76,7 @@ export interface LMStudioValidationResult {
   }
   performanceHint?: string
 }
+
+export type LMStudioModel = OpenAIModel
+export type LMStudioModelsResponse = OpenAIModelsResponse
+export type LMStudioValidationResult = ModelValidationResult
