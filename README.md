@@ -69,6 +69,10 @@ The plugin configuration is placed in the `plugin` array using tuple format `["p
         "include": [],
         "exclude": []
       },
+      "models": {
+        "includeRegex": [],
+        "excludeRegex": []
+      },
       "discovery": {
         "enabled": true,
         "ttl": 15000
@@ -94,6 +98,30 @@ Control which providers are discovered:
       "providers": {
         "include": ["ollama"],
         "exclude": ["lmstudio"]
+      }
+    }]
+  ]
+}
+```
+
+#### Model Filtering
+
+Control which discovered models are auto-injected with regular expressions:
+
+| Option | Type | Description |
+|--------|------|-------------|
+| `models.includeRegex` | `string[]` | If non-empty, only discovered model IDs matching at least one regex will be added |
+| `models.excludeRegex` | `string[]` | Discovered model IDs matching any regex will be skipped (only used when `includeRegex` is empty) |
+
+Regex filtering only applies to auto-discovered models. Models already explicitly configured by the user are preserved.
+
+```json
+{
+  "plugin": [
+    ["opencode-models-discovery", {
+      "models": {
+        "includeRegex": ["^qwen/", "gpt-4"],
+        "excludeRegex": ["embedding", "test"]
       }
     }]
   ]

@@ -362,6 +362,152 @@ describe('ModelDiscovery Plugin', () => {
 
       expect(config.provider?.ollama?.models).toEqual({})
     })
+
+    it('should only discover models matching includeRegex', async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          data: [
+            { id: 'qwen/qwen3-30b-a3b', object: 'model', created: 1234567890, owned_by: 'local' },
+            { id: 'bge-m3', object: 'model', created: 1234567890, owned_by: 'local' }
+          ]
+        })
+      })
+
+      const mockInput: any = {
+        client: mockClient,
+        project: {
+          id: 'test-project',
+          name: 'test',
+          path: '/tmp',
+          worktree: '',
+          time: { created: Date.now() }
+        },
+        directory: '/tmp',
+        worktree: '',
+        $: vi.fn()
+      }
+
+      const hooksWithConfig = await ModelDiscoveryPlugin(mockInput, {
+        models: {
+          includeRegex: ['^qwen/']
+        }
+      })
+
+      const config: any = {
+        provider: {
+          ollama: {
+            npm: '@ai-sdk/openai-compatible',
+            name: 'Ollama',
+            options: { baseURL: 'http://127.0.0.1:11434/v1' },
+            models: {}
+          }
+        }
+      }
+
+      await hooksWithConfig.config(config)
+
+      expect(config.provider.ollama.models['qwen/qwen3-30b-a3b']).toBeDefined()
+      expect(config.provider.ollama.models['bge-m3']).toBeUndefined()
+    })
+
+    it('should skip models matching excludeRegex', async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          data: [
+            { id: 'qwen/qwen3-30b-a3b', object: 'model', created: 1234567890, owned_by: 'local' },
+            { id: 'bge-m3', object: 'model', created: 1234567890, owned_by: 'local' }
+          ]
+        })
+      })
+
+      const mockInput: any = {
+        client: mockClient,
+        project: {
+          id: 'test-project',
+          name: 'test',
+          path: '/tmp',
+          worktree: '',
+          time: { created: Date.now() }
+        },
+        directory: '/tmp',
+        worktree: '',
+        $: vi.fn()
+      }
+
+      const hooksWithConfig = await ModelDiscoveryPlugin(mockInput, {
+        models: {
+          excludeRegex: ['^bge-']
+        }
+      })
+
+      const config: any = {
+        provider: {
+          ollama: {
+            npm: '@ai-sdk/openai-compatible',
+            name: 'Ollama',
+            options: { baseURL: 'http://127.0.0.1:11434/v1' },
+            models: {}
+          }
+        }
+      }
+
+      await hooksWithConfig.config(config)
+
+      expect(config.provider.ollama.models['qwen/qwen3-30b-a3b']).toBeDefined()
+      expect(config.provider.ollama.models['bge-m3']).toBeUndefined()
+    })
+
+    it('should preserve explicitly configured models even when regex would filter them out', async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          data: [
+            { id: 'keep-me', object: 'model', created: 1234567890, owned_by: 'local' },
+            { id: 'discover-me', object: 'model', created: 1234567890, owned_by: 'local' }
+          ]
+        })
+      })
+
+      const mockInput: any = {
+        client: mockClient,
+        project: {
+          id: 'test-project',
+          name: 'test',
+          path: '/tmp',
+          worktree: '',
+          time: { created: Date.now() }
+        },
+        directory: '/tmp',
+        worktree: '',
+        $: vi.fn()
+      }
+
+      const hooksWithConfig = await ModelDiscoveryPlugin(mockInput, {
+        models: {
+          includeRegex: ['^discover-']
+        }
+      })
+
+      const config: any = {
+        provider: {
+          ollama: {
+            npm: '@ai-sdk/openai-compatible',
+            name: 'Ollama',
+            options: { baseURL: 'http://127.0.0.1:11434/v1' },
+            models: {
+              'keep-me': { name: 'Keep Me' }
+            }
+          }
+        }
+      }
+
+      await hooksWithConfig.config(config)
+
+      expect(config.provider.ollama.models['keep-me']).toEqual({ name: 'Keep Me' })
+      expect(config.provider.ollama.models['discover-me']).toBeDefined()
+    })
   })
 
   describe('Event Hook', () => {

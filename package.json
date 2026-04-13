@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/package.json",
   "name": "opencode-models-discovery",
-  "version": "0.4.9",
+  "version": "0.5.0",
   "description": "OpenCode plugin for auto-discovery of OpenAI-compatible models with dynamic provider configuration",
   "type": "module",
   "main": "./src/index.ts",

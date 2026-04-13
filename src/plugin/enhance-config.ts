@@ -2,7 +2,7 @@ import { ModelStatusCache } from '../cache/model-status-cache'
 import { ToastNotifier } from '../ui/toast-notifier'
 import { categorizeModel, formatModelName, extractModelOwner } from '../utils'
 import { normalizeBaseURL, checkProviderHealth, discoverModelsFromProvider, autoDetectOpenAICompatibleProvider, canDiscoverModels } from '../utils/openai-compatible-api'
-import { getProviderFilter, getDiscoveryConfig, shouldDiscoverProvider } from '../types/plugin-config'
+import { getProviderFilter, getDiscoveryConfig, getModelRegexFilter, shouldDiscoverModel, shouldDiscoverProvider } from '../types/plugin-config'
 import type { PluginInput } from '@opencode-ai/plugin'
 import type { OpenAIModel } from '../types'
 import type { PluginConfig } from '../types/plugin-config'
@@ -27,6 +27,7 @@ export async function enhanceConfig(
     const providers = config.provider || {}
     const openAICompatibleProviders: DiscoveredProvider[] = []
     const providerFilter = getProviderFilter(pluginConfig)
+    const modelRegexFilter = getModelRegexFilter(pluginConfig)
     const discoveryConfig = getDiscoveryConfig(pluginConfig)
 
     for (const [providerName, providerConfig] of Object.entries(providers)) {
@@ -77,6 +78,10 @@ export async function enhanceConfig(
         const modelKey = model.id
 
         if (!existingModels[modelKey]) {
+          if (!shouldDiscoverModel(model.id, modelRegexFilter)) {
+            continue
+          }
+
           const modelType = categorizeModel(model.id)
           const owner = extractModelOwner(model.id)
           const modelConfig: any = {
