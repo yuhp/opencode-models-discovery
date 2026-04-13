@@ -40,16 +40,9 @@ jobs:
       
       - name: Install dependencies
         run: bun install
-      
-      - name: Configure npm for publishing
-        run: |
-          echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" >> ~/.npmrc
-        env:
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-      
+
       - name: Run release script
         run: bun scripts/release.ts ${{ inputs.version_type }}
         env:
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
+          NPM_CONFIG_PROVENANCE: true
