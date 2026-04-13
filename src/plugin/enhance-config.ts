@@ -3,6 +3,7 @@ import { ToastNotifier } from '../ui/toast-notifier'
 import { categorizeModel, formatModelName, extractModelOwner } from '../utils'
 import { normalizeBaseURL, checkProviderHealth, discoverModelsFromProvider, autoDetectOpenAICompatibleProvider, canDiscoverModels } from '../utils/openai-compatible-api'
 import { getProviderFilter, getDiscoveryConfig, getModelRegexFilter, shouldDiscoverModel, shouldDiscoverProvider } from '../types/plugin-config'
+import type { PluginLogger } from './logger'
 import type { PluginInput } from '@opencode-ai/plugin'
 import type { OpenAIModel } from '../types'
 import type { PluginConfig } from '../types/plugin-config'
@@ -19,7 +20,8 @@ export async function enhanceConfig(
   config: any,
   client: PluginInput['client'],
   toastNotifier: ToastNotifier,
-  pluginConfig: PluginConfig
+  pluginConfig: PluginConfig,
+  logger: PluginLogger
 ): Promise<void> {
   modelStatusCache.invalidateAll()
   
@@ -27,7 +29,7 @@ export async function enhanceConfig(
     const providers = config.provider || {}
     const openAICompatibleProviders: DiscoveredProvider[] = []
     const providerFilter = getProviderFilter(pluginConfig)
-    const modelRegexFilter = getModelRegexFilter(pluginConfig)
+    const modelRegexFilter = getModelRegexFilter(pluginConfig, logger.child({ category: 'filtering' }))
     const discoveryConfig = getDiscoveryConfig(pluginConfig)
 
     for (const [providerName, providerConfig] of Object.entries(providers)) {
@@ -62,6 +64,11 @@ export async function enhanceConfig(
       try {
         models = await discoverModelsFromProvider(baseURL, apiKey)
       } catch (error) {
+        logger.warn('Provider model discovery failed', {
+          provider: providerName,
+          baseURL,
+          error: error instanceof Error ? error.message : String(error),
+        })
         continue
       }
 
@@ -131,13 +138,19 @@ export async function enhanceConfig(
 
     if (openAICompatibleProviders.length > 0) {
       const totalModels = openAICompatibleProviders.reduce((sum, p) => sum + Object.keys(p.models).length, 0)
-      // Discovery complete - models are now available
+      logger.info('Provider model discovery completed', {
+        providerCount: openAICompatibleProviders.length,
+        modelCount: totalModels,
+      })
     }
 
     if (Object.keys(providers).length === 0) {
       const detected = await autoDetectOpenAICompatibleProvider()
       if (detected) {
-        // Auto-detection found a provider, but no config exists
+        logger.info('Detected OpenAI-compatible provider but found no configured providers', {
+          provider: detected.name,
+          baseURL: detected.baseURL,
+        })
       }
     }
 
@@ -160,9 +173,14 @@ export async function enhanceConfig(
         }
       }
     } catch (error) {
+      logger.warn('Model status cache refresh failed', {
+        error: error instanceof Error ? error.message : String(error),
+      })
     }
   } catch (error) {
-    console.error("[opencode-model-discovery] Unexpected error in enhanceConfig:", error)
+    logger.error('Unexpected error in enhanceConfig', {
+      error: error instanceof Error ? error.message : String(error),
+    })
     toastNotifier.warning("Plugin configuration failed", "Configuration Error").catch(() => {})
   }
 }

@@ -1,18 +1,16 @@
 import { validateHookInput } from '../utils/validation'
+import type { PluginLogger } from './logger'
 
-export function createEventHook() {
+export function createEventHook(logger: PluginLogger) {
   return async ({ event }: { event: any }) => {
-    // Validate event input
     const validation = validateHookInput('event', { event })
     if (!validation.isValid) {
-      console.error("[opencode-model-discovery] Invalid event input:", validation.errors)
+      logger.error('Invalid event input', { errors: validation.errors })
       return
     }
     
-    // Monitor for session events to provide LM Studio status
     if (event.type === "session.created" || event.type === "session.updated") {
-      // Could add health check monitoring here in the future
+      // Reserved for future session-aware discovery diagnostics.
     }
   }
 }
-

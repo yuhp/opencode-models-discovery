@@ -234,6 +234,12 @@ This means providers using `@ai-sdk/anthropic` with OpenAI-compatible backends (
 - At least one OpenAI-compatible provider running locally or remotely
 - Provider server API accessible (e.g., `http://127.0.0.1:11434/v1`)
 
+## Logging
+
+When available, the plugin writes logs through OpenCode's structured server log API via `client.app.log(...)` using the service name `opencode-model-discovery`.
+
+If structured logging is unavailable in the runtime, the plugin falls back to prefixed `console.*` output. Key log categories are emitted through metadata such as `plugin`, `config`, `discovery`, `event`, and `filtering` to make local debugging easier with `opencode --print-logs`.
+
 ## License
 
 MIT

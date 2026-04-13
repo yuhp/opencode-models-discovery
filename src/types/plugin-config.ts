@@ -57,19 +57,23 @@ export function getDiscoveryConfig(config: PluginConfig): DiscoveryConfig {
   }
 }
 
-function toRegExp(pattern: string): RegExp | null {
+function toRegExp(pattern: string, logger?: PluginLogger): RegExp | null {
   try {
     return new RegExp(pattern)
   } catch {
-    console.warn(`[opencode-model-discovery] Ignoring invalid model regex: ${pattern}`)
+    if (logger) {
+      logger.warn('Ignoring invalid model regex', { category: 'filtering', pattern })
+    } else {
+      console.warn(`[opencode-model-discovery] Ignoring invalid model regex: ${pattern}`)
+    }
     return null
   }
 }
 
-export function getModelRegexFilter(config: PluginConfig): ModelRegexFilter {
+export function getModelRegexFilter(config: PluginConfig, logger?: PluginLogger): ModelRegexFilter {
   return {
-    includeRegex: (config.models?.includeRegex || []).map(toRegExp).filter((pattern): pattern is RegExp => pattern !== null),
-    excludeRegex: (config.models?.excludeRegex || []).map(toRegExp).filter((pattern): pattern is RegExp => pattern !== null),
+    includeRegex: (config.models?.includeRegex || []).map((pattern) => toRegExp(pattern, logger)).filter((pattern): pattern is RegExp => pattern !== null),
+    excludeRegex: (config.models?.excludeRegex || []).map((pattern) => toRegExp(pattern, logger)).filter((pattern): pattern is RegExp => pattern !== null),
   }
 }
 
@@ -106,3 +110,4 @@ export function parsePluginConfig(rawConfig: any): PluginConfig {
 
   return {}
 }
+import type { PluginLogger } from '../plugin/logger'

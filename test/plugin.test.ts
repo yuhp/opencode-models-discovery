@@ -20,6 +20,9 @@ describe('ModelDiscovery Plugin', () => {
     mockFetch.mockClear()
 
     mockClient = {
+      app: {
+        log: vi.fn().mockResolvedValue(true)
+      },
       tui: {
         showToast: vi.fn().mockResolvedValue(true)
       }
@@ -90,7 +93,7 @@ describe('ModelDiscovery Plugin', () => {
       expect(hooks.config).toBeTypeOf('function')
       expect(hooks.event).toBeTypeOf('function')
       expect(hooks['chat.params']).toBeTypeOf('function')
-      expect(consoleSpy).toHaveBeenCalledWith('[opencode-model-discovery] Invalid client provided to plugin')
+      expect(consoleSpy).toHaveBeenCalledWith('[opencode-models-discovery] Invalid client provided to plugin', { category: 'plugin' })
 
       consoleSpy.mockRestore()
     })
@@ -98,21 +101,23 @@ describe('ModelDiscovery Plugin', () => {
 
   describe('Config Hook', () => {
     it('should validate config and reject invalid configurations', async () => {
-      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
-
       await pluginHooks.config(null)
-      expect(consoleSpy).toHaveBeenCalledWith('[opencode-model-discovery] Invalid config provided:', expect.arrayContaining(['Config must be an object']))
-
-      consoleSpy.mockRestore()
+      expect(mockClient.app.log).toHaveBeenLastCalledWith(expect.objectContaining({
+        body: expect.objectContaining({
+          service: 'opencode-models-discovery',
+          level: 'error',
+          message: 'Invalid config provided',
+          extra: expect.objectContaining({
+            category: 'config',
+            errors: expect.arrayContaining(['Config must be an object'])
+          })
+        })
+      }))
     })
 
     it('should handle empty config gracefully', async () => {
-      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
-
       await pluginHooks.config({})
       expect(true).toBe(true)
-
-      consoleSpy.mockRestore()
     })
 
     it('should discover models for OpenAI-compatible providers', async () => {
@@ -512,12 +517,18 @@ describe('ModelDiscovery Plugin', () => {
 
   describe('Event Hook', () => {
     it('should validate event input', async () => {
-      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
-
       await pluginHooks.event({ event: null })
-      expect(consoleSpy).toHaveBeenCalledWith('[opencode-model-discovery] Invalid event input:', expect.arrayContaining(['event: event is required and must be an object']))
-
-      consoleSpy.mockRestore()
+      expect(mockClient.app.log).toHaveBeenLastCalledWith(expect.objectContaining({
+        body: expect.objectContaining({
+          service: 'opencode-models-discovery',
+          level: 'error',
+          message: 'Invalid event input',
+          extra: expect.objectContaining({
+            category: 'event',
+            errors: expect.arrayContaining(['event: event is required and must be an object'])
+          })
+        })
+      }))
     })
 
     it('should handle session events gracefully', async () => {
