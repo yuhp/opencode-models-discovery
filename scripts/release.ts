@@ -21,6 +21,23 @@ function getCurrentVersion(): string {
   return pkg.version
 }
 
+function getPackageInfo(): { name: string; repositorySlug: string } {
+  const pkg = JSON.parse(readFileSync('package.json', 'utf-8'))
+  const repositoryUrl = pkg.repository?.url as string | undefined
+
+  const repositorySlug = repositoryUrl
+    ? repositoryUrl
+        .replace(/^git\+https:\/\/github\.com\//, '')
+        .replace(/^https:\/\/github\.com\//, '')
+        .replace(/\.git$/, '')
+    : 'yuhp/opencode-models-discovery'
+
+  return {
+    name: pkg.name,
+    repositorySlug,
+  }
+}
+
 function bumpVersion(currentVersion: string, type: VersionType | string): string {
   if (!VERSION_TYPES.includes(type as VersionType) && !/^\d+\.\d+\.\d+$/.test(type)) {
     throw new Error(`Invalid version type: ${type}. Use 'patch', 'minor', 'major', or a specific version like '0.2.0'`)
@@ -64,6 +81,8 @@ function runCommand(cmd: string, description: string): void {
 }
 
 function generateReleaseNotes(version: string): string {
+  const { name } = getPackageInfo()
+
   // Get recent commits for changelog
   const commits = execSync('git log --oneline -20', { encoding: 'utf-8' })
     .split('\n')
@@ -81,9 +100,9 @@ ${commits}
 ### Installation
 
 \`\`\`bash
-npm install opencode-lmstudio@${version}
+npm install ${name}@${version}
 # or
-bun add opencode-lmstudio@${version}
+bun add ${name}@${version}
 \`\`\`
 
 ### Features
@@ -100,6 +119,7 @@ bun add opencode-lmstudio@${version}
 }
 
 async function main() {
+  const { name, repositorySlug } = getPackageInfo()
   const versionType = process.argv[2]
   
   if (!versionType) {
@@ -143,7 +163,7 @@ async function main() {
   
   try {
     execSync(`gh release create ${tagName} --title "v${newVersion}" --notes-file ${notesFile}`, { stdio: 'inherit' })
-    console.log(`✓ GitHub release created: https://github.com/agustif/opencode-lmstudio/releases/tag/${tagName}`)
+    console.log(`✓ GitHub release created: https://github.com/${repositorySlug}/releases/tag/${tagName}`)
   } catch (error) {
     console.warn('⚠️  GitHub release creation failed (may already exist)')
   }
@@ -154,8 +174,8 @@ async function main() {
   
   try {
     runCommand('npm publish', 'Publishing to npm')
-    console.log(`\n✅ Successfully published opencode-lmstudio@${newVersion} to npm!`)
-    console.log(`   https://www.npmjs.com/package/opencode-lmstudio`)
+    console.log(`\n✅ Successfully published ${name}@${newVersion} to npm!`)
+    console.log(`   https://www.npmjs.com/package/${name}`)
     npmPublished = true
   } catch (error) {
     console.error('\n⚠️  npm publish failed. Common reasons:')
@@ -174,12 +194,12 @@ async function main() {
   if (npmPublished) {
     console.log(`\n🎉 Release ${newVersion} completed successfully!`)
     console.log(`   - Git tag: ${tagName}`)
-    console.log(`   - GitHub: https://github.com/agustif/opencode-lmstudio/releases/tag/${tagName}`)
-    console.log(`   - npm: https://www.npmjs.com/package/opencode-lmstudio`)
+    console.log(`   - GitHub: https://github.com/${repositorySlug}/releases/tag/${tagName}`)
+    console.log(`   - npm: https://www.npmjs.com/package/${name}`)
   } else {
     console.log(`\n✅ Release ${newVersion} partially completed!`)
     console.log(`   - Git tag: ${tagName} ✓`)
-    console.log(`   - GitHub: https://github.com/agustif/opencode-lmstudio/releases/tag/${tagName} ✓`)
+    console.log(`   - GitHub: https://github.com/${repositorySlug}/releases/tag/${tagName} ✓`)
     console.log(`   - npm: Manual publish required (see instructions above)`)
   }
 }
