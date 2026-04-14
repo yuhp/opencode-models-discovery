@@ -93,7 +93,7 @@ export async function enhanceConfig(
           const owner = extractModelOwner(model.id)
           const modelConfig: any = {
             id: model.id,
-            name: formatModelName(model),
+            name: pluginConfig.smartModelName ? formatModelName(model) : model.id,
           }
 
           if (owner) {

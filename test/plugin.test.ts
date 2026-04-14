@@ -180,9 +180,87 @@ describe('ModelDiscovery Plugin', () => {
         'existing-model': { name: 'Existing Model' },
         'new-model': expect.objectContaining({
           id: 'new-model',
-          name: 'New Model'
+          name: 'new-model'
         })
       })
+    })
+
+    it('should keep raw model ids by default', async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          data: [
+            { id: 'qwen/qwen3-30b-a3b', object: 'model', created: 1234567890, owned_by: 'local' }
+          ]
+        })
+      })
+
+      const config: any = {
+        provider: {
+          ollama: {
+            npm: '@ai-sdk/openai-compatible',
+            name: 'Ollama',
+            options: { baseURL: 'http://127.0.0.1:11434/v1' },
+            models: {}
+          }
+        }
+      }
+
+      await pluginHooks.config(config)
+
+      expect(config.provider.ollama.models['qwen/qwen3-30b-a3b']).toEqual(
+        expect.objectContaining({
+          id: 'qwen/qwen3-30b-a3b',
+          name: 'qwen/qwen3-30b-a3b'
+        })
+      )
+    })
+
+    it('should apply smart formatting when enabled', async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          data: [
+            { id: 'qwen/qwen3-30b-a3b', object: 'model', created: 1234567890, owned_by: 'local' }
+          ]
+        })
+      })
+
+      const hooksWithConfig = await ModelDiscoveryPlugin({
+        client: mockClient,
+        project: {
+          id: 'test-project',
+          name: 'test',
+          path: '/tmp',
+          worktree: '',
+          time: { created: Date.now() }
+        },
+        directory: '/tmp',
+        worktree: '',
+        $: vi.fn()
+      }, {
+        smartModelName: true
+      })
+
+      const config: any = {
+        provider: {
+          ollama: {
+            npm: '@ai-sdk/openai-compatible',
+            name: 'Ollama',
+            options: { baseURL: 'http://127.0.0.1:11434/v1' },
+            models: {}
+          }
+        }
+      }
+
+      await hooksWithConfig.config(config)
+
+      expect(config.provider.ollama.models['qwen/qwen3-30b-a3b']).toEqual(
+        expect.objectContaining({
+          id: 'qwen/qwen3-30b-a3b',
+          name: 'Qwen3 30B A3B'
+        })
+      )
     })
 
     it('should handle provider offline gracefully', async () => {

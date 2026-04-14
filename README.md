@@ -12,7 +12,7 @@ OpenCode plugin for auto-discovery of OpenAI-compatible models with dynamic prov
 - **Multi-Provider Support**: Works with any OpenAI-compatible provider (LM Studio, Ollama, LocalAI, etc.)
 - **Dynamic Model Discovery**: Queries provider's `/v1/models` endpoint to discover available models
 - **Auto-Injection**: Automatically adds unconfigured models to provider configuration
-- **Smart Model Formatting**: Automatically formats model names for better readability (e.g., "Qwen3 30B A3B" instead of "qwen/qwen3-30b-a3b")
+- **Smart Model Formatting**: Optional formatting for better readability when explicitly enabled
 - **Organization Owner Extraction**: Extracts and sets `organizationOwner` field from model IDs
 - **Health Check Monitoring**: Verifies providers are accessible before attempting operations
 - **Model Merging**: Intelligently merges discovered models with existing configuration
@@ -76,11 +76,14 @@ The plugin configuration is placed in the `plugin` array using tuple format `["p
       "discovery": {
         "enabled": true,
         "ttl": 15000
-      }
+      },
+      "smartModelName": false
     }]
   ]
 }
 ```
+
+Set `smartModelName` to `true` if you want discovered models to use human-friendly display names instead of the raw `model_id`.
 
 #### Provider Filtering
 

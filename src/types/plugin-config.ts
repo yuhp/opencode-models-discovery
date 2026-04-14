@@ -11,6 +11,7 @@ export interface PluginConfig {
     enabled?: boolean
     ttl?: number
   }
+  smartModelName?: boolean
 }
 
 export interface ProviderFilter {
