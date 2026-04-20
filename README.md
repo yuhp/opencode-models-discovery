@@ -78,8 +78,7 @@ The plugin configuration is placed in the `plugin` array using tuple format `["p
         "excludeRegex": []
       },
       "discovery": {
-        "enabled": true,
-        "ttl": 15000
+        "enabled": true
       },
       "smartModelName": false
     }]

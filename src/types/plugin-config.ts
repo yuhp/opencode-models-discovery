@@ -9,7 +9,15 @@ export interface PluginConfig {
   }
   discovery?: {
     enabled?: boolean
-    ttl?: number
+  }
+  smartModelName?: boolean
+}
+
+export interface ProviderDiscoveryConfig {
+  enabled?: boolean
+  models?: {
+    includeRegex?: string[]
+    excludeRegex?: string[]
   }
   smartModelName?: boolean
 }
@@ -21,7 +29,6 @@ export interface ProviderFilter {
 
 export interface DiscoveryConfig {
   enabled: boolean
-  ttl: number
 }
 
 export interface ModelRegexFilter {
@@ -31,7 +38,6 @@ export interface ModelRegexFilter {
 
 export const DEFAULT_DISCOVERY_CONFIG: DiscoveryConfig = {
   enabled: true,
-  ttl: 15000,
 }
 
 export function shouldDiscoverProvider(
@@ -54,8 +60,28 @@ export function getProviderFilter(config: PluginConfig): ProviderFilter {
 export function getDiscoveryConfig(config: PluginConfig): DiscoveryConfig {
   return {
     enabled: config.discovery?.enabled ?? DEFAULT_DISCOVERY_CONFIG.enabled,
-    ttl: config.discovery?.ttl ?? DEFAULT_DISCOVERY_CONFIG.ttl,
   }
+}
+
+export function shouldDiscoverProviderWithOverride(
+  providerName: string,
+  filter: ProviderFilter,
+  globalEnabled: boolean,
+  providerConfig: ProviderDiscoveryConfig
+): boolean {
+  if (providerConfig.enabled === true) {
+    return true
+  }
+
+  if (providerConfig.enabled === false) {
+    return false
+  }
+
+  if (!globalEnabled) {
+    return false
+  }
+
+  return shouldDiscoverProvider(providerName, filter)
 }
 
 function toRegExp(pattern: string, logger?: PluginLogger): RegExp | null {
@@ -72,6 +98,13 @@ function toRegExp(pattern: string, logger?: PluginLogger): RegExp | null {
 }
 
 export function getModelRegexFilter(config: PluginConfig, logger?: PluginLogger): ModelRegexFilter {
+  return {
+    includeRegex: (config.models?.includeRegex || []).map((pattern) => toRegExp(pattern, logger)).filter((pattern): pattern is RegExp => pattern !== null),
+    excludeRegex: (config.models?.excludeRegex || []).map((pattern) => toRegExp(pattern, logger)).filter((pattern): pattern is RegExp => pattern !== null),
+  }
+}
+
+export function getProviderModelRegexFilter(config: ProviderDiscoveryConfig, logger?: PluginLogger): ModelRegexFilter {
   return {
     includeRegex: (config.models?.includeRegex || []).map((pattern) => toRegExp(pattern, logger)).filter((pattern): pattern is RegExp => pattern !== null),
     excludeRegex: (config.models?.excludeRegex || []).map((pattern) => toRegExp(pattern, logger)).filter((pattern): pattern is RegExp => pattern !== null),
