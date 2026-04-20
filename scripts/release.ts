@@ -2,7 +2,7 @@
 
 /**
  * Automated Release Script
- * 
+ *
  * Usage:
  *   bun scripts/release.ts patch   # 0.1.0 -> 0.1.1
  *   bun scripts/release.ts minor   # 0.1.0 -> 0.2.0
@@ -15,6 +15,11 @@ import { execSync } from 'child_process'
 
 const VERSION_TYPES = ['patch', 'minor', 'major'] as const
 type VersionType = typeof VERSION_TYPES[number]
+
+interface CommitEntry {
+  hash: string
+  message: string
+}
 
 function getCurrentVersion(): string {
   const pkg = JSON.parse(readFileSync('package.json', 'utf-8'))
@@ -43,13 +48,12 @@ function bumpVersion(currentVersion: string, type: VersionType | string): string
     throw new Error(`Invalid version type: ${type}. Use 'patch', 'minor', 'major', or a specific version like '0.2.0'`)
   }
 
-  // If it's a specific version, use it
   if (/^\d+\.\d+\.\d+$/.test(type)) {
     return type
   }
 
   const [major, minor, patch] = currentVersion.split('.').map(Number)
-  
+
   switch (type) {
     case 'major':
       return `${major + 1}.0.0`
@@ -80,22 +84,92 @@ function runCommand(cmd: string, description: string): void {
   }
 }
 
-function generateReleaseNotes(version: string): string {
-  const { name } = getPackageInfo()
+function getPreviousTag(): string | null {
+  try {
+    return execSync('git describe --tags --abbrev=0 HEAD^', { encoding: 'utf-8' }).trim() || null
+  } catch {
+    return null
+  }
+}
 
-  // Get recent commits for changelog
-  const commits = execSync('git log --oneline -20', { encoding: 'utf-8' })
+function getReleaseCommits(previousTag: string | null): CommitEntry[] {
+  const range = previousTag ? `${previousTag}..HEAD` : 'HEAD'
+  const output = execSync(`git log ${range} --pretty=format:%h%x09%s`, { encoding: 'utf-8' })
+
+  return output
     .split('\n')
     .filter(Boolean)
-    .slice(0, 10)
-    .map(line => `- ${line}`)
+    .map((line) => {
+      const [hash, message] = line.split('\t')
+      return { hash, message }
+    })
+    .filter((commit) => !commit.message.startsWith('chore: bump version to '))
+}
+
+function formatCommitList(commits: CommitEntry[]): string {
+  if (commits.length === 0) {
+    return '- No user-facing changes recorded in this release.'
+  }
+
+  return commits
+    .map((commit) => `- ${commit.message} (${commit.hash})`)
     .join('\n')
+}
+
+function groupCommits(commits: CommitEntry[]): Array<{ title: string; commits: CommitEntry[] }> {
+  const remaining = [...commits]
+  const groups = [
+    { title: 'Features', matcher: (message: string) => message.startsWith('feat:') },
+    { title: 'Fixes', matcher: (message: string) => message.startsWith('fix:') },
+    { title: 'Documentation', matcher: (message: string) => message.startsWith('docs:') },
+  ]
+
+  const grouped = groups
+    .map((group) => {
+      const matched = remaining.filter((commit) => group.matcher(commit.message))
+      matched.forEach((commit) => {
+        const index = remaining.indexOf(commit)
+        if (index >= 0) {
+          remaining.splice(index, 1)
+        }
+      })
+
+      return {
+        title: group.title,
+        commits: matched,
+      }
+    })
+    .filter((group) => group.commits.length > 0)
+
+  if (remaining.length > 0) {
+    grouped.push({
+      title: 'Maintenance',
+      commits: remaining,
+    })
+  }
+
+  return grouped
+}
+
+function generateReleaseNotes(version: string): string {
+  const { name } = getPackageInfo()
+  const previousTag = getPreviousTag()
+  const commits = getReleaseCommits(previousTag)
+  const groupedCommits = groupCommits(commits)
+  const compareText = previousTag
+    ? `Changes since \`${previousTag}\`.`
+    : 'Changes included in the first tagged release.'
+  const changesSection = groupedCommits.length > 0
+    ? groupedCommits
+        .map((group) => `### ${group.title}\n\n${formatCommitList(group.commits)}`)
+        .join('\n\n')
+    : '### Changes\n\n- No user-facing changes recorded in this release.'
 
   return `## 🎉 Release v${version}
 
-### Changes
+${compareText}
 
-${commits}
+${changesSection}
 
 ### Installation
 
@@ -103,24 +177,13 @@ ${commits}
 npm install ${name}@${version}
 # or
 bun add ${name}@${version}
-\`\`\`
-
-### Features
-
-- **Dynamic Model Discovery**: Queries OpenAI-compatible providers through the standard \`/v1/models\` endpoint
-- **Smart Model Formatting**: Automatically formats model names for better readability
-- **Organization Owner Extraction**: Extracts and sets \`organizationOwner\` field
-- **Health Check Monitoring**: Verifies providers are accessible before discovery
-- **Flexible Configuration**: Supports provider filtering, model filtering, and configurable discovery behavior
-- **Model Merging**: Intelligently merges discovered models with existing configuration
-- **Comprehensive Caching**: Reduces API calls with intelligent caching
-- **Error Handling**: Smart error categorization with auto-fix suggestions`
+\`\`\``
 }
 
 async function main() {
   const { name, repositorySlug } = getPackageInfo()
   const versionType = process.argv[2]
-  
+
   if (!versionType) {
     console.error('Usage: bun scripts/release.ts [patch|minor|major|0.x.x]')
     process.exit(1)
@@ -128,19 +191,16 @@ async function main() {
 
   const currentVersion = getCurrentVersion()
   const newVersion = bumpVersion(currentVersion, versionType)
-  
+
   console.log(`\n🚀 Starting release process`)
   console.log(`   Current version: ${currentVersion}`)
   console.log(`   New version: ${newVersion}`)
   console.log(`   Version type: ${versionType}`)
 
-  // Step 1: Update version in package.json
   updatePackageJson(newVersion)
 
-  // Step 2: Run build and tests
   runCommand('npm run build', 'Running build and tests')
 
-  // Step 3: Check git status
   const gitStatus = execSync('git status --porcelain', { encoding: 'utf-8' })
   if (gitStatus.trim()) {
     console.log('\n⚠️  Uncommitted changes detected. Committing...')
@@ -148,18 +208,16 @@ async function main() {
     runCommand(`git commit -m "chore: bump version to ${newVersion}"`, 'Committing version bump')
   }
 
-  // Step 4: Create and push git tag
   const tagName = `v${newVersion}`
   runCommand(`git tag ${tagName} -m "Release ${tagName}"`, `Creating git tag ${tagName}`)
   runCommand('git push', 'Pushing commits')
   runCommand(`git push origin ${tagName}`, `Pushing tag ${tagName}`)
 
-  // Step 5: Create GitHub release
   console.log('\n📝 Creating GitHub release...')
   const releaseNotes = generateReleaseNotes(newVersion)
   const notesFile = `/tmp/release-notes-${newVersion}.md`
   writeFileSync(notesFile, releaseNotes)
-  
+
   try {
     execSync(`gh release create ${tagName} --title "v${newVersion}" --notes-file ${notesFile}`, { stdio: 'inherit' })
     console.log(`✓ GitHub release created: https://github.com/${repositorySlug}/releases/tag/${tagName}`)
@@ -167,10 +225,9 @@ async function main() {
     console.warn('⚠️  GitHub release creation failed (may already exist)')
   }
 
-  // Step 6: Publish to npm
   console.log('\n📦 Publishing to npm...')
   let npmPublished = false
-  
+
   try {
     runCommand('npm publish', 'Publishing to npm')
     console.log(`\n✅ Successfully published ${name}@${newVersion} to npm!`)
