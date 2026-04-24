@@ -1,6 +1,7 @@
 import { ToastNotifier } from '../ui/toast-notifier'
 import { categorizeModel, formatModelName, extractModelOwner } from '../utils'
 import { normalizeBaseURL, checkProviderHealth, discoverModelsFromProvider, autoDetectOpenAICompatibleProvider, canDiscoverModels } from '../utils/openai-compatible-api'
+import { loadModelsCache, findModelInCache, mergeModelConfig } from '../utils/model-cache-lookup'
 import { getProviderFilter, getDiscoveryConfig, getModelRegexFilter, getProviderModelRegexFilter, shouldDiscoverModel, shouldDiscoverProviderWithOverride } from '../types/plugin-config'
 import type { PluginLogger } from './logger'
 import type { PluginInput } from '@opencode-ai/plugin'
@@ -27,6 +28,12 @@ export async function enhanceConfig(
     const modelRegexFilter = getModelRegexFilter(pluginConfig, logger.child({ category: 'filtering' }))
     const discoveryConfig = getDiscoveryConfig(pluginConfig)
     const globalDiscoveryEnabled = discoveryConfig.enabled
+    const modelsCache = await loadModelsCache()
+    if (modelsCache) {
+      logger.info('Loaded models cache', { providers: Object.keys(modelsCache).length })
+    } else {
+      logger.info('Models cache not found, skipping metadata augmentation')
+    }
 
     for (const [providerName, providerConfig] of Object.entries(providers)) {
       const p = providerConfig as any
@@ -119,7 +126,16 @@ export async function enhanceConfig(
             }
           }
 
-          discoveredModels[modelKey] = modelConfig
+          if (modelsCache) {
+            const cachedInfo = findModelInCache(model.id, modelsCache, { fuzzy: true })
+            if (cachedInfo) {
+              logger.info('Cache hit for model', { modelId: model.id, provider: providerName, context: cachedInfo.limit?.context })
+            }
+            const augmentedConfig = mergeModelConfig(modelConfig, cachedInfo)
+            discoveredModels[modelKey] = augmentedConfig
+          } else {
+            discoveredModels[modelKey] = modelConfig
+          }
         }
       }
 

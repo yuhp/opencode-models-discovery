@@ -3,6 +3,8 @@ export interface OpenAIModel {
   object: string
   created: number
   owned_by: string
+  context_length?: number
+  max_tokens?: number
 }
 
 export interface OpenAIModelsResponse {

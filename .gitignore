@@ -8,3 +8,7 @@ opencode-debug.log
 .cache/
 coverage/
 opencode.json
+.opencode/
+openspec/
+AGENTS.md
+PLUGIN_FLOW.md
