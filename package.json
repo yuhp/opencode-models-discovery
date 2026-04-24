@@ -1,6 +1,6 @@
 {
   "$schema": "https://json.schemastore.org/package.json",
-  "name": "opencode-models-discovery",
+  "name": "opencode-models-discovery-wz",
   "version": "0.7.0",
   "description": "OpenCode plugin for auto-discovery of OpenAI-compatible models with dynamic provider configuration",
   "type": "module",
@@ -43,7 +43,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/yuhp/opencode-models-discovery.git"
+    "url": "git+https://github.com/pengttyy/opencode-models-discovery-wz.git"
   },
   "dependencies": {
     "@opencode-ai/plugin": "^1.0.166"

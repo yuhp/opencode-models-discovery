@@ -73,7 +73,7 @@ export async function loadModelsCache(): Promise<FlatModelsCache | null> {
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
         console.warn(
-          `[opencode-models-discovery] Failed to load models cache from ${path}:`,
+          `[opencode-models-discovery-wz] Failed to load models cache from ${path}:`,
           error instanceof Error ? error.message : String(error)
         )
       }

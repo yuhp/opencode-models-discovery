@@ -21,7 +21,7 @@ export class ModelLoadingMonitor {
       progress: 0
     })
     
-    console.info(`[opencode-models-discovery] Started monitoring model loading`, { modelId, baseURL })
+    console.info(`[opencode-models-discovery-wz] Started monitoring model loading`, { modelId, baseURL })
     
     // Clear any existing interval
     this.stopMonitoring(modelId)
@@ -68,7 +68,7 @@ export class ModelLoadingMonitor {
         const duration = Date.now() - (state.startTime || Date.now())
         this.updateState(modelId, 'loaded', 100, 0)
         this.stopMonitoring(modelId)
-        console.info(`[opencode-models-discovery] Model loading completed`, {
+        console.info(`[opencode-models-discovery-wz] Model loading completed`, {
           modelId,
           duration: `${duration}ms`,
           totalModels: this.loadingStates.size
@@ -111,11 +111,11 @@ export class ModelLoadingMonitor {
     // Log state changes
     if (currentState.status !== status) {
       if (status === 'loaded') {
-        console.info(`[opencode-models-discovery] Model loading completed`, { modelId })
+        console.info(`[opencode-models-discovery-wz] Model loading completed`, { modelId })
       } else if (status === 'error') {
-        console.warn(`[opencode-models-discovery] Model loading failed`, { modelId, error })
+        console.warn(`[opencode-models-discovery-wz] Model loading failed`, { modelId, error })
       } else if (status === 'loading') {
-        console.info(`[opencode-models-discovery] Model loading started`, { modelId })
+        console.info(`[opencode-models-discovery-wz] Model loading started`, { modelId })
       }
     }
   }

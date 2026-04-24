@@ -1,6 +1,6 @@
 import type { PluginInput } from '@opencode-ai/plugin'
 
-const SERVICE_NAME = 'opencode-models-discovery'
+const SERVICE_NAME = 'opencode-models-discovery-wz'
 
 type LogLevel = 'debug' | 'info' | 'warn' | 'error'
 

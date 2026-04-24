@@ -1,9 +1,9 @@
-# opencode-models-discovery
+# opencode-models-discovery-wz
 
-[![npm version](https://img.shields.io/npm/v/opencode-models-discovery.svg?color=blue)](https://www.npmjs.com/package/opencode-models-discovery)
-[![npm downloads](https://img.shields.io/npm/dt/opencode-models-discovery.svg)](https://www.npmjs.com/package/opencode-models-discovery)
-[![release](https://github.com/yuhp/opencode-models-discovery/actions/workflows/release.yml/badge.svg)](https://github.com/yuhp/opencode-models-discovery/actions/workflows/release.yml)
-[![license](https://img.shields.io/github/license/yuhp/opencode-models-discovery)](https://github.com/yuhp/opencode-models-discovery/blob/main/LICENSE)
+[![npm version](https://img.shields.io/npm/v/opencode-models-discovery-wz.svg?color=blue)](https://www.npmjs.com/package/opencode-models-discovery-wz)
+[![npm downloads](https://img.shields.io/npm/dt/opencode-models-discovery-wz.svg)](https://www.npmjs.com/package/opencode-models-discovery-wz)
+[![release](https://github.com/yuhp/opencode-models-discovery-wz/actions/workflows/release.yml/badge.svg)](https://github.com/yuhp/opencode-models-discovery-wz/actions/workflows/release.yml)
+[![license](https://img.shields.io/github/license/yuhp/opencode-models-discovery-wz)](https://github.com/yuhp/opencode-models-discovery-wz/blob/main/LICENSE)
 [![OpenCode](https://img.shields.io/badge/OpenCode-%3E%3D1.4.0-blueviolet)](https://opencode.ai)
 
 > A universal OpenCode plugin for dynamic model discovery across **any OpenAI-compatible provider**.
@@ -27,9 +27,9 @@ Originally inspired by [opencode-lmstudio](https://github.com/nicktasios/opencod
 ## Installation
 
 ```bash
-npm install opencode-models-discovery
+npm install opencode-models-discovery-wz
 # or
-bun add opencode-models-discovery
+bun add opencode-models-discovery-wz
 ```
 
 ## Usage
@@ -40,7 +40,7 @@ Add the plugin to your `opencode.json`:
 {
   "$schema": "https://opencode.ai/config.json",
   "plugin": [
-    "opencode-models-discovery@latest"
+    "opencode-models-discovery-wz@latest"
   ],
   "provider": {
     "ollama": {
@@ -68,7 +68,7 @@ The plugin configuration is placed in the `plugin` array using tuple format `["p
 ```json
 {
   "plugin": [
-    ["opencode-models-discovery", {
+    ["opencode-models-discovery-wz", {
       "providers": {
         "include": [],
         "exclude": []
@@ -109,7 +109,7 @@ Priority rules:
 ```json
 {
   "plugin": [
-    ["opencode-models-discovery", {
+    ["opencode-models-discovery-wz", {
       "providers": {
         "include": ["ollama"]
       },
@@ -161,7 +161,7 @@ Control which providers are discovered:
 ```json
 {
   "plugin": [
-    ["opencode-models-discovery", {
+    ["opencode-models-discovery-wz", {
       "providers": {
         "include": ["ollama"],
         "exclude": ["lmstudio"]
@@ -185,7 +185,7 @@ Regex filtering only applies to auto-discovered models. Models already explicitl
 ```json
 {
   "plugin": [
-    ["opencode-models-discovery", {
+    ["opencode-models-discovery-wz", {
       "models": {
         "includeRegex": ["^qwen/", "gpt-4"],
         "excludeRegex": ["embedding", "test"]
@@ -303,7 +303,7 @@ This means providers using `@ai-sdk/anthropic` with OpenAI-compatible backends (
 
 ## Logging
 
-When available, the plugin writes logs through OpenCode's structured server log API via `client.app.log(...)` using the service name `opencode-models-discovery`.
+When available, the plugin writes logs through OpenCode's structured server log API via `client.app.log(...)` using the service name `opencode-models-discovery-wz`.
 
 If structured logging is unavailable in the runtime, the plugin falls back to prefixed `console.*` output. Key log categories are emitted through metadata such as `plugin`, `config`, `discovery`, `event`, and `filtering` to make local debugging easier with `opencode --print-logs`.
 

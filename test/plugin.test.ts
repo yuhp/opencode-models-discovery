@@ -93,7 +93,7 @@ describe('ModelDiscovery Plugin', () => {
       expect(hooks.config).toBeTypeOf('function')
       expect(hooks.event).toBeTypeOf('function')
       expect(hooks['chat.params']).toBeTypeOf('function')
-      expect(consoleSpy).toHaveBeenCalledWith('[opencode-models-discovery] Invalid client provided to plugin', { category: 'plugin' })
+      expect(consoleSpy).toHaveBeenCalledWith('[opencode-models-discovery-wz] Invalid client provided to plugin', { category: 'plugin' })
 
       consoleSpy.mockRestore()
     })
@@ -104,7 +104,7 @@ describe('ModelDiscovery Plugin', () => {
       await pluginHooks.config(null)
       expect(mockClient.app.log).toHaveBeenLastCalledWith(expect.objectContaining({
         body: expect.objectContaining({
-          service: 'opencode-models-discovery',
+          service: 'opencode-models-discovery-wz',
           level: 'error',
           message: 'Invalid config provided',
           extra: expect.objectContaining({
@@ -813,7 +813,7 @@ describe('ModelDiscovery Plugin', () => {
       await pluginHooks.event({ event: null })
       expect(mockClient.app.log).toHaveBeenLastCalledWith(expect.objectContaining({
         body: expect.objectContaining({
-          service: 'opencode-models-discovery',
+          service: 'opencode-models-discovery-wz',
           level: 'error',
           message: 'Invalid event input',
           extra: expect.objectContaining({

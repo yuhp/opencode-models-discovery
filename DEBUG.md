@@ -1,4 +1,4 @@
-# Debugging opencode-models-discovery in OpenCode TUI
+# Debugging opencode-models-discovery-wz in OpenCode TUI
 
 ## How to Debug
 
@@ -6,7 +6,7 @@ When you run OpenCode in TUI mode, check the console output for these log messag
 
 ### Expected Log Sequence
 
-1. `[opencode-models-discovery] Model discovery plugin initialized` - Plugin loaded
+1. `[opencode-models-discovery-wz] Model discovery plugin initialized` - Plugin loaded
 2. A config hook log indicating discovery/config processing started - Config hook invoked
 3. Provider creation or provider check logs - Provider instantiated successfully
 4. Discovery logs for `/v1/models` requests - Model discovery started
@@ -17,7 +17,7 @@ When you run OpenCode in TUI mode, check the console output for these log messag
 ### What to Check
 
 1. **Is the plugin loaded?**
-   - Look for: `[opencode-models-discovery] Model discovery plugin initialized`
+   - Look for: `[opencode-models-discovery-wz] Model discovery plugin initialized`
    - If missing: Plugin not installed or not in config
 
 2. **Is the config hook being called?**
@@ -55,8 +55,8 @@ When you run OpenCode in TUI mode, check the console output for these log messag
 #### Issue: Plugin not loading
 
 **Check:**
-1. Plugin is in `opencode.json`: `"plugin": ["opencode-models-discovery"]`
-2. Plugin is installed: `npm list opencode-models-discovery`
+1. Plugin is in `opencode.json`: `"plugin": ["opencode-models-discovery-wz"]`
+2. Plugin is installed: `npm list opencode-models-discovery-wz`
 3. No errors in OpenCode startup logs
 
 #### Issue: Provider not detected
