@@ -122,10 +122,6 @@ describe('ModelDiscovery Plugin', () => {
 
     it('should discover models for OpenAI-compatible providers', async () => {
       mockFetch.mockResolvedValueOnce({
-        ok: true
-      })
-
-      mockFetch.mockResolvedValueOnce({
         ok: true,
         json: async () => ({
           data: [
@@ -149,6 +145,45 @@ describe('ModelDiscovery Plugin', () => {
 
       expect(config.provider?.ollama?.models).toBeDefined()
       expect(Object.keys(config.provider.ollama.models).length).toBe(2)
+      expect(mockFetch).toHaveBeenCalledTimes(1)
+      expect(mockFetch).toHaveBeenCalledWith('http://127.0.0.1:11434/v1/models', expect.objectContaining({
+        method: 'GET'
+      }))
+    })
+
+    it('should use provider-specific discovery endpoint when configured', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          data: [
+            { id: 'custom-model', object: 'model', created: 1234567890, owned_by: 'local' }
+          ]
+        })
+      })
+
+      const config: any = {
+        provider: {
+          ollama: {
+            npm: '@ai-sdk/openai-compatible',
+            name: 'Ollama',
+            options: {
+              baseURL: 'http://127.0.0.1:11434',
+              modelsDiscovery: {
+                endpoint: '/api/models'
+              }
+            },
+            models: {}
+          }
+        }
+      }
+
+      await pluginHooks.config(config)
+
+      expect(config.provider.ollama.models['custom-model']).toBeDefined()
+      expect(mockFetch).toHaveBeenCalledTimes(1)
+      expect(mockFetch).toHaveBeenCalledWith('http://127.0.0.1:11434/api/models', expect.objectContaining({
+        method: 'GET'
+      }))
     })
 
     it('should merge discovered models with existing config', async () => {
@@ -299,6 +334,40 @@ describe('ModelDiscovery Plugin', () => {
 
       expect(consoleSpy).not.toHaveBeenCalledWith(expect.stringContaining('appears to be offline'))
       consoleSpy.mockRestore()
+    })
+
+    it('should discover providers with custom models endpoint even without /v1 baseURL', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          data: [
+            { id: 'endpoint-model', object: 'model', created: 1234567890, owned_by: 'local' }
+          ]
+        })
+      })
+
+      const config: any = {
+        provider: {
+          anthropic: {
+            npm: '@ai-sdk/anthropic',
+            name: 'Anthropic Custom Backend',
+            options: {
+              baseURL: 'http://127.0.0.1:9000',
+              modelsDiscovery: {
+                endpoint: '/api/models'
+              }
+            },
+            models: {}
+          }
+        }
+      }
+
+      await pluginHooks.config(config)
+
+      expect(config.provider.anthropic.models['endpoint-model']).toBeDefined()
+      expect(mockFetch).toHaveBeenCalledWith('http://127.0.0.1:9000/api/models', expect.objectContaining({
+        method: 'GET'
+      }))
     })
 
     it('should skip providers in exclude list', async () => {
@@ -495,6 +564,40 @@ describe('ModelDiscovery Plugin', () => {
       await hooksWithConfig.config(config)
 
       expect(config.provider?.ollama?.models?.['test-model']).toBeDefined()
+    })
+
+    it('should allow provider-level discovery to bypass provider compatibility detection', async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          data: [
+            { id: 'forced-model', object: 'model', created: 1234567890, owned_by: 'local' }
+          ]
+        })
+      })
+
+      const config: any = {
+        provider: {
+          custom: {
+            npm: '@ai-sdk/anthropic',
+            name: 'Custom Provider',
+            options: {
+              baseURL: 'http://127.0.0.1:9000',
+              modelsDiscovery: {
+                enabled: true
+              }
+            },
+            models: {}
+          }
+        }
+      }
+
+      await pluginHooks.config(config)
+
+      expect(config.provider?.custom?.models?.['forced-model']).toBeDefined()
+      expect(mockFetch).toHaveBeenCalledWith('http://127.0.0.1:9000/v1/models', expect.objectContaining({
+        method: 'GET'
+      }))
     })
 
     it('should skip provider when provider-level discovery is disabled', async () => {

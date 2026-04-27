@@ -15,6 +15,7 @@ export interface PluginConfig {
 
 export interface ProviderDiscoveryConfig {
   enabled?: boolean
+  endpoint?: string
   models?: {
     includeRegex?: string[]
     excludeRegex?: string[]

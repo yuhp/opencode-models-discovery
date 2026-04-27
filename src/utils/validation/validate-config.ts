@@ -13,8 +13,9 @@ export function validateConfig(config: any): ValidationResult {
   if (config.provider && typeof config.provider === 'object') {
     for (const [providerName, providerConfig] of Object.entries(config.provider)) {
       const p = providerConfig as any
+      const forceDiscoveryEnabled = p.options?.modelsDiscovery?.enabled === true
 
-      if (canDiscoverModels(p)) {
+      if (forceDiscoveryEnabled || canDiscoverModels(p)) {
         if (!p.options?.baseURL) {
           warnings.push(`Provider '${providerName}' missing baseURL`)
         }

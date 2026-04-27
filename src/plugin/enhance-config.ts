@@ -1,6 +1,6 @@
 import { ToastNotifier } from '../ui/toast-notifier'
 import { categorizeModel, formatModelName, extractModelOwner } from '../utils'
-import { normalizeBaseURL, checkProviderHealth, discoverModelsFromProvider, autoDetectOpenAICompatibleProvider, canDiscoverModels } from '../utils/openai-compatible-api'
+import { normalizeBaseURL, discoverModelsFromProvider, autoDetectOpenAICompatibleProvider, canDiscoverModels } from '../utils/openai-compatible-api'
 import { getProviderFilter, getDiscoveryConfig, getModelRegexFilter, getProviderModelRegexFilter, shouldDiscoverModel, shouldDiscoverProviderWithOverride } from '../types/plugin-config'
 import type { PluginLogger } from './logger'
 import type { PluginInput } from '@opencode-ai/plugin'
@@ -31,8 +31,10 @@ export async function enhanceConfig(
     for (const [providerName, providerConfig] of Object.entries(providers)) {
       const p = providerConfig as any
       const providerDiscoveryConfig = p.options?.modelsDiscovery ?? {}
+      const modelsEndpoint = providerDiscoveryConfig.endpoint ?? '/v1/models'
+      const forceDiscoveryEnabled = providerDiscoveryConfig.enabled === true
 
-      if (!canDiscoverModels(p)) {
+      if (!forceDiscoveryEnabled && !canDiscoverModels(p)) {
         continue
       }
 
@@ -52,23 +54,18 @@ export async function enhanceConfig(
 
       const apiKey = p.options?.apiKey
 
-      const isHealthy = await checkProviderHealth(baseURL, apiKey)
-      if (!isHealthy) {
-        // Provider offline - silent, this is normal for health checks
-        continue
-      }
-
       let models: OpenAIModel[]
-      try {
-        models = await discoverModelsFromProvider(baseURL, apiKey)
-      } catch (error) {
+      const discovery = await discoverModelsFromProvider(baseURL, apiKey, modelsEndpoint)
+      if (!discovery.ok) {
         logger.warn('Provider model discovery failed', {
           provider: providerName,
           baseURL,
-          error: error instanceof Error ? error.message : String(error),
+          endpoint: modelsEndpoint,
         })
         continue
       }
+
+      models = discovery.models
 
       if (models.length === 0) {
         continue
