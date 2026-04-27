@@ -8,19 +8,18 @@
 
 > A universal OpenCode plugin for dynamic model discovery across **any OpenAI-compatible provider**.
 
-Originally inspired by [opencode-lmstudio](https://github.com/nicktasios/opencode-lmstudio), this project has been fully refactored into a general-purpose model discovery plugin with richer configuration controls for providers, models, naming, caching, and discovery behavior.
+Originally inspired by [opencode-lmstudio](https://github.com/nicktasios/opencode-lmstudio), this project has been fully refactored into a general-purpose model discovery plugin with richer configuration controls for providers, models, naming, and discovery behavior.
 
 ## Features
 
 - **Universal Provider Support**: Works with any OpenAI-compatible provider (LM Studio, Ollama, LocalAI, gateways, and more)
-- **Dynamic Model Discovery**: Queries each provider's `/v1/models` endpoint to discover available models
+- **Dynamic Model Discovery**: Queries each provider's configured models endpoint to discover available models
 - **Auto-Injection**: Automatically adds unconfigured models into OpenCode provider config
 - **Provider Filtering**: Include or exclude specific providers from discovery
 - **Model Filtering**: Use regex rules to precisely control which discovered models are injected
-- **Configurable Discovery**: Control discovery behavior with enable/disable switches and TTL-based caching
+- **Configurable Discovery**: Control discovery behavior with global and provider-level enable/disable switches
 - **Smart Model Formatting**: Optional human-friendly display names for discovered models
 - **Organization Owner Extraction**: Extracts and sets `organizationOwner` from model IDs when available
-- **Health Check Monitoring**: Verifies providers are accessible before attempting discovery
 - **Model Merging**: Intelligently merges discovered models with existing configuration
 - **Error Handling**: Smart error categorization with actionable suggestions
 
@@ -43,11 +42,16 @@ Add the plugin to your `opencode.json`:
     "opencode-models-discovery@latest"
   ],
   "provider": {
-    "ollama": {
+    "deepseek": {
       "npm": "@ai-sdk/openai-compatible",
-      "name": "Ollama (local)",
+      "name": "DeepSeek",
       "options": {
-        "baseURL": "http://127.0.0.1:11434/v1"
+        "baseURL": "https://api.deepseek.com",
+        "apiKey": "YOUR_DEEPSEEK_API_KEY",
+        "modelsDiscovery": {
+          "enabled": true,
+          "endpoint": "/models"
+        }
       }
     },
     "lmstudio": {
@@ -62,6 +66,8 @@ Add the plugin to your `opencode.json`:
 ```
 
 ### Configuration
+
+The plugin still supports global configuration in the `plugin` array, but for new setups it is recommended to prefer `provider.<name>.options.modelsDiscovery` for provider-specific behavior. This keeps discovery rules close to the provider they affect and avoids older global rules unintentionally changing newer providers.
 
 The plugin configuration is placed in the `plugin` array using tuple format `["plugin-name", { config }]`:
 
@@ -95,10 +101,18 @@ Each provider can override discovery behavior through `provider.<name>.options.m
 | Option | Type | Description |
 |--------|------|-------------|
 | `provider.<name>.options.modelsDiscovery.enabled` | `boolean` | Override global discovery and provider filters for a single provider |
-| `provider.<name>.options.modelsDiscovery.endpoint` | `string` | Provider-specific models endpoint path |
+| `provider.<name>.options.modelsDiscovery.endpoint` | `string` | Provider-specific models endpoint path. Defaults to `/v1/models` |
 | `provider.<name>.options.modelsDiscovery.models.includeRegex` | `string[]` | Provider-specific model include filter |
 | `provider.<name>.options.modelsDiscovery.models.excludeRegex` | `string[]` | Provider-specific model exclude filter |
 | `provider.<name>.options.modelsDiscovery.smartModelName` | `boolean` | Override global `smartModelName` for a single provider |
+
+Recommended approach for new configurations:
+
+1. Keep global plugin config minimal, or use it only as a broad default
+2. Put endpoint, enablement, and model filtering rules on each provider
+3. Use provider-level overrides whenever a provider does not follow the usual `/v1/models` convention
+
+If `provider.<name>.options.modelsDiscovery.endpoint` is omitted, the plugin uses `/v1/models`.
 
 Priority rules:
 
@@ -111,16 +125,9 @@ Priority rules:
 {
   "plugin": [
     ["opencode-models-discovery", {
-      "providers": {
-        "include": ["ollama"]
-      },
-      "models": {
-        "includeRegex": ["^qwen/"]
-      },
       "discovery": {
         "enabled": false
-      },
-      "smartModelName": false
+      }
     }]
   ],
   "provider": {
@@ -139,6 +146,20 @@ Priority rules:
         }
       },
       "models": {}
+    },
+    "deepseek": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "DeepSeek",
+      "options": {
+        "baseURL": "https://api.deepseek.com",
+        "apiKey": "sk-example-deepseek-key",
+        "modelsDiscovery": {
+          "enabled": true,
+          "endpoint": "/models",
+          "smartModelName": true
+        }
+      },
+      "models": {}
     }
   }
 }
@@ -146,10 +167,60 @@ Priority rules:
 
 In this example:
 
-1. Global discovery is disabled
-2. `lmstudio` is still discovered because `modelsDiscovery.enabled` is `true`
-3. `lmstudio` uses `^gpt-` instead of the global `^qwen/` filter
-4. `lmstudio` uses smart model names even though the global setting is `false`
+1. `lmstudio` explicitly enables discovery and uses the default `/v1/models` endpoint
+2. `lmstudio` limits discovery to models matching `^gpt-`
+3. `deepseek` explicitly enables discovery but uses `"/models"` instead of `/v1/models`
+4. The API key uses an example placeholder and should be replaced in real configs
+
+#### Provider-First Example
+
+This is the recommended style for newer configs, especially when different providers need different discovery paths:
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "plugin": [
+    ["opencode-models-discovery", {
+      "smartModelName": false
+    }]
+  ],
+  "provider": {
+    "ollama": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "Ollama",
+      "options": {
+        "baseURL": "http://127.0.0.1:11434/v1",
+        "modelsDiscovery": {
+          "enabled": true,
+          "models": {
+            "includeRegex": ["^qwen/"]
+          }
+        }
+      }
+    },
+    "deepseek": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "DeepSeek",
+      "options": {
+        "baseURL": "https://api.deepseek.com",
+        "apiKey": "YOUR_DEEPSEEK_API_KEY",
+        "modelsDiscovery": {
+          "enabled": true,
+          "endpoint": "/models",
+          "smartModelName": true
+        }
+      }
+    }
+  }
+}
+```
+
+In this example:
+
+1. The global plugin config only keeps a shared default
+2. `ollama` uses the default discovery path derived from its `/v1` baseURL
+3. `deepseek` does not rely on `/v1/models` and explicitly uses `"/models"`
+4. Each provider can evolve independently without changing global include or endpoint rules
 
 #### Provider Filtering
 
@@ -201,7 +272,7 @@ Regex filtering only applies to auto-discovered models. Models already explicitl
 
 1. On OpenCode startup, the plugin's `config` hook is called
 2. The plugin iterates through all configured providers
-3. For each provider, it checks if the baseURL contains `/v1/` (supports any npm package)
+3. For each provider, it checks whether it is OpenAI-compatible by npm, by a `/v1` baseURL, by an explicit discovery endpoint override, or by a forced provider-level discovery override
 4. For each accessible provider, it queries the configured models endpoint, defaulting to `/v1/models`
 5. Discovered models are automatically merged into the provider's configuration
 6. The enhanced configuration is used for the current session
@@ -219,6 +290,7 @@ The plugin supports any OpenAI-compatible provider. Here are the most common one
 | **Text Generation WebUI** | 5000 | OpenAI-compatible extension | `@ai-sdk/openai-compatible` |
 | **FastChat (Vicuna)** | 8001 | Multi-model serving | `@ai-sdk/openai-compatible` |
 | **vLLM** | 8000 | High-performance inference | `@ai-sdk/openai-compatible` |
+| **DeepSeek** | Cloud | OpenAI-compatible API with `/models` discovery endpoint | `@ai-sdk/openai-compatible` |
 | **CLIProxyAPI** | 8317 | A LLM proxy server  | `@ai-sdk/anthropic` (with `/v1` backend) & `@ai-sdk/openai-compatible` |
 
 #### Anthropic API with Custom Backend
@@ -250,17 +322,21 @@ Cloud services with OpenAI-compatible APIs are also supported:
 
 ### Provider Detection
 
-The plugin identifies OpenAI-compatible providers using **two detection methods**:
+The plugin identifies OpenAI-compatible providers using these detection signals:
 
 1. **Strict Detection**: `npm === "@ai-sdk/openai-compatible"`
 2. **URL-based Detection**: `baseURL` contains `/v1/` pattern
+3. **Endpoint Override Detection**: `options.modelsDiscovery.endpoint` is configured
 
-A provider is considered discoverable if **either** condition matches.
+In addition, `options.modelsDiscovery.enabled === true` can force discovery even when the provider does not match the detection rules above.
+
+A provider is considered discoverable if it matches any detection signal above, or if discovery is explicitly forced on.
 
 #### Examples of Supported Configurations
 
 ```json
 {
+  "plugin": ["opencode-models-discovery"],
   "provider": {
     "ollama": {
       "npm": "@ai-sdk/openai-compatible",
@@ -273,6 +349,7 @@ A provider is considered discoverable if **either** condition matches.
 
 ```json
 {
+  "plugin": ["opencode-models-discovery"],
   "provider": {
     "ollama-anthropic": {
       "npm": "@ai-sdk/anthropic",
@@ -285,23 +362,51 @@ A provider is considered discoverable if **either** condition matches.
 
 ```json
 {
+  "plugin": [
+    ["opencode-models-discovery", {
+      "smartModelName": false
+    }]
+  ],
   "provider": {
     "lmstudio": {
       "npm": "@ai-sdk/openai-compatible",
       "name": "LM Studio",
-      "options": { "baseURL": "http://127.0.0.1:1234/v1" }
+      "options": {
+        "baseURL": "http://127.0.0.1:1234/v1",
+        "modelsDiscovery": {
+          "enabled": true
+        }
+      }
     }
   }
 }
 ```
 
-This means providers using `@ai-sdk/anthropic` with OpenAI-compatible backends (like Ollama's Anthropic compatibility mode) are also supported, as long as the `baseURL` contains `/v1/`.
+```json
+{
+  "plugin": ["opencode-models-discovery"],
+  "provider": {
+    "deepseek": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "DeepSeek",
+      "options": {
+        "baseURL": "https://api.deepseek.com",
+        "modelsDiscovery": {
+          "endpoint": "/models"
+        }
+      }
+    }
+  }
+}
+```
+
+This means providers using `@ai-sdk/anthropic` with OpenAI-compatible backends are also supported when the `baseURL` contains `/v1/`, when a provider-specific discovery endpoint is configured, or when provider-level discovery is explicitly forced on. It also means providers like DeepSeek can be discovered from a non-`/v1` baseURL as long as the models endpoint is configured explicitly.
 
 ## Requirements
 
 - OpenCode with plugin support
 - At least one OpenAI-compatible provider running locally or remotely
-- Provider server API accessible (e.g., `http://127.0.0.1:11434/v1`)
+- Provider server API accessible, using either a `/v1`-style base URL or an explicitly configured models endpoint such as `/models`
 
 ## Logging
 
