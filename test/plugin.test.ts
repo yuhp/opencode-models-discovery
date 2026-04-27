@@ -122,10 +122,6 @@ describe('ModelDiscovery Plugin', () => {
 
     it('should discover models for OpenAI-compatible providers', async () => {
       mockFetch.mockResolvedValueOnce({
-        ok: true
-      })
-
-      mockFetch.mockResolvedValueOnce({
         ok: true,
         json: async () => ({
           data: [
@@ -149,6 +145,45 @@ describe('ModelDiscovery Plugin', () => {
 
       expect(config.provider?.ollama?.models).toBeDefined()
       expect(Object.keys(config.provider.ollama.models).length).toBe(2)
+      expect(mockFetch).toHaveBeenCalledTimes(1)
+      expect(mockFetch).toHaveBeenCalledWith('http://127.0.0.1:11434/v1/models', expect.objectContaining({
+        method: 'GET'
+      }))
+    })
+
+    it('should use provider-specific discovery endpoint when configured', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          data: [
+            { id: 'custom-model', object: 'model', created: 1234567890, owned_by: 'local' }
+          ]
+        })
+      })
+
+      const config: any = {
+        provider: {
+          ollama: {
+            npm: '@ai-sdk/openai-compatible',
+            name: 'Ollama',
+            options: {
+              baseURL: 'http://127.0.0.1:11434',
+              modelsDiscovery: {
+                endpoint: '/api/models'
+              }
+            },
+            models: {}
+          }
+        }
+      }
+
+      await pluginHooks.config(config)
+
+      expect(config.provider.ollama.models['custom-model']).toBeDefined()
+      expect(mockFetch).toHaveBeenCalledTimes(1)
+      expect(mockFetch).toHaveBeenCalledWith('http://127.0.0.1:11434/api/models', expect.objectContaining({
+        method: 'GET'
+      }))
     })
 
     it('should merge discovered models with existing config', async () => {

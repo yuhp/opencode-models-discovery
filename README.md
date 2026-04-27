@@ -95,6 +95,7 @@ Each provider can override discovery behavior through `provider.<name>.options.m
 | Option | Type | Description |
 |--------|------|-------------|
 | `provider.<name>.options.modelsDiscovery.enabled` | `boolean` | Override global discovery and provider filters for a single provider |
+| `provider.<name>.options.modelsDiscovery.endpoint` | `string` | Provider-specific models endpoint path |
 | `provider.<name>.options.modelsDiscovery.models.includeRegex` | `string[]` | Provider-specific model include filter |
 | `provider.<name>.options.modelsDiscovery.models.excludeRegex` | `string[]` | Provider-specific model exclude filter |
 | `provider.<name>.options.modelsDiscovery.smartModelName` | `boolean` | Override global `smartModelName` for a single provider |
@@ -130,6 +131,7 @@ Priority rules:
         "baseURL": "http://127.0.0.1:1234/v1",
         "modelsDiscovery": {
           "enabled": true,
+          "endpoint": "/v1/models",
           "models": {
             "includeRegex": ["^gpt-"]
           },
@@ -200,7 +202,7 @@ Regex filtering only applies to auto-discovered models. Models already explicitl
 1. On OpenCode startup, the plugin's `config` hook is called
 2. The plugin iterates through all configured providers
 3. For each provider, it checks if the baseURL contains `/v1/` (supports any npm package)
-4. For each accessible provider, it queries the `/v1/models` endpoint
+4. For each accessible provider, it queries the configured models endpoint, defaulting to `/v1/models`
 5. Discovered models are automatically merged into the provider's configuration
 6. The enhanced configuration is used for the current session
 
