@@ -32,8 +32,9 @@ export async function enhanceConfig(
       const p = providerConfig as any
       const providerDiscoveryConfig = p.options?.modelsDiscovery ?? {}
       const modelsEndpoint = providerDiscoveryConfig.endpoint ?? '/v1/models'
+      const forceDiscoveryEnabled = providerDiscoveryConfig.enabled === true
 
-      if (!canDiscoverModels(p)) {
+      if (!forceDiscoveryEnabled && !canDiscoverModels(p)) {
         continue
       }
 

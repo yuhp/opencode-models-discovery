@@ -102,8 +102,14 @@ export function hasOpenAICompatibleURL(provider: any): boolean {
   return /\/v1(\/|$)/.test(baseURL)
 }
 
+export function hasModelsDiscoveryEndpoint(provider: any): boolean {
+  if (!provider || typeof provider !== 'object') return false
+  const endpoint = provider.options?.modelsDiscovery?.endpoint
+  return typeof endpoint === 'string' && endpoint.length > 0
+}
+
 export function canDiscoverModels(provider: any): boolean {
-  return isOpenAICompatibleProvider(provider) || hasOpenAICompatibleURL(provider)
+  return isOpenAICompatibleProvider(provider) || hasOpenAICompatibleURL(provider) || hasModelsDiscoveryEndpoint(provider)
 }
 
 export function isValidModel(model: any): model is { id: string; [key: string]: any } {
