@@ -302,6 +302,49 @@ Control which providers are discovered:
 }
 ```
 
+#### Cache Configuration
+
+Control how discovered models are cached to avoid repeated API calls on every startup. Models are cached to disk at `~/.cache/opencode/models-discovery-cache.json`.
+
+When the cache is fresh, models are served from disk instantly with zero network requests. When expired, stale data is returned immediately while a background refresh fetches the latest models—startup is never blocked by discovery.
+
+Cache keys include provider base URL, endpoint, API key fingerprint, and relevant config (filters, enrichment settings, etc.). Changing any of these automatically invalidates the stale entry and triggers fresh discovery.
+
+Run `opencode models --refresh` to manually clear the cache.
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `cache.enabled` | `boolean` | `true` | Enable or disable disk caching |
+| `cache.ttl` | `number` | `3600000` | Cache TTL in milliseconds (default: 1 hour) |
+| `cache.path` | `string` | (auto) | Custom cache file path |
+
+```json
+{
+  "plugin": [
+    ["opencode-models-discovery", {
+      "cache": {
+        "enabled": true,
+        "ttl": 3600000
+      }
+    }]
+  ]
+}
+```
+
+To disable caching:
+
+```json
+{
+  "plugin": [
+    ["opencode-models-discovery", {
+      "cache": {
+        "enabled": false
+      }
+    }]
+  ]
+}
+```
+
 #### Model Filtering
 
 Control which discovered models are auto-injected with regular expressions:

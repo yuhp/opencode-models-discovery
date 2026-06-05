@@ -5,6 +5,7 @@ import { createEventHook } from './event-hook'
 import { createChatParamsHook } from './chat-params-hook'
 import { createPluginLogger } from './logger'
 import { parsePluginConfig, type PluginConfig } from '../types/plugin-config'
+import { clearCache } from '../cache/model-cache'
 
 export const ModelDiscoveryPlugin: Plugin = async (input: PluginInput, options?: PluginOptions) => {
   const { client } = input
@@ -13,7 +14,7 @@ export const ModelDiscoveryPlugin: Plugin = async (input: PluginInput, options?:
   if (!client || typeof client !== 'object') {
     logger.error('Invalid client provided to plugin')
     return {
-      config: async () => { },
+      config: async (config: any) => config,
       event: async () => { },
       "chat.params": async () => { }
     }
@@ -31,7 +32,7 @@ export const ModelDiscoveryPlugin: Plugin = async (input: PluginInput, options?:
 
   return {
     config: createConfigHook(client, toastNotifier, pluginConfig, logger.child({ category: 'config' })),
-    event: createEventHook(logger.child({ category: 'event' })),
+    event: createEventHook(logger.child({ category: 'event' }), () => clearCache({ path: pluginConfig.cache?.path })),
     "chat.params": createChatParamsHook(toastNotifier, pluginConfig),
   }
 }

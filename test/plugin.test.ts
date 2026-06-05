@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest'
 import { ModelDiscoveryPlugin } from '../src/index.ts'
+import { clearCache, readCache } from '../src/cache/model-cache.ts'
 
 const mockFetch = vi.fn()
 global.fetch = mockFetch
@@ -46,8 +47,9 @@ describe('ModelDiscovery Plugin', () => {
     pluginHooks = await ModelDiscoveryPlugin(mockInput)
   })
 
-  afterEach(() => {
+  afterEach(async () => {
     vi.restoreAllMocks()
+    await clearCache()
   })
 
   describe('Plugin Initialization', () => {
@@ -1048,6 +1050,254 @@ describe('ModelDiscovery Plugin', () => {
       expect(config.provider.ollama.models['qwen/qwen3-30b-a3b']).toBeDefined()
       expect(config.provider.ollama.models['qwen/qwen3-8b']).toBeDefined()
       expect(config.provider.ollama.models['bge-m3']).toBeUndefined()
+    })
+
+    it('should not inject cached models for excluded providers', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          data: [
+            { id: 'cached-model', object: 'model', created: 1234567890, owned_by: 'local' }
+          ]
+        })
+      })
+
+      const config: any = {
+        provider: {
+          ollama: {
+            npm: '@ai-sdk/openai-compatible',
+            name: 'Ollama',
+            options: { baseURL: 'http://127.0.0.1:11434/v1' },
+            models: {}
+          }
+        }
+      }
+
+      await pluginHooks.config(config)
+      expect(config.provider.ollama.models['cached-model']).toBeDefined()
+
+      mockFetch.mockClear()
+      const hooksWithExclude = await ModelDiscoveryPlugin({
+        client: mockClient,
+        project: {
+          id: 'test-project',
+          name: 'test',
+          path: '/tmp',
+          worktree: '',
+          time: { created: Date.now() }
+        },
+        directory: '/tmp',
+        worktree: '',
+        $: vi.fn()
+      }, {
+        providers: {
+          exclude: ['ollama']
+        }
+      })
+
+      const configWithExclude: any = {
+        provider: {
+          ollama: {
+            npm: '@ai-sdk/openai-compatible',
+            name: 'Ollama',
+            options: { baseURL: 'http://127.0.0.1:11434/v1' },
+            models: {}
+          }
+        }
+      }
+
+      await hooksWithExclude.config(configWithExclude)
+
+      expect(configWithExclude.provider.ollama.models).toEqual({})
+      expect(mockFetch).not.toHaveBeenCalled()
+    })
+
+    it('should not inject cached models when provider-level discovery is disabled', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          data: [
+            { id: 'cached-model', object: 'model', created: 1234567890, owned_by: 'local' }
+          ]
+        })
+      })
+
+      const config: any = {
+        provider: {
+          ollama: {
+            npm: '@ai-sdk/openai-compatible',
+            name: 'Ollama',
+            options: { baseURL: 'http://127.0.0.1:11434/v1' },
+            models: {}
+          }
+        }
+      }
+
+      await pluginHooks.config(config)
+      expect(config.provider.ollama.models['cached-model']).toBeDefined()
+
+      mockFetch.mockClear()
+      const configWithProviderDisabled: any = {
+        provider: {
+          ollama: {
+            npm: '@ai-sdk/openai-compatible',
+            name: 'Ollama',
+            options: {
+              baseURL: 'http://127.0.0.1:11434/v1',
+              modelsDiscovery: {
+                enabled: false
+              }
+            },
+            models: {}
+          }
+        }
+      }
+
+      await pluginHooks.config(configWithProviderDisabled)
+
+      expect(configWithProviderDisabled.provider.ollama.models).toEqual({})
+      expect(mockFetch).not.toHaveBeenCalled()
+    })
+
+    it('should invalidate provider cache when api key changes', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          data: [
+            { id: 'model-for-key-a', object: 'model', created: 1234567890, owned_by: 'local' }
+          ]
+        })
+      })
+
+      const configForKeyA: any = {
+        provider: {
+          openrouter: {
+            npm: '@ai-sdk/openai-compatible',
+            name: 'OpenRouter',
+            options: {
+              baseURL: 'https://openrouter.ai/api/v1',
+              apiKey: 'key-a'
+            },
+            models: {}
+          }
+        }
+      }
+
+      await pluginHooks.config(configForKeyA)
+      expect(configForKeyA.provider.openrouter.models['model-for-key-a']).toBeDefined()
+
+      mockFetch.mockClear()
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          data: [
+            { id: 'model-for-key-b', object: 'model', created: 1234567890, owned_by: 'local' }
+          ]
+        })
+      })
+
+      const configForKeyB: any = {
+        provider: {
+          openrouter: {
+            npm: '@ai-sdk/openai-compatible',
+            name: 'OpenRouter',
+            options: {
+              baseURL: 'https://openrouter.ai/api/v1',
+              apiKey: 'key-b'
+            },
+            models: {}
+          }
+        }
+      }
+
+      await pluginHooks.config(configForKeyB)
+
+      expect(configForKeyB.provider.openrouter.models['model-for-key-a']).toBeUndefined()
+      expect(configForKeyB.provider.openrouter.models['model-for-key-b']).toBeDefined()
+      expect(mockFetch).toHaveBeenCalledTimes(1)
+      expect(mockFetch).toHaveBeenCalledWith('https://openrouter.ai/api/v1/models', expect.objectContaining({
+        headers: expect.objectContaining({
+          Authorization: 'Bearer key-b'
+        })
+      }))
+    })
+
+    it('should refresh stale cache in background even when model ids are unchanged', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          data: [
+            { id: 'same-model', object: 'model', created: 1234567890, owned_by: 'local' }
+          ]
+        })
+      })
+
+      const config: any = {
+        provider: {
+          ollama: {
+            npm: '@ai-sdk/openai-compatible',
+            name: 'Ollama',
+            options: { baseURL: 'http://127.0.0.1:11434/v1' },
+            models: {}
+          }
+        }
+      }
+
+      await pluginHooks.config(config)
+      const firstCache = await readCache()
+      const firstDiscoveredAt = firstCache?.providers.ollama.discoveredAt
+      expect(firstDiscoveredAt).toBeDefined()
+
+      await new Promise((resolve) => setTimeout(resolve, 10))
+
+      const hooksWithStaleCache = await ModelDiscoveryPlugin({
+        client: mockClient,
+        project: {
+          id: 'test-project',
+          name: 'test',
+          path: '/tmp',
+          worktree: '',
+          time: { created: Date.now() }
+        },
+        directory: '/tmp',
+        worktree: '',
+        $: vi.fn()
+      }, {
+        cache: {
+          ttl: -1
+        }
+      })
+
+      mockFetch.mockClear()
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          data: [
+            { id: 'same-model', object: 'model', created: 1234567890, owned_by: 'local' }
+          ]
+        })
+      })
+
+      const staleConfig: any = {
+        provider: {
+          ollama: {
+            npm: '@ai-sdk/openai-compatible',
+            name: 'Ollama',
+            options: { baseURL: 'http://127.0.0.1:11434/v1' },
+            models: {}
+          }
+        }
+      }
+
+      await hooksWithStaleCache.config(staleConfig)
+
+      expect(staleConfig.provider.ollama.models['same-model']).toBeDefined()
+
+      await vi.waitFor(async () => {
+        const refreshedCache = await readCache()
+        expect(refreshedCache?.providers.ollama.discoveredAt).not.toBe(firstDiscoveredAt)
+      })
+      expect(mockFetch).toHaveBeenCalledTimes(1)
     })
   })
 

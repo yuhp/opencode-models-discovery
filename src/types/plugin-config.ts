@@ -1,3 +1,9 @@
+export interface CacheConfig {
+  enabled?: boolean
+  ttl?: number
+  path?: string
+}
+
 export interface PluginConfig {
   providers?: {
     include?: string[]
@@ -10,6 +16,7 @@ export interface PluginConfig {
   discovery?: {
     enabled?: boolean
   }
+  cache?: CacheConfig
   smartModelName?: boolean
 }
 
