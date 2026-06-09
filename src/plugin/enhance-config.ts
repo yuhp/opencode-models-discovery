@@ -1,5 +1,5 @@
 import { ToastNotifier } from '../ui/toast-notifier'
-import { categorizeModel, formatModelName, extractModelOwner } from '../utils'
+import { isEmbeddingModel, formatModelName, extractModelOwner } from '../utils'
 import { normalizeBaseURL, discoverModelsFromProvider, discoverModelInfoFromProvider, autoDetectOpenAICompatibleProvider, canDiscoverModels } from '../utils/openai-compatible-api'
 import { createModelInfoEnricher, isSupportedModelInfoFormat, type ModelInfoEnricher } from '../utils/model-info'
 import { getProviderFilter, getDiscoveryConfig, getModelRegexFilter, getProviderModelRegexFilter, shouldDiscoverModel, shouldDiscoverProviderWithOverride } from '../types/plugin-config'
@@ -97,7 +97,6 @@ export async function enhanceConfig(
 
       const existingModels = p.models || {}
       const discoveredModels: Record<string, any> = {}
-      let chatModelsCount = 0
 
       const hasProviderModelRegexFilter = !!providerDiscoveryConfig.models?.includeRegex?.length || !!providerDiscoveryConfig.models?.excludeRegex?.length
       const providerModelRegexFilter = getProviderModelRegexFilter(providerDiscoveryConfig, logger.child({ category: 'filtering' }))
@@ -118,8 +117,7 @@ export async function enhanceConfig(
             continue
           }
 
-          const modelType = categorizeModel(model.id)
-          if (modelType === 'embedding') {
+          if (isEmbeddingModel(model.id)) {
             continue
           }
 
@@ -134,15 +132,12 @@ export async function enhanceConfig(
             modelConfig.organizationOwner = owner
           }
 
-          if (modelType === 'chat') {
-            chatModelsCount++
-            modelConfig.modalities = {
-              input: model.capabilities?.vision === true ? ["text", "image"] : ["text"],
-              output: ["text"]
-            }
-            modelConfig.attachment = model.capabilities?.vision === true
-            modelConfig.temperature = true
+          modelConfig.modalities = {
+            input: model.capabilities?.vision === true ? ["text", "image", "video"] : ["text"],
+            output: ["text"]
           }
+          modelConfig.attachment = model.capabilities?.vision === true
+          modelConfig.temperature = true
 
           if (model.capabilities?.reasoning === true) {
             modelConfig.reasoning = true
