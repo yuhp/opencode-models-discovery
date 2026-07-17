@@ -238,6 +238,8 @@ export async function enhanceConfig(
           provider: providerName,
           count: modelsDevCache.size,
         })
+      } else if (modelInfoFormat === ModelInfoFormat.VLLM) {
+        modelInfoEnricher = createModelInfoEnricher(modelInfoFormat, null)
       } else if (typeof modelInfoEndpoint === 'string' && modelInfoEndpoint.length > 0 && modelInfoFormat) {
         const modelInfoDiscovery = await discoverModelInfoFromProvider(baseURL, apiKey, modelInfoEndpoint)
         if (modelInfoDiscovery.ok) {
@@ -299,7 +301,7 @@ export async function enhanceConfig(
             }
           }
 
-          modelInfoEnricher?.applyModelInfo(modelConfig, model.id)
+          modelInfoEnricher?.applyModelInfo(modelConfig, model.id, model)
 
           discoveredModels[modelKey] = modelConfig
         }

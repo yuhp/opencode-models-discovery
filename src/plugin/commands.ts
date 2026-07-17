@@ -116,6 +116,7 @@ Supported plugin options under provider.<id>.options.modelsDiscovery:
 - smartModelName: use friendlier display names for discovered models
 - modelInfoFormat="models.dev": enrich from the public models.dev index without modelInfoEndpoint
 - modelInfoEndpoint plus modelInfoFormat="litellm": enrich from a LiteLLM-compatible model info endpoint
+- modelInfoFormat="vllm": enrich from vLLM-compatible providers by reading max_model_len from the raw model listing response
 - filterNonChat: when LiteLLM model info is available, skip non-chat models by default
 
 Recommended defaults:
@@ -135,6 +136,7 @@ Recommended defaults:
 - use smartModelName=true only when the user wants friendlier display names
 - use modelInfoFormat="models.dev" for models.dev metadata enrichment
 - use modelInfoEndpoint and modelInfoFormat="litellm" for LiteLLM-compatible model info endpoints
+- use modelInfoFormat="vllm" for vLLM-compatible providers; no modelInfoEndpoint needed
 
 Provider compatibility guidance:
 - Discovery works for @ai-sdk/openai-compatible providers by default.

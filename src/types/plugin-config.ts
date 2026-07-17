@@ -32,6 +32,7 @@ export type CompiledModelFieldFilter = ModelFieldEqualsFilter | (Omit<ModelField
 export enum ModelInfoFormat {
   LiteLLM = 'litellm',
   ModelsDev = 'models.dev',
+  VLLM = 'vllm',
 }
 
 export interface ProviderDiscoveryConfig {

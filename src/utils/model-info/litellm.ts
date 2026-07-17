@@ -100,14 +100,14 @@ function getModelInfo(modelInfoById: Map<string, LiteLLMModelInfoEntry>, modelId
 
 export function createLiteLLMModelInfoEnricher(
   data: unknown,
-  options: ModelInfoEnricherOptions
+  options?: ModelInfoEnricherOptions
 ): ModelInfoEnricher {
   const response = data as { data?: LiteLLMModelInfoEntry[] } | undefined
   const modelInfoById = buildModelInfoMap(Array.isArray(response?.data) ? response.data : [])
 
   return {
     shouldSkipModel(modelId: string): boolean {
-      if (!options.filterNonChat) return false
+      if (!options?.filterNonChat) return false
       const mode = getModelInfo(modelInfoById, modelId)?.model_info?.mode
       return typeof mode === 'string' && mode.length > 0 && mode !== 'chat'
     },
