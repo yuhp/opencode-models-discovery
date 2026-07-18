@@ -14,7 +14,6 @@ export function createVLLMModelInfoEnricher(_data: unknown, _options?: ModelInfo
       if (hasUsableNumber(maxModelLen)) {
         modelConfig.limit = {
           context: maxModelLen,
-          input: maxModelLen,
           output: maxModelLen,
         }
       }
