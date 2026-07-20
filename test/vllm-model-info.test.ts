@@ -19,7 +19,6 @@ describe('vLLM model info enricher', () => {
     enricher!.applyModelInfo(modelConfig, 'test-model', rawModel)
     expect(modelConfig.limit).toEqual({
       context: 8192,
-      input: 8192,
       output: 8192,
     })
   })
