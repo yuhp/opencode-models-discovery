@@ -77,6 +77,18 @@ function applyProviderModelInfo(modelConfig: any, model: OpenAIModel): void {
   }
 }
 
+function ensureModelLimitOutput(models: Record<string, any>): void {
+  for (const model of Object.values(models)) {
+    if (!model?.limit || typeof model.limit !== 'object' || Array.isArray(model.limit)) {
+      continue
+    }
+
+    if (typeof model.limit.output !== 'number') {
+      model.limit = { ...model.limit, output: 0 }
+    }
+  }
+}
+
 export const providerModelStoreTestUtils = {
   setStore(store: ProviderModelStore): void {
     currentProviderModelStore = store
@@ -251,6 +263,7 @@ export async function enhanceConfig(
 
     for (const [providerName, providerConfig] of Object.entries(providers)) {
       const p = providerConfig as any
+      ensureModelLimitOutput(p.models || {})
       const providerDiscoveryConfig = p.options?.modelsDiscovery ?? {}
       const modelsEndpoint = providerDiscoveryConfig.endpoint ?? '/v1/models'
       const modelInfoFormat = providerDiscoveryConfig.modelInfoFormat

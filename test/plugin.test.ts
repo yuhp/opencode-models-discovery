@@ -528,6 +528,40 @@ describe('ModelDiscovery Plugin', () => {
       expect(mockClient.config.providers).not.toHaveBeenCalled()
     })
 
+    it('repairs inherited models with a context-only limit during reload', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          data: [{ id: 'qodercn/qmodel_preview', object: 'model', created: 1234567890, owned_by: 'local' }],
+        }),
+      })
+
+      const config: any = {
+        provider: {
+          cpa: {
+            npm: '@ai-sdk/openai-compatible',
+            options: {
+              baseURL: 'http://127.0.0.1:8000/v1',
+              modelsDiscovery: { enabled: true },
+            },
+            models: {
+              'qodercn/qmodel_preview': {
+                id: 'qodercn/qmodel_preview',
+                limit: { context: 180000 },
+              },
+            },
+          },
+        },
+      }
+
+      await pluginHooks.config(config)
+
+      expect(config.provider.cpa.models['qodercn/qmodel_preview'].limit).toEqual({
+        context: 180000,
+        output: 0,
+      })
+    })
+
     it('persists only filtered enriched models and reuses their metadata', async () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,
