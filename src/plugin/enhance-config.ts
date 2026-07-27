@@ -39,6 +39,42 @@ const RESOLVED_PROVIDERS_TIMEOUT_MS = 250
 const DEFAULT_LITELLM_MODEL_INFO_ENDPOINT = '/v1/model/info'
 const defaultProviderModelStore = new ProviderModelStore()
 
+function applyProviderModelInfo(modelConfig: any, model: OpenAIModel): void {
+  const contextWindow = typeof model.context_window === 'number' && model.context_window > 0
+    ? model.context_window
+    : model.max_context_window
+  if (typeof contextWindow === 'number' && Number.isFinite(contextWindow) && contextWindow > 0) {
+    modelConfig.limit = { ...modelConfig.limit, context: contextWindow }
+    if (modelConfig.limit.input > contextWindow) delete modelConfig.limit.input
+  }
+
+  const reasoningLevels = Array.isArray(model.supported_reasoning_levels)
+    ? model.supported_reasoning_levels
+      .map((level) => typeof level === 'string' ? level : level?.effort)
+      .filter((level): level is string => typeof level === 'string' && level.length > 0)
+    : []
+  if (reasoningLevels.length > 0) {
+    modelConfig.reasoning = true
+    modelConfig.variants = Object.fromEntries(
+      reasoningLevels.map((level) => [level, { reasoningEffort: level }])
+    )
+  }
+
+  if (typeof model.default_reasoning_level === 'string' && model.default_reasoning_level.length > 0) {
+    modelConfig.options = {
+      ...modelConfig.options,
+      reasoningEffort: model.default_reasoning_level,
+    }
+  }
+
+  const inputModalities = Array.isArray(model.input_modalities)
+    ? model.input_modalities.filter((modality): modality is string => typeof modality === 'string')
+    : []
+  if (inputModalities.length > 0) {
+    modelConfig.modalities = { ...modelConfig.modalities, input: inputModalities }
+  }
+}
+
 export const providerModelStoreTestUtils = {
   setStore(store: ProviderModelStore): void {
     currentProviderModelStore = store
@@ -364,6 +400,7 @@ export async function enhanceConfig(
           }
 
           modelInfoEnricher?.applyModelInfo(modelConfig, model.id, model)
+          applyProviderModelInfo(modelConfig, model)
           discoveredModels[modelKey] = modelConfig
         }
 

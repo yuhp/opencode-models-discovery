@@ -1155,6 +1155,68 @@ describe('ModelDiscovery Plugin', () => {
       expect(config.provider.openai.models['unknown/local-model']).not.toHaveProperty('tool_call')
     })
 
+    it('should prefer provider model metadata over external enrichment', async () => {
+      mockFetch
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            data: [{
+              id: 'custom/gpt-5.6-terra',
+              object: 'model',
+              created: 1234567890,
+              owned_by: 'local',
+              context_window: 372000,
+              default_reasoning_level: 'medium',
+              supported_reasoning_levels: ['low', 'medium', 'high', 'xhigh'],
+              input_modalities: ['text', 'image'],
+            }]
+          })
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            openai: {
+              models: {
+                'gpt-5.6-terra': {
+                  id: 'gpt-5.6-terra',
+                  reasoning: false,
+                  modalities: { input: ['text', 'image', 'pdf'], output: ['text'] },
+                  limit: { context: 1050000, input: 922000, output: 128000 }
+                }
+              }
+            }
+          })
+        })
+
+      const config: any = {
+        provider: {
+          custom: {
+            npm: '@ai-sdk/openai-compatible',
+            options: {
+              baseURL: 'http://127.0.0.1:9000/v1',
+              modelsDiscovery: { modelInfoFormat: 'models.dev' }
+            },
+            models: {}
+          }
+        }
+      }
+
+      await pluginHooks.config(config)
+
+      expect(config.provider.custom.models['custom/gpt-5.6-terra']).toEqual(expect.objectContaining({
+        reasoning: true,
+        options: { reasoningEffort: 'medium' },
+        variants: {
+          low: { reasoningEffort: 'low' },
+          medium: { reasoningEffort: 'medium' },
+          high: { reasoningEffort: 'high' },
+          xhigh: { reasoningEffort: 'xhigh' }
+        },
+        modalities: { input: ['text', 'image'], output: ['text'] },
+        limit: { context: 372000, output: 128000 }
+      }))
+    })
+
     it('should use models.dev display names for custom provider smart names', async () => {
       mockFetch
         .mockResolvedValueOnce({

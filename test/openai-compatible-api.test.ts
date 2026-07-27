@@ -26,18 +26,49 @@ describe('OpenAI-compatible API discovery', () => {
 
   it('returns discovered models from the low-level http client', async () => {
     await withServer((req, res) => {
-      expect(req.url).toBe('/v1/models')
       res.writeHead(200, { 'Content-Type': 'application/json' })
-      res.end(JSON.stringify({
-        data: [
-          { id: 'local-model', object: 'model', created: 0, owned_by: 'local' },
-        ],
-      }))
+      res.end(JSON.stringify(req.url === '/v1/models'
+        ? { data: [{ id: 'local-model', object: 'model', created: 0, owned_by: 'local' }] }
+        : { models: [] }))
     }, async (baseURL) => {
       const result = await discoverModelsFromProvider(baseURL)
 
       expect(result.ok).toBe(true)
       expect(result.models.map(model => model.id)).toEqual(['local-model'])
+    })
+  })
+
+  it('uses provider client metadata for matching models', async () => {
+    await withServer((req, res) => {
+      res.writeHead(200, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify(req.url === '/v1/models'
+        ? {
+            data: [{
+              id: 'kiro/gpt-5.6-terra',
+              object: 'model',
+              created: 0,
+              owned_by: 'local',
+              context_window: 272000,
+            }],
+          }
+        : {
+            models: [{
+              slug: 'gpt-5.6-terra',
+              context_window: 372000,
+              default_reasoning_level: 'medium',
+              supported_reasoning_levels: [{ effort: 'low' }, { effort: 'medium' }, { effort: 'high' }],
+              input_modalities: ['text', 'image'],
+            }],
+          }))
+    }, async (baseURL) => {
+      const result = await discoverModelsFromProvider(baseURL)
+
+      expect(result.models[0]).toEqual(expect.objectContaining({
+        context_window: 372000,
+        default_reasoning_level: 'medium',
+        supported_reasoning_levels: [{ effort: 'low' }, { effort: 'medium' }, { effort: 'high' }],
+        input_modalities: ['text', 'image'],
+      }))
     })
   })
 

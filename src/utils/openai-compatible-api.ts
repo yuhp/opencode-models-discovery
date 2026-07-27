@@ -3,7 +3,35 @@ import https from 'node:https'
 import type { OpenAIModel, OpenAIModelsResponse } from '../types'
 
 const OPENAI_COMPATIBLE_MODELS_ENDPOINT = "/v1/models"
+const CLIENT_MODELS_ENDPOINT = "/v1/models?client_version="
 const REQUEST_TIMEOUT_MS = 3000
+
+const hasUsableNumber = (value: unknown): value is number =>
+  typeof value === 'number' && Number.isFinite(value) && value > 0
+
+function mergeClientModelMetadata(model: OpenAIModel, clientModels: Record<string, unknown>[]): OpenAIModel {
+  const metadata = clientModels.find((candidate) => {
+    const id = typeof candidate.id === 'string' ? candidate.id : candidate.slug
+    return typeof id === 'string' && (model.id === id || model.id.endsWith(`/${id}`))
+  })
+  if (!metadata) return model
+
+  const merged = { ...model }
+  const contextWindow = hasUsableNumber(metadata.context_window)
+    ? metadata.context_window
+    : metadata.max_context_window
+  if (hasUsableNumber(contextWindow)) merged.context_window = contextWindow
+  if (typeof metadata.default_reasoning_level === 'string') {
+    merged.default_reasoning_level = metadata.default_reasoning_level
+  }
+  if (Array.isArray(metadata.supported_reasoning_levels)) {
+    merged.supported_reasoning_levels = metadata.supported_reasoning_levels
+  }
+  if (Array.isArray(metadata.input_modalities)) {
+    merged.input_modalities = metadata.input_modalities
+  }
+  return merged
+}
 
 export interface ModelsDiscoveryResult {
   ok: boolean
@@ -82,7 +110,19 @@ export async function discoverModelsFromProvider(
   }
 
   const data = await requestJson<OpenAIModelsResponse>(url, headers)
-  return data ? { ok: true, models: data.data ?? [] } : { ok: false, models: [] }
+  if (!data) return { ok: false, models: [] }
+
+  const models = data.data ?? []
+  if (endpoint !== OPENAI_COMPATIBLE_MODELS_ENDPOINT || models.length === 0) {
+    return { ok: true, models }
+  }
+
+  const clientData = await requestJson<{ models?: Record<string, unknown>[] }>(
+    buildAPIURL(baseURL, CLIENT_MODELS_ENDPOINT),
+    headers
+  )
+  const clientModels = Array.isArray(clientData?.models) ? clientData.models : []
+  return { ok: true, models: models.map((model) => mergeClientModelMetadata(model, clientModels)) }
 }
 
 export async function discoverModelInfoFromProvider(
