@@ -1217,6 +1217,49 @@ describe('ModelDiscovery Plugin', () => {
       }))
     })
 
+    it('should set an unknown models.dev output limit to zero', async () => {
+      mockFetch
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            data: [{ id: 'openai/gpt-image-1.5', object: 'model', created: 1234567890, owned_by: 'openai' }]
+          })
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            openai: {
+              models: {
+                'gpt-image-1.5': {
+                  id: 'gpt-image-1.5',
+                  limit: { context: 272000 }
+                }
+              }
+            }
+          })
+        })
+
+      const config: any = {
+        provider: {
+          openai: {
+            npm: '@ai-sdk/openai-compatible',
+            options: {
+              baseURL: 'http://127.0.0.1:9000/v1',
+              modelsDiscovery: { modelInfoFormat: 'models.dev' }
+            },
+            models: {}
+          }
+        }
+      }
+
+      await pluginHooks.config(config)
+
+      expect(config.provider.openai.models['openai/gpt-image-1.5'].limit).toEqual({
+        context: 272000,
+        output: 0
+      })
+    })
+
     it('should use models.dev display names for custom provider smart names', async () => {
       mockFetch
         .mockResolvedValueOnce({
@@ -1266,7 +1309,7 @@ describe('ModelDiscovery Plugin', () => {
         id: 'custom/gpt-4o',
         name: 'GPT-4o',
         tool_call: true,
-        limit: { context: 128000 }
+        limit: { context: 128000, output: 0 }
       }))
     })
 

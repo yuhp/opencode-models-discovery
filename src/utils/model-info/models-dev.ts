@@ -14,7 +14,7 @@ function applyModelsDevModelInfo(modelConfig: any, info: ModelsDevModel | undefi
     modelConfig.limit = {
       ...(hasUsableNumber(contextLimit) ? { context: contextLimit } : {}),
       ...(hasUsableNumber(info.limit?.input) ? { input: info.limit.input } : {}),
-      ...(hasUsableNumber(outputLimit) ? { output: outputLimit } : {}),
+      output: hasUsableNumber(outputLimit) ? outputLimit : 0,
     }
   }
 

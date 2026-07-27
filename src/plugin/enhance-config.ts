@@ -42,7 +42,9 @@ const defaultProviderModelStore = new ProviderModelStore()
 function applyProviderModelInfo(modelConfig: any, model: OpenAIModel): void {
   const contextWindow = typeof model.context_window === 'number' && model.context_window > 0
     ? model.context_window
-    : model.max_context_window
+    : typeof model.max_context_window === 'number' && model.max_context_window > 0
+      ? model.max_context_window
+      : model.context_length
   if (typeof contextWindow === 'number' && Number.isFinite(contextWindow) && contextWindow > 0) {
     modelConfig.limit = { ...modelConfig.limit, context: contextWindow }
     if (modelConfig.limit.input > contextWindow) delete modelConfig.limit.input

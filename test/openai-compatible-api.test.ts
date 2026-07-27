@@ -52,19 +52,26 @@ describe('OpenAI-compatible API discovery', () => {
             }],
           }
         : {
-            models: [{
-              slug: 'gpt-5.6-terra',
-              context_window: 372000,
-              default_reasoning_level: 'medium',
-              supported_reasoning_levels: [{ effort: 'low' }, { effort: 'medium' }, { effort: 'high' }],
-              input_modalities: ['text', 'image'],
-            }],
+            models: [
+              {
+                slug: 'gpt-5.6-terra',
+                context_window: 372000,
+                default_reasoning_level: 'low',
+              },
+              {
+                slug: 'kiro/gpt-5.6-terra',
+                context_length: 272000,
+                default_reasoning_level: 'medium',
+                supported_reasoning_levels: [{ effort: 'low' }, { effort: 'medium' }, { effort: 'high' }],
+                input_modalities: ['text', 'image'],
+              }
+            ],
           }))
     }, async (baseURL) => {
       const result = await discoverModelsFromProvider(baseURL)
 
       expect(result.models[0]).toEqual(expect.objectContaining({
-        context_window: 372000,
+        context_window: 272000,
         default_reasoning_level: 'medium',
         supported_reasoning_levels: [{ effort: 'low' }, { effort: 'medium' }, { effort: 'high' }],
         input_modalities: ['text', 'image'],

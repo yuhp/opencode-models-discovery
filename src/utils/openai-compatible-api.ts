@@ -10,16 +10,15 @@ const hasUsableNumber = (value: unknown): value is number =>
   typeof value === 'number' && Number.isFinite(value) && value > 0
 
 function mergeClientModelMetadata(model: OpenAIModel, clientModels: Record<string, unknown>[]): OpenAIModel {
-  const metadata = clientModels.find((candidate) => {
-    const id = typeof candidate.id === 'string' ? candidate.id : candidate.slug
-    return typeof id === 'string' && (model.id === id || model.id.endsWith(`/${id}`))
-  })
+  const metadata = clientModels.find((candidate) => candidate.id === model.id || candidate.slug === model.id)
   if (!metadata) return model
 
   const merged = { ...model }
   const contextWindow = hasUsableNumber(metadata.context_window)
     ? metadata.context_window
-    : metadata.max_context_window
+    : hasUsableNumber(metadata.max_context_window)
+      ? metadata.max_context_window
+      : metadata.context_length
   if (hasUsableNumber(contextWindow)) merged.context_window = contextWindow
   if (typeof metadata.default_reasoning_level === 'string') {
     merged.default_reasoning_level = metadata.default_reasoning_level
