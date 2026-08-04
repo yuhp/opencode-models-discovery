@@ -39,22 +39,14 @@ export function createConfigHook(
       injectMigrationCommand(config, logger)
     }
 
-    const discoveryPromise = enhanceConfig(
-      config,
-      client,
-      toastNotifier,
-      pluginConfig,
-      logger.child({ category: 'discovery' })
-    )
-    const timeoutMs = 5000
-
     try {
-      await Promise.race([
-        discoveryPromise,
-        new Promise<void>((resolve) => {
-          setTimeout(() => resolve(), timeoutMs)
-        })
-      ])
+      await enhanceConfig(
+        config,
+        client,
+        toastNotifier,
+        pluginConfig,
+        logger.child({ category: 'discovery' })
+      )
     } catch (error) {
       logger.error('Config enhancement failed', {
         error: error instanceof Error ? error.message : String(error),
