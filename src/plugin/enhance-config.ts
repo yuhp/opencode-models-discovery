@@ -3,7 +3,7 @@ import path from 'node:path'
 import { xdgData } from 'xdg-basedir'
 import { ToastNotifier } from '../ui/toast-notifier'
 import { categorizeModel, formatModelName, extractModelOwner } from '../utils'
-import { normalizeBaseURL, discoverModelsFromProvider, discoverModelInfoFromProvider, canDiscoverModels, isValidModel } from '../utils/openai-compatible-api'
+import { normalizeBaseURL, discoverModelsFromProvider, discoverModelInfoFromProvider, canDiscoverModels, isValidModel, DEFAULT_REQUEST_TIMEOUT_MS } from '../utils/openai-compatible-api'
 import { createModelInfoEnricher, isSupportedModelInfoFormat, type ModelInfoEnricher } from '../utils/model-info'
 import { DEFAULT_CACHE_TTL_SECONDS, getDefaultDiscoveryConfigFromEnv, getProviderModelFieldFilters, getProviderModelRegexFilter, shouldDiscoverModel, shouldDiscoverModelByFields, shouldDiscoverProviderWithOverride, ModelInfoFormat } from '../types/plugin-config'
 import { fetchModelsDevData } from '../utils/models-dev-fetcher'
@@ -216,6 +216,7 @@ export async function enhanceConfig(
       const p = providerConfig as any
       const providerDiscoveryConfig = p.options?.modelsDiscovery ?? {}
       const modelsEndpoint = providerDiscoveryConfig.endpoint ?? '/v1/models'
+      const timeoutMs = providerDiscoveryConfig.timeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS
       const modelInfoFormat = providerDiscoveryConfig.modelInfoFormat
       const filterNonChat = providerDiscoveryConfig.filterNonChat !== false
       const forceDiscoveryEnabled = providerDiscoveryConfig.enabled === true
@@ -259,7 +260,7 @@ export async function enhanceConfig(
           usingPersistedModels = true
         } else {
           apiKey = await getProviderApiKey(providerName, p, client, resolvedProvidersLoader, logger)
-          const discovery = await discoverModelsFromProvider(baseURL, apiKey, modelsEndpoint)
+          const discovery = await discoverModelsFromProvider(baseURL, apiKey, modelsEndpoint, timeoutMs)
           if (!discovery.ok) {
             const existingModels = getExplicitModels(config, providerName, p.models || {})
             p.models = existingModels
@@ -276,7 +277,7 @@ export async function enhanceConfig(
         }
       } else {
         apiKey = await getProviderApiKey(providerName, p, client, resolvedProvidersLoader, logger)
-        const discovery = await discoverModelsFromProvider(baseURL, apiKey, modelsEndpoint)
+        const discovery = await discoverModelsFromProvider(baseURL, apiKey, modelsEndpoint, timeoutMs)
         if (!discovery.ok) {
           logger.warn('Provider model discovery failed', {
             provider: providerName,
@@ -305,7 +306,7 @@ export async function enhanceConfig(
         modelInfoEnricher = createModelInfoEnricher(modelInfoFormat, null)
       } else if (!usingPersistedModels && modelInfoFormat === ModelInfoFormat.LMStudio) {
         const modelInfoEndpoint = providerDiscoveryConfig.modelInfoEndpoint ?? DEFAULT_LMSTUDIO_MODELS_ENDPOINT
-        const modelInfoDiscovery = await discoverModelInfoFromProvider(baseURL, apiKey, modelInfoEndpoint)
+        const modelInfoDiscovery = await discoverModelInfoFromProvider(baseURL, apiKey, modelInfoEndpoint, timeoutMs)
         if (modelInfoDiscovery.ok) {
           modelInfoEnricher = createModelInfoEnricher(modelInfoFormat, modelInfoDiscovery.data)
         } else {
@@ -318,7 +319,7 @@ export async function enhanceConfig(
         }
       } else if (!usingPersistedModels && modelInfoFormat === ModelInfoFormat.LiteLLM) {
         const modelInfoEndpoint = providerDiscoveryConfig.modelInfoEndpoint ?? DEFAULT_LITELLM_MODEL_INFO_ENDPOINT
-        const modelInfoDiscovery = await discoverModelInfoFromProvider(baseURL, apiKey, modelInfoEndpoint)
+        const modelInfoDiscovery = await discoverModelInfoFromProvider(baseURL, apiKey, modelInfoEndpoint, timeoutMs)
         if (modelInfoDiscovery.ok) {
           modelInfoEnricher = createModelInfoEnricher(modelInfoFormat, modelInfoDiscovery.data, { filterNonChat })
         } else {

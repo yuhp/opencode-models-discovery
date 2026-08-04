@@ -3,7 +3,7 @@ import https from 'node:https'
 import type { OpenAIModel, OpenAIModelsResponse } from '../types'
 
 const OPENAI_COMPATIBLE_MODELS_ENDPOINT = "/v1/models"
-const REQUEST_TIMEOUT_MS = 3000
+export const DEFAULT_REQUEST_TIMEOUT_MS = 3000
 
 export interface ModelsDiscoveryResult {
   ok: boolean
@@ -28,7 +28,7 @@ export function buildAPIURL(baseURL: string, endpoint: string = OPENAI_COMPATIBL
   return `${normalized}${endpoint}`
 }
 
-function requestJson<T>(urlStr: string, headers: Record<string, string>): Promise<T | undefined> {
+function requestJson<T>(urlStr: string, headers: Record<string, string>, timeoutMs: number = DEFAULT_REQUEST_TIMEOUT_MS): Promise<T | undefined> {
   return new Promise((resolve) => {
     let settled = false
     const finish = (data: T | undefined) => {
@@ -41,7 +41,7 @@ function requestJson<T>(urlStr: string, headers: Record<string, string>): Promis
     const urlObj = new URL(urlStr)
     const mod = urlObj.protocol === 'https:' ? https : http
 
-    const req = mod.get(urlObj, { headers, timeout: REQUEST_TIMEOUT_MS }, (res) => {
+    const req = mod.get(urlObj, { headers, timeout: timeoutMs }, (res) => {
       let data = ''
       res.setEncoding('utf8')
       res.on('data', (chunk: string) => data += chunk)
@@ -70,8 +70,9 @@ function requestJson<T>(urlStr: string, headers: Record<string, string>): Promis
 
 export async function discoverModelsFromProvider(
   baseURL: string,
-  apiKey?: string,
-  endpoint: string = OPENAI_COMPATIBLE_MODELS_ENDPOINT
+  apiKey: string | undefined,
+  endpoint: string = OPENAI_COMPATIBLE_MODELS_ENDPOINT,
+  timeoutMs: number = DEFAULT_REQUEST_TIMEOUT_MS
 ): Promise<ModelsDiscoveryResult> {
   const url = buildAPIURL(baseURL, endpoint)
   const headers: Record<string, string> = {
@@ -81,14 +82,15 @@ export async function discoverModelsFromProvider(
     headers["Authorization"] = `Bearer ${apiKey}`
   }
 
-  const data = await requestJson<OpenAIModelsResponse>(url, headers)
+  const data = await requestJson<OpenAIModelsResponse>(url, headers, timeoutMs)
   return data ? { ok: true, models: data.data ?? [] } : { ok: false, models: [] }
 }
 
 export async function discoverModelInfoFromProvider(
   baseURL: string,
-  apiKey?: string,
-  endpoint: string = "/v1/model/info"
+  apiKey: string | undefined,
+  endpoint: string = "/v1/model/info",
+  timeoutMs: number = DEFAULT_REQUEST_TIMEOUT_MS
 ): Promise<ModelInfoDiscoveryResult> {
   const url = buildAPIURL(baseURL, endpoint)
   const headers: Record<string, string> = {
@@ -98,7 +100,7 @@ export async function discoverModelInfoFromProvider(
     headers["Authorization"] = `Bearer ${apiKey}`
   }
 
-  const data = await requestJson<unknown>(url, headers)
+  const data = await requestJson<unknown>(url, headers, timeoutMs)
   return data !== undefined ? { ok: true, data } : { ok: false, data: undefined }
 }
 

@@ -47,6 +47,7 @@ export interface ProviderDiscoveryCacheConfig {
 export interface ProviderDiscoveryConfig {
   enabled?: boolean
   endpoint?: string
+  timeoutMs?: number
   modelInfoEndpoint?: string
   modelInfoFormat?: ModelInfoFormat
   filterNonChat?: boolean
