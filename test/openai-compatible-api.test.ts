@@ -81,7 +81,7 @@ describe('OpenAI-compatible API discovery', () => {
         res.end(JSON.stringify({ data: [] }))
       }, 3500)
     }, async (baseURL) => {
-      const result = await discoverModelsFromProvider(baseURL)
+      const result = await discoverModelsFromProvider(baseURL, undefined, '/v1/models', 100)
 
       expect(result).toEqual({ ok: false, models: [] })
     })

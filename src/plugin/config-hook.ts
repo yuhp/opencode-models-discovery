@@ -46,7 +46,7 @@ export function createConfigHook(
       pluginConfig,
       logger.child({ category: 'discovery' })
     )
-    const timeoutMs = 5000
+    const timeoutMs = 3000
 
     try {
       await Promise.race([

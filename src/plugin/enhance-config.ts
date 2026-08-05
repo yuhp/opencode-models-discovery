@@ -40,6 +40,47 @@ const DEFAULT_LITELLM_MODEL_INFO_ENDPOINT = '/v1/model/info'
 const DEFAULT_LMSTUDIO_MODELS_ENDPOINT = '/api/v1/models'
 const defaultProviderModelStore = new ProviderModelStore()
 
+/**
+ * Retry a failed provider discovery in the background with increasing backoff,
+ * capped at a 30s total window. The first attempt already ran synchronously;
+ * these are follow-up attempts that re-fetch the models list and, on success,
+ * inject the models + persist the cache for the current session and next startup.
+ */
+function scheduleBackgroundDiscoveryRetry(
+  retry: () => Promise<boolean>,
+  providerName: string,
+  logger: PluginLogger
+): void {
+  const maxWindowMs = 30_000
+  const backoffMs = [3000, 6000, 9000]
+  const startedAt = Date.now()
+  let attemptIndex = 0
+
+  const tryOnce = (): void => {
+    const elapsed = Date.now() - startedAt
+    if (elapsed >= maxWindowMs) {
+      logger.warn('Provider model discovery failed after background retry window', { provider: providerName })
+      return
+    }
+
+    const delay = attemptIndex < backoffMs.length ? backoffMs[attemptIndex] : 9000
+    attemptIndex += 1
+    setTimeout(() => {
+      retry()
+        .then((ok) => {
+          if (!ok) {
+            tryOnce()
+          }
+        })
+        .catch(() => {
+          tryOnce()
+        })
+    }, delay)
+  }
+
+  tryOnce()
+}
+
 export const providerModelStoreTestUtils = {
   setStore(store: ProviderModelStore): void {
     currentProviderModelStore = store
@@ -252,6 +293,55 @@ export async function enhanceConfig(
 
       let models: OpenAIModel[] = []
       let discoveredModels: Record<string, any> = {}
+
+      // Shared retry closure: re-attempts discovery in the background after a
+      // failed first pass, then persists the cache and injects the models.
+      const runDiscoveryAndInject = async (): Promise<boolean> => {
+        try {
+          const retryDiscovery = await discoverModelsFromProvider(baseURL, apiKey, modelsEndpoint)
+          if (!retryDiscovery.ok) {
+            logger.debug('Background discovery retry returned failure', { provider: providerName })
+            return false
+          }
+
+          const retryModels = retryDiscovery.models.filter(isValidModel)
+          const retryDiscovered: Record<string, any> = {}
+          for (const model of retryModels) {
+            const modelKey = model.id
+            if (!shouldDiscoverModelByFields(model, getProviderModelFieldFilters(providerDiscoveryConfig, logger.child({ category: 'filtering' })))) {
+              continue
+            }
+            retryDiscovered[modelKey] = { id: model.id }
+          }
+
+          if (cacheEnabled) {
+            await currentProviderModelStore.saveModels(cacheIdentity, retryDiscovered, persistedState)
+          }
+
+          const modelsWithOverrides = Object.fromEntries(Object.entries(retryDiscovered).map(([modelID, model]) => [
+            modelID,
+            mergeModelOverride(model, persistedState?.overrides?.[modelID]),
+          ]))
+          p.models = {
+            ...modelsWithOverrides,
+            ...getExplicitModels(config, providerName, p.models || {}),
+          }
+          replaceInjectedModels(config, providerName, modelsWithOverrides)
+
+          logger.info('Provider model discovery succeeded (background retry)', {
+            provider: providerName,
+            count: Object.keys(retryDiscovered).length,
+          })
+          return true
+        } catch (error) {
+          logger.debug('Background discovery retry errored', {
+            provider: providerName,
+            error: error instanceof Error ? error.message : String(error),
+          })
+          return false
+        }
+      }
+
       if (cacheEnabled) {
         persistedState = await currentProviderModelStore.read(cacheIdentity)
         if (persistedState && isInventoryFresh(persistedState, ttlSeconds)) {
@@ -269,6 +359,7 @@ export async function enhanceConfig(
               baseURL,
               endpoint: modelsEndpoint,
             })
+            scheduleBackgroundDiscoveryRetry(runDiscoveryAndInject, providerName, logger)
             continue
           }
 
@@ -283,6 +374,7 @@ export async function enhanceConfig(
             baseURL,
             endpoint: modelsEndpoint,
           })
+          scheduleBackgroundDiscoveryRetry(runDiscoveryAndInject, providerName, logger)
           continue
         }
         models = discovery.models.filter(isValidModel)

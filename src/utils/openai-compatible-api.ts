@@ -3,7 +3,8 @@ import https from 'node:https'
 import type { OpenAIModel, OpenAIModelsResponse } from '../types'
 
 const OPENAI_COMPATIBLE_MODELS_ENDPOINT = "/v1/models"
-const REQUEST_TIMEOUT_MS = 3000
+const REQUEST_TIMEOUT_MS = 15000
+const REQUEST_USER_AGENT = "opencode-models-discovery/1.3.0"
 
 export interface ModelsDiscoveryResult {
   ok: boolean
@@ -28,7 +29,7 @@ export function buildAPIURL(baseURL: string, endpoint: string = OPENAI_COMPATIBL
   return `${normalized}${endpoint}`
 }
 
-function requestJson<T>(urlStr: string, headers: Record<string, string>): Promise<T | undefined> {
+function requestJson<T>(urlStr: string, headers: Record<string, string>, timeoutMs: number = REQUEST_TIMEOUT_MS): Promise<T | undefined> {
   return new Promise((resolve) => {
     let settled = false
     const finish = (data: T | undefined) => {
@@ -41,7 +42,10 @@ function requestJson<T>(urlStr: string, headers: Record<string, string>): Promis
     const urlObj = new URL(urlStr)
     const mod = urlObj.protocol === 'https:' ? https : http
 
-    const req = mod.get(urlObj, { headers, timeout: REQUEST_TIMEOUT_MS }, (res) => {
+    const req = mod.get(urlObj, {
+      headers: { ...(REQUEST_USER_AGENT ? { "User-Agent": REQUEST_USER_AGENT } : {}), ...headers },
+      timeout: timeoutMs,
+    }, (res) => {
       let data = ''
       res.setEncoding('utf8')
       res.on('data', (chunk: string) => data += chunk)
@@ -71,7 +75,8 @@ function requestJson<T>(urlStr: string, headers: Record<string, string>): Promis
 export async function discoverModelsFromProvider(
   baseURL: string,
   apiKey?: string,
-  endpoint: string = OPENAI_COMPATIBLE_MODELS_ENDPOINT
+  endpoint: string = OPENAI_COMPATIBLE_MODELS_ENDPOINT,
+  timeoutMs: number = REQUEST_TIMEOUT_MS
 ): Promise<ModelsDiscoveryResult> {
   const url = buildAPIURL(baseURL, endpoint)
   const headers: Record<string, string> = {
@@ -81,7 +86,7 @@ export async function discoverModelsFromProvider(
     headers["Authorization"] = `Bearer ${apiKey}`
   }
 
-  const data = await requestJson<OpenAIModelsResponse>(url, headers)
+  const data = await requestJson<OpenAIModelsResponse>(url, headers, timeoutMs)
   return data ? { ok: true, models: data.data ?? [] } : { ok: false, models: [] }
 }
 
