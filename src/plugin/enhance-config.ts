@@ -294,7 +294,7 @@ export async function enhanceConfig(
           provider: providerName,
           format: modelInfoFormat,
         })
-      } else if (!usingPersistedModels && modelInfoFormat === ModelInfoFormat.ModelsDev) {
+      } else if (!usingPersistedModels && (modelInfoFormat === ModelInfoFormat.ModelsDev || modelInfoFormat === ModelInfoFormat.OmniRoute)) {
         const modelsDevCache = await fetchModelsDevData()
         modelInfoEnricher = createModelInfoEnricher(modelInfoFormat, modelsDevCache, { filterNonChat })
         logger.info('Loaded models.dev data', {

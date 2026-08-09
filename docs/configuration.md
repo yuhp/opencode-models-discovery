@@ -176,13 +176,14 @@ Community provider examples live in [`docs/config_example/`](config_example/).
 
 The generic OpenAI-compatible `/v1/models` endpoint only guarantees a small model list shape. Extra metadata such as context limits, tool calling, reasoning, image input, or structured output is provider-specific, so metadata enrichment is opt-in.
 
-The plugin currently supports five model info formats:
+The plugin currently supports six model info formats:
 
 | Format | Source | Requires `modelInfoEndpoint` | Notes |
 |--------|--------|------------------------------|-------|
 | `"bifrost"` | Fields in Bifrost's `/v1/models` response | No | Reads Bifrost inline limits, modalities, and base pricing when present |
 | `"litellm"` | Provider-specific model info endpoint | No | Uses `/v1/model/info` by default; set `modelInfoEndpoint` to override it |
 | `"models.dev"` | `https://models.dev/models.json` | No | Uses the public models.dev metadata index |
+| `"omni-route"` | Fields in the gateway's `/v1/models` response, plus models.dev fallback | No | Reads OmniRoute-style inline capabilities, effort tiers, modalities, limits, and pricing; models.dev fills missing fields |
 | `"vllm"` | Fields in the provider's `/v1/models` response | No | Reads vLLM-style `max_model_len` when present |
 | `"lmstudio"` | LM Studio 0.4.0+ `/api/v1/models` inventory | No | Uses `/api/v1/models` by default; set `modelInfoEndpoint` for another path |
 
@@ -374,6 +375,38 @@ For providers with custom metadata paths or non-standard behavior:
   }
 }
 ```
+
+### OmniRoute Model Info
+
+Use `modelInfoFormat: "omni-route"` for OmniRoute-style gateways whose `/v1/models` response carries rich inline metadata per model: a `capabilities` object (`reasoning`, `thinking`, `tool_calling`, `attachment`, `temperature`, `structured_output`, and `effort_tiers`), top-level `input_modalities` and `output_modalities`, `context_length` / `max_input_tokens` / `max_output_tokens`, `family`, `release_date`, and `pricing` in USD per million tokens (`input`, `output`, `cached`, `cache_creation`).
+
+```json
+{
+  "plugin": ["opencode-models-discovery"],
+  "provider": {
+    "omniroute": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "OmniRoute",
+      "options": {
+        "baseURL": "https://omni-route.example.com/v1",
+        "modelsDiscovery": {
+          "enabled": true,
+          "modelInfoFormat": "omni-route"
+        }
+      },
+      "models": {}
+    }
+  }
+}
+```
+
+Inline gateway metadata always wins. The models.dev index is fetched once per session (as with `modelInfoFormat: "models.dev"`) and fills gaps per field: context, input, and output limits, modalities, capability flags, and cost are taken from models.dev only when the gateway entry does not provide them.
+
+Each advertised `capabilities.effort_tiers` value becomes an OpenCode variant of the form `{ "reasoningEffort": "<tier>" }`, so every thinking level the gateway serves is selectable with the `variant_cycle` keybind. When a reasoning model does not serve effort tiers, variants still work through models.dev `reasoning_options`: effort values map to the same `reasoningEffort` variants, and `budget_tokens` options produce `high` and `max` thinking-budget variants that mirror OpenCode's built-in Anthropic-style budgets (`high` is `min(16000, output / 2 - 1)` and `max` is `min(31999, output - 1)`, never below the model's minimum budget).
+
+Because gateway model ids are often prefixed routes (for example `cc/claude-x` or `cp/vendor/model-y`), the models.dev fallback lookup first tries the last two id segments as an exact models.dev key, then matches the bare model name. If several models.dev providers serve the same bare name, the lookup deterministically prefers the first-party vendor entry (`anthropic`, `openai`, `google`, `xai`, and other original vendors) over gateway resellers, and gives up rather than guessing when no preferred provider matches.
+
+For testing or air-gapped setups, the models.dev index URL can be overridden with the `OPENCODE_MODELS_DISCOVERY_MODELS_DEV_URL` environment variable; it applies to both the `models.dev` and `omni-route` formats.
 
 ## Example Configurations
 

@@ -2,6 +2,7 @@ import { createBifrostModelInfoEnricher } from './bifrost'
 import { createLiteLLMModelInfoEnricher } from './litellm'
 import { createLMStudioModelInfoEnricher } from './lmstudio'
 import { createModelsDevModelInfoEnricher } from './models-dev'
+import { createOmniRouteModelInfoEnricher } from './omni-route'
 import { createVLLMModelInfoEnricher } from './vllm'
 import { ModelInfoFormat } from '../../types/plugin-config'
 import type { ModelInfoEnricher, ModelInfoEnricherOptions } from './types'
@@ -12,6 +13,7 @@ const MODEL_INFO_ENRICHERS: Partial<Record<ModelInfoFormat, ModelInfoEnricherFac
   [ModelInfoFormat.Bifrost]: createBifrostModelInfoEnricher,
   [ModelInfoFormat.LiteLLM]: createLiteLLMModelInfoEnricher,
   [ModelInfoFormat.ModelsDev]: createModelsDevModelInfoEnricher,
+  [ModelInfoFormat.OmniRoute]: createOmniRouteModelInfoEnricher,
   [ModelInfoFormat.VLLM]: createVLLMModelInfoEnricher,
   [ModelInfoFormat.LMStudio]: createLMStudioModelInfoEnricher,
 }

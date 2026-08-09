@@ -169,6 +169,17 @@ For models.dev enrichment:
 }
 ```
 
+For OmniRoute-style gateways that serve rich inline metadata (capabilities, effort tiers, modalities, limits, and per-million pricing) in `/v1/models`, with models.dev used as a per-field fallback:
+
+```json
+{
+  "modelsDiscovery": {
+    "enabled": true,
+    "modelInfoFormat": "omni-route"
+  }
+}
+```
+
 For LiteLLM-compatible model info endpoints, `/v1/model/info` is used by default:
 
 ```json

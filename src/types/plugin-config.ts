@@ -33,6 +33,7 @@ export enum ModelInfoFormat {
   Bifrost = 'bifrost',
   LiteLLM = 'litellm',
   ModelsDev = 'models.dev',
+  OmniRoute = 'omni-route',
   VLLM = 'vllm',
   LMStudio = 'lmstudio',
 }

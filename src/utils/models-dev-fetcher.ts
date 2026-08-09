@@ -1,3 +1,9 @@
+export interface ModelsDevReasoningOption {
+  type?: string
+  values?: string[]
+  min?: number
+}
+
 export interface ModelsDevModel {
   id: string
   name?: string
@@ -15,6 +21,13 @@ export interface ModelsDevModel {
     input?: number
     output?: number
   }
+  cost?: {
+    input?: number
+    output?: number
+    cache_read?: number
+    cache_write?: number
+  }
+  reasoning_options?: ModelsDevReasoningOption[]
 }
 
 const MODELS_DEV_URL = 'https://models.dev/models.json'
@@ -55,6 +68,21 @@ function addModel(cache: Map<string, ModelsDevModel>, providerId: string | undef
       input: typeof rawModel.limit.input === 'number' ? rawModel.limit.input : undefined,
       output: typeof rawModel.limit.output === 'number' ? rawModel.limit.output : undefined,
     } : undefined,
+    cost: isObject(rawModel.cost) ? {
+      input: typeof rawModel.cost.input === 'number' ? rawModel.cost.input : undefined,
+      output: typeof rawModel.cost.output === 'number' ? rawModel.cost.output : undefined,
+      cache_read: typeof rawModel.cost.cache_read === 'number' ? rawModel.cost.cache_read : undefined,
+      cache_write: typeof rawModel.cost.cache_write === 'number' ? rawModel.cost.cache_write : undefined,
+    } : undefined,
+    reasoning_options: Array.isArray(rawModel.reasoning_options) ? rawModel.reasoning_options
+      .filter(isObject)
+      .map((option) => ({
+        type: typeof option.type === 'string' ? option.type : undefined,
+        values: Array.isArray(option.values)
+          ? option.values.filter((value: unknown): value is string => typeof value === 'string')
+          : undefined,
+        min: typeof option.min === 'number' ? option.min : undefined,
+      })) : undefined,
   })
 }
 
@@ -89,7 +117,8 @@ export async function fetchModelsDevData(): Promise<Map<string, ModelsDevModel>>
   if (modelsDevCache) return modelsDevCache
 
   try {
-    const response = await fetch(MODELS_DEV_URL, {
+    const modelsDevUrl = process.env.OPENCODE_MODELS_DISCOVERY_MODELS_DEV_URL ?? MODELS_DEV_URL
+    const response = await fetch(modelsDevUrl, {
       method: 'GET',
       signal: AbortSignal.timeout(3000),
     })
