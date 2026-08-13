@@ -271,6 +271,7 @@ describe('ModelDiscovery Plugin', () => {
         expect(config.command['models-discovery:config'].template).toContain('modelInfoFormat="litellm"')
         expect(config.command['models-discovery:config'].template).toContain('modelInfoFormat="vllm"')
         expect(config.command['models-discovery:config'].template).toContain('modelInfoFormat="lmstudio"')
+        expect(config.command['models-discovery:config'].template).toContain('modelInfoFormat="omniroute"')
         expect(config.command['models-discovery:config'].template).toContain('max_model_len')
         expect(config.command['models-discovery:config'].template).toContain('restart opencode')
 
@@ -631,6 +632,50 @@ describe('ModelDiscovery Plugin', () => {
         limit: { context: 200000, input: 200000, output: 8192 },
         modalities: { input: ['text', 'image', 'audio'], output: ['text'] },
         cost: { input: 3, output: 15 },
+      })
+    })
+
+    it('enriches OmniRoute inline metadata without another request', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          data: [{
+            id: 'oc/mimo-v2.5-free',
+            object: 'model',
+            created: 0,
+            owned_by: 'oc',
+            context_length: 128000,
+            max_input_tokens: 120000,
+            max_output_tokens: 8192,
+            input_modalities: ['TEXT', 'IMAGE'],
+            output_modalities: ['TEXT'],
+            capabilities: { vision: true, tool_calling: true, reasoning: true },
+          }],
+        }),
+      })
+
+      const config: any = {
+        provider: {
+          omniroute: {
+            npm: '@ai-sdk/openai-compatible',
+            options: {
+              baseURL: 'http://127.0.0.1:20128/v1',
+              modelsDiscovery: { modelInfoFormat: 'omniroute' },
+            },
+            models: {},
+          },
+        },
+      }
+
+      await pluginHooks.config(config)
+
+      expect(mockFetch).toHaveBeenCalledTimes(1)
+      expect(config.provider.omniroute.models['oc/mimo-v2.5-free']).toMatchObject({
+        id: 'oc/mimo-v2.5-free',
+        limit: { context: 128000, input: 120000, output: 8192 },
+        modalities: { input: ['text', 'image'], output: ['text'] },
+        tool_call: true,
+        reasoning: true,
       })
     })
 

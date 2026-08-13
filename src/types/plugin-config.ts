@@ -35,6 +35,7 @@ export enum ModelInfoFormat {
   ModelsDev = 'models.dev',
   VLLM = 'vllm',
   LMStudio = 'lmstudio',
+  OmniRoute = 'omniroute',
 }
 
 export const DEFAULT_CACHE_TTL_SECONDS = 86400
