@@ -17,11 +17,7 @@ export interface ModelInfoDiscoveryResult {
 }
 
 export function normalizeBaseURL(baseURL: string): string {
-  let normalized = baseURL.replace(/\/+$/, '')
-  if (normalized.endsWith('/v1')) {
-    normalized = normalized.slice(0, -3)
-  }
-  return normalized
+  return baseURL.replace(/\/+$/, '').replace(/\/v1(?:beta)?$/, '')
 }
 
 export function buildAPIURL(baseURL: string, endpoint: string = OPENAI_COMPATIBLE_MODELS_ENDPOINT): string {
@@ -125,7 +121,7 @@ export function isOpenAICompatibleProvider(provider: any): boolean {
 export function hasOpenAICompatibleURL(provider: any): boolean {
   if (!provider || typeof provider !== 'object') return false
   const baseURL = provider.options?.baseURL || ""
-  return /\/v1(\/|$)/.test(baseURL)
+  return /\/v1(?:beta)?(\/|$)/.test(baseURL)
 }
 
 export function hasModelsDiscoveryEndpoint(provider: any): boolean {

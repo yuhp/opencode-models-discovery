@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { createServer, type Server } from 'node:http'
-import { discoverModelsFromProvider } from '../src/utils/openai-compatible-api'
+import { canDiscoverModels, discoverModelsFromProvider } from '../src/utils/openai-compatible-api'
 
 describe('OpenAI-compatible API discovery', () => {
   async function withServer(handler: Parameters<typeof createServer>[0], test: (baseURL: string) => Promise<void>): Promise<void> {
@@ -40,6 +40,25 @@ describe('OpenAI-compatible API discovery', () => {
       expect(result.ok).toBe(true)
       expect(result.models.map(model => model.id)).toEqual(['local-model'])
     })
+  })
+
+  it('uses the OpenAI-compatible models endpoint for v1beta base URLs', async () => {
+    await withServer((req, res) => {
+      expect(req.url).toBe('/v1/models')
+      res.writeHead(200, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ data: [] }))
+    }, async (baseURL) => {
+      const result = await discoverModelsFromProvider(`${baseURL}/v1beta`)
+
+      expect(result).toEqual({ ok: true, models: [] })
+    })
+  })
+
+  it('recognizes v1beta providers as OpenAI-compatible discovery targets', () => {
+    expect(canDiscoverModels({
+      npm: '@ai-sdk/google',
+      options: { baseURL: 'https://example.com/v1beta' },
+    })).toBe(true)
   })
 
   it('treats an empty model list as a successful response', async () => {
