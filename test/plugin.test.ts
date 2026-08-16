@@ -271,6 +271,7 @@ describe('ModelDiscovery Plugin', () => {
         expect(config.command['models-discovery:config'].template).toContain('modelInfoFormat="litellm"')
         expect(config.command['models-discovery:config'].template).toContain('modelInfoFormat="vllm"')
         expect(config.command['models-discovery:config'].template).toContain('modelInfoFormat="lmstudio"')
+        expect(config.command['models-discovery:config'].template).toContain('modelInfoFormat="llama-swap"')
         expect(config.command['models-discovery:config'].template).toContain('modelInfoFormat="omniroute"')
         expect(config.command['models-discovery:config'].template).toContain('max_model_len')
         expect(config.command['models-discovery:config'].template).toContain('restart opencode')
@@ -720,6 +721,50 @@ describe('ModelDiscovery Plugin', () => {
         limit: { context: 200000, input: 200000, output: 8192 },
         modalities: { input: ['text', 'image', 'audio'], output: ['text'] },
         cost: { input: 3, output: 15 },
+      })
+    })
+
+    it('enriches llama-swap inline metadata without another request', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          data: [{
+            id: 'Gemma-4-31B-It',
+            object: 'model',
+            created: 0,
+            owned_by: 'llama-swap',
+            name: 'Gemma 4 31B IT',
+            context_length: 9216,
+            architecture: { input_modalities: ['text', 'image'], output_modalities: ['text'] },
+            capabilities: { function_calling: true, vision: true },
+            supported_parameters: ['tools', 'tool_choice'],
+            meta: { n_ctx: 9216, llamaswap: { type: 'model' } },
+          }],
+        }),
+      })
+
+      const config: any = {
+        provider: {
+          llamaswap: {
+            npm: '@ai-sdk/openai-compatible',
+            options: {
+              baseURL: 'http://127.0.0.1:8080/v1',
+              modelsDiscovery: { modelInfoFormat: 'llama-swap', smartModelName: true },
+            },
+            models: {},
+          },
+        },
+      }
+
+      await pluginHooks.config(config)
+
+      expect(mockFetch).toHaveBeenCalledTimes(1)
+      expect(config.provider.llamaswap.models['Gemma-4-31B-It']).toMatchObject({
+        id: 'Gemma-4-31B-It',
+        name: 'Gemma 4 31B IT',
+        limit: { context: 9216, output: 0 },
+        modalities: { input: ['text', 'image'], output: ['text'] },
+        tool_call: true,
       })
     })
 

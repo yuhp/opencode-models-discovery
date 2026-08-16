@@ -35,6 +35,7 @@ export enum ModelInfoFormat {
   ModelsDev = 'models.dev',
   VLLM = 'vllm',
   LMStudio = 'lmstudio',
+  LlamaSwap = 'llama-swap',
   OmniRoute = 'omniroute',
 }
 
