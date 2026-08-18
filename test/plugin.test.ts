@@ -1298,7 +1298,8 @@ describe('ModelDiscovery Plugin', () => {
             options: {
               baseURL: 'https://api.openai.com/v1',
               modelsDiscovery: {
-                modelInfoFormat: 'models.dev'
+                modelInfoFormat: 'models.dev',
+                modelInfoEndpoint: 'https://mirror.example/models.json'
               }
             },
             models: {}
@@ -1312,7 +1313,7 @@ describe('ModelDiscovery Plugin', () => {
       expect(mockFetch).toHaveBeenNthCalledWith(1, 'https://api.openai.com/v1/models', expect.objectContaining({
         method: 'GET'
       }))
-      expect(mockFetch).toHaveBeenNthCalledWith(2, 'https://models.dev/models.json', expect.objectContaining({
+      expect(mockFetch).toHaveBeenNthCalledWith(2, 'https://mirror.example/models.json', expect.objectContaining({
         method: 'GET'
       }))
       expect(config.provider.openai.models['openai/gpt-4o']).toEqual(expect.objectContaining({

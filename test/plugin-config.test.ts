@@ -102,4 +102,16 @@ describe('JSON config struct parsing', () => {
     expect(config.modelInfoEndpoint).toBeUndefined()
     expect(isSupportedModelInfoFormat(config.modelInfoFormat)).toBe(true)
   })
+
+  it('accepts a complete modelInfoEndpoint URL for models.dev mirrors', () => {
+    const config = parse('{"modelInfoFormat":"models.dev","modelInfoEndpoint":"https://mirror.example/models.json"}')
+    expect(config.modelInfoEndpoint).toBe('https://mirror.example/models.json')
+    expect(isSupportedModelInfoFormat(config.modelInfoFormat)).toBe(true)
+  })
+
+  it('accepts a complete modelInfoEndpoint URL for LiteLLM', () => {
+    const config = parse('{"modelInfoFormat":"litellm","modelInfoEndpoint":"https://metadata.example/v1/model/info"}')
+    expect(config.modelInfoEndpoint).toBe('https://metadata.example/v1/model/info')
+    expect(isSupportedModelInfoFormat(config.modelInfoFormat)).toBe(true)
+  })
 })

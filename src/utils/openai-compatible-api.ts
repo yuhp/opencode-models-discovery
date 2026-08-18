@@ -25,6 +25,10 @@ export function normalizeBaseURL(baseURL: string): string {
 }
 
 export function buildAPIURL(baseURL: string, endpoint: string = OPENAI_COMPATIBLE_MODELS_ENDPOINT): string {
+  if (/^https?:\/\//i.test(endpoint)) {
+    return endpoint
+  }
+
   const normalized = normalizeBaseURL(baseURL)
   return `${normalized}${endpoint}`
 }

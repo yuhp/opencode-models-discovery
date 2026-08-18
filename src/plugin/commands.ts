@@ -112,13 +112,13 @@ Explain the mechanism to the user:
 Supported plugin options under provider.<id>.options.modelsDiscovery:
 - enabled: force enable or disable discovery for this provider
 - endpoint: provider-specific models endpoint path; defaults to /v1/models
-- modelInfoEndpoint: override the metadata endpoint for "litellm" or "lmstudio"; their defaults are /v1/model/info and /api/v1/models
+- modelInfoEndpoint: override the metadata endpoint; accepts either a path relative to the provider base URL or a complete URL for "litellm" and "lmstudio", while "models.dev" requires a complete models.json URL
 - models.includeRegex: shortcut for model id regex allow-list; prefer models.includeBy with field="id" and match for new config
 - models.excludeRegex: shortcut for model id regex deny-list; prefer models.excludeBy with field="id" and match for new config
 - models.includeBy: allow-list for top-level raw fields returned in the provider's /v1/models response; each rule uses exactly one of equals or match
 - models.excludeBy: deny-list for top-level raw fields returned in the provider's /v1/models response; each rule uses exactly one of equals or match
 - smartModelName: use friendlier display names for discovered models
-- modelInfoFormat="models.dev": enrich from the public models.dev index without modelInfoEndpoint
+- modelInfoFormat="models.dev": enrich from the public models.dev index; modelInfoEndpoint optionally overrides the complete models.json URL
 - modelInfoFormat="bifrost": read Bifrost's documented inline /v1/models limits, modalities, and base pricing without another request
 - modelInfoFormat="litellm": enrich from a LiteLLM-compatible /v1/model/info endpoint; modelInfoEndpoint optionally overrides the path
 - modelInfoFormat="vllm": for vLLM-compatible providers whose raw /v1/models entries include a positive numeric max_model_len; without another request, sets limit.context and limit.output for matching discovered models
@@ -143,7 +143,7 @@ Recommended defaults:
 - includeRegex and excludeRegex preserve legacy shortcut behavior: includeRegex takes precedence, so excludeRegex is only applied when includeRegex is not configured
 - avoid configuring both includeBy field="id" match rules and includeRegex unless the user wants an intersection with legacy id-only shortcut behavior
 - use smartModelName=true only when the user wants friendlier display names
-- use modelInfoFormat="models.dev" for models.dev metadata enrichment
+- use modelInfoFormat="models.dev" for models.dev metadata enrichment; set modelInfoEndpoint to a complete mirror or proxy URL only when needed
 - use modelInfoFormat="bifrost" only for Bifrost /v1/models responses; it is an explicit inline-metadata format and does not make another request
 - use modelInfoFormat="litellm" for LiteLLM-compatible /v1/model/info; set modelInfoEndpoint only when the provider uses another path
 - use modelInfoFormat="vllm" only when the provider's /v1/models response exposes max_model_len; it is not a standard OpenAI-compatible field, does not require modelInfoEndpoint, and does not infer other capabilities

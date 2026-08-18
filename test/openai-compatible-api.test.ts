@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { createServer, type Server } from 'node:http'
-import { discoverModelsFromProvider } from '../src/utils/openai-compatible-api'
+import { buildAPIURL, discoverModelsFromProvider, discoverModelInfoFromProvider } from '../src/utils/openai-compatible-api'
 
 describe('OpenAI-compatible API discovery', () => {
   async function withServer(handler: Parameters<typeof createServer>[0], test: (baseURL: string) => Promise<void>): Promise<void> {
@@ -122,6 +122,22 @@ describe('OpenAI-compatible API discovery', () => {
 
       expect(result.ok).toBe(true)
       expect(result.models.map(model => model.id)).toEqual(['custom-model'])
+    })
+  })
+
+  it('uses a complete model info endpoint URL without combining it with baseURL', async () => {
+    await withServer((req, res) => {
+      expect(req.url).toBe('/metadata/models')
+      res.writeHead(200, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ data: [] }))
+    }, async (metadataBaseURL) => {
+      const endpoint = `${metadataBaseURL}/metadata/models`
+
+      expect(buildAPIURL('https://provider.example/v1', endpoint)).toBe(endpoint)
+      expect(await discoverModelInfoFromProvider('https://provider.example/v1', undefined, endpoint)).toEqual({
+        ok: true,
+        data: { data: [] },
+      })
     })
   })
 })

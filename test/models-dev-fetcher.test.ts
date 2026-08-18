@@ -1,5 +1,5 @@
-import { describe, it, expect, beforeEach } from 'vitest'
-import { lookupModelsDevData, modelsDevTestUtils } from '../src/utils/models-dev-fetcher.ts'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { fetchModelsDevData, lookupModelsDevData, modelsDevTestUtils } from '../src/utils/models-dev-fetcher.ts'
 
 describe('models.dev fetcher', () => {
   beforeEach(() => {
@@ -144,5 +144,21 @@ describe('models.dev fetcher', () => {
     })
 
     expect(lookupModelsDevData('custom/shared-model', cache)).toBeUndefined()
+  })
+
+  it('should cache models.dev data separately for each URL', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (url) => {
+      const id = String(url).includes('mirror.example') ? 'mirror-model' : 'default-model'
+      return new Response(JSON.stringify({ test: { models: { [id]: { id } } } }))
+    })
+
+    const defaultModels = await fetchModelsDevData()
+    const mirrorModels = await fetchModelsDevData('https://mirror.example/models.json')
+    await fetchModelsDevData('https://mirror.example/models.json')
+
+    expect(defaultModels.has('test/default-model')).toBe(true)
+    expect(mirrorModels.has('test/mirror-model')).toBe(true)
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    fetchMock.mockRestore()
   })
 })
