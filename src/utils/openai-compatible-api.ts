@@ -16,21 +16,20 @@ export interface ModelInfoDiscoveryResult {
   data: unknown
 }
 
-export function normalizeBaseURL(baseURL: string): string {
-  let normalized = baseURL.replace(/\/+$/, '')
-  if (normalized.endsWith('/v1')) {
-    normalized = normalized.slice(0, -3)
-  }
-  return normalized
+export function normalizeProviderOriginForCache(baseURL: string): string {
+  return new URL(baseURL).origin
 }
 
 export function buildAPIURL(baseURL: string, endpoint: string = OPENAI_COMPATIBLE_MODELS_ENDPOINT): string {
+  return new URL(endpoint, new URL(baseURL).origin).toString()
+}
+
+export function buildModelInfoURL(baseURL: string, endpoint: string): string {
   if (/^https?:\/\//i.test(endpoint)) {
     return endpoint
   }
 
-  const normalized = normalizeBaseURL(baseURL)
-  return `${normalized}${endpoint}`
+  return buildAPIURL(baseURL, endpoint)
 }
 
 function requestJson<T>(urlStr: string, headers: Record<string, string>, timeoutMs: number = DEFAULT_REQUEST_TIMEOUT_MS): Promise<T | undefined> {
@@ -100,7 +99,7 @@ export async function discoverModelInfoFromProvider(
   endpoint: string = "/v1/model/info",
   timeoutMs: number = DEFAULT_REQUEST_TIMEOUT_MS
 ): Promise<ModelInfoDiscoveryResult> {
-  const url = buildAPIURL(baseURL, endpoint)
+  const url = buildModelInfoURL(baseURL, endpoint)
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
   }

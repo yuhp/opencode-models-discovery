@@ -37,9 +37,9 @@ Each provider can configure discovery behavior through `provider.<name>.options.
 | Option | Type | Description |
 |--------|------|-------------|
 | `provider.<name>.options.modelsDiscovery.enabled` | `boolean` | Force enable or disable discovery for a single provider |
-| `provider.<name>.options.modelsDiscovery.endpoint` | `string` | Provider-specific models endpoint path. Defaults to `/v1/models` |
+| `provider.<name>.options.modelsDiscovery.endpoint` | `string` | Provider-specific models endpoint as an origin-relative path beginning with `/`. Defaults to `/v1/models` |
 | `provider.<name>.options.modelsDiscovery.timeoutMs` | positive finite `number` | Per-request timeout for the provider's models and provider-specific metadata endpoints. Defaults to `3000` |
-| `provider.<name>.options.modelsDiscovery.modelInfoEndpoint` | `string` | Override a format-specific metadata endpoint. Defaults to `/v1/model/info` for `"litellm"` and `/api/v1/models` for `"lmstudio"` |
+| `provider.<name>.options.modelsDiscovery.modelInfoEndpoint` | `string` | Override a format-specific metadata endpoint as an origin-relative path or complete URL. Defaults to `/v1/model/info` for `"litellm"` and `/api/v1/models` for `"lmstudio"` |
 | `provider.<name>.options.modelsDiscovery.modelInfoFormat` | `string` | Model info response format. Currently supports `"bifrost"`, `"litellm"`, `"models.dev"`, `"vllm"`, `"lmstudio"`, and `"omniroute"` |
 | `provider.<name>.options.modelsDiscovery.filterNonChat` | `boolean` | When model info is available, skip models whose `model_info.mode` is not `chat`. Defaults to `true` |
 | `provider.<name>.options.modelsDiscovery.models.includeRegex` | `string[]` | Shortcut regex allow-list for discovered model ids only |
@@ -58,6 +58,8 @@ Recommended approach:
 4. Use OpenCode `/connect` credentials or `provider.<name>.options.apiKey` for secrets; do not duplicate API keys unless needed.
 
 If `provider.<name>.options.modelsDiscovery.endpoint` is omitted, the plugin uses `/v1/models`.
+
+Endpoint paths are resolved from the provider URL origin, not appended to a versioned `baseURL` path. For example, with `baseURL: "https://gateway.example/v1beta"`, `endpoint: "/v1/models"` requests `https://gateway.example/v1/models`. Discovery always uses the provider host; use the provider `baseURL` to select a different host.
 
 The config hook waits up to `5000` milliseconds for discovery by default. When one or more providers set `modelsDiscovery.timeoutMs` above that value, the hook uses the largest configured provider timeout instead. This gives a slow provider enough time to inject its discovered models before OpenCode continues startup.
 

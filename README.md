@@ -186,7 +186,7 @@ For models.dev enrichment:
 }
 ```
 
-`modelInfoEndpoint` is optional for `models.dev`; it must be a complete URL and defaults to `https://models.dev/models.json`. Use it to configure an accessible mirror or proxy. For LiteLLM and LM Studio, it accepts either a path relative to the provider base URL or a complete URL.
+`modelInfoEndpoint` is optional for `models.dev`; it must be a complete URL and defaults to `https://models.dev/models.json`. Use it to configure an accessible mirror or proxy. For LiteLLM and LM Studio, it accepts either an origin-relative path or a complete URL.
 
 For LiteLLM-compatible model info endpoints, `/v1/model/info` is used by default:
 

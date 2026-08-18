@@ -28,5 +28,5 @@ This project is not affiliated with, endorsed by, or sponsored by DeepSeek.
 ## Notes
 
 - Configure credentials with OpenCode `/connect` when possible.
-- The DeepSeek model list endpoint is `/models` relative to `https://api.deepseek.com/`.
+- The DeepSeek model list endpoint is the origin-relative path `/models` on `https://api.deepseek.com/`.
 - Verify the provider's current API base URL, model endpoint, and terms before use.

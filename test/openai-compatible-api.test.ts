@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { createServer, type Server } from 'node:http'
-import { buildAPIURL, discoverModelsFromProvider, discoverModelInfoFromProvider } from '../src/utils/openai-compatible-api'
+import { buildAPIURL, buildModelInfoURL, discoverModelsFromProvider, discoverModelInfoFromProvider, normalizeProviderOriginForCache } from '../src/utils/openai-compatible-api'
 
 describe('OpenAI-compatible API discovery', () => {
   async function withServer(handler: Parameters<typeof createServer>[0], test: (baseURL: string) => Promise<void>): Promise<void> {
@@ -125,6 +125,17 @@ describe('OpenAI-compatible API discovery', () => {
     })
   })
 
+  it('resolves endpoint paths from the provider origin', () => {
+    expect(buildAPIURL('https://gateway.example/v1beta', '/v1/models')).toBe('https://gateway.example/v1/models')
+    expect(buildAPIURL('https://gateway.example/v1', '/models')).toBe('https://gateway.example/models')
+  })
+
+  it('normalizes provider origins for cache identity', () => {
+    expect(normalizeProviderOriginForCache('https://gateway.example/v1')).toBe('https://gateway.example')
+    expect(normalizeProviderOriginForCache('https://gateway.example/v1beta')).toBe('https://gateway.example')
+    expect(normalizeProviderOriginForCache('https://gateway.example/custom/path/')).toBe('https://gateway.example')
+  })
+
   it('uses a complete model info endpoint URL without combining it with baseURL', async () => {
     await withServer((req, res) => {
       expect(req.url).toBe('/metadata/models')
@@ -133,7 +144,7 @@ describe('OpenAI-compatible API discovery', () => {
     }, async (metadataBaseURL) => {
       const endpoint = `${metadataBaseURL}/metadata/models`
 
-      expect(buildAPIURL('https://provider.example/v1', endpoint)).toBe(endpoint)
+      expect(buildModelInfoURL('https://provider.example/v1', endpoint)).toBe(endpoint)
       expect(await discoverModelInfoFromProvider('https://provider.example/v1', undefined, endpoint)).toEqual({
         ok: true,
         data: { data: [] },

@@ -33,6 +33,7 @@ export function validateConfig(config: any): ValidationResult {
 
       if (discoveryConfig && typeof discoveryConfig === 'object') {
         warnMisplacedModelFieldFilters(providerName, discoveryConfig, warnings)
+        validateDiscoveryEndpoint(providerName, discoveryConfig.endpoint, errors)
         validateTimeoutMs(providerName, discoveryConfig.timeoutMs, errors)
         validateCache(providerName, discoveryConfig.cache, errors)
       }
@@ -43,6 +44,16 @@ export function validateConfig(config: any): ValidationResult {
     isValid: errors.length === 0,
     errors,
     warnings
+  }
+}
+
+function validateDiscoveryEndpoint(providerName: string, value: unknown, errors: string[]): void {
+  if (value === undefined) {
+    return
+  }
+
+  if (typeof value !== 'string' || !value.startsWith('/')) {
+    errors.push(`Provider '${providerName}' modelsDiscovery.endpoint must be an origin-relative path starting with /`)
   }
 }
 

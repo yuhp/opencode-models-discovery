@@ -114,4 +114,20 @@ describe('JSON config struct parsing', () => {
     expect(config.modelInfoEndpoint).toBe('https://metadata.example/v1/model/info')
     expect(isSupportedModelInfoFormat(config.modelInfoFormat)).toBe(true)
   })
+
+  it('rejects discovery endpoints that are not origin-relative paths', () => {
+    const validation = validateConfig({
+      provider: {
+        local: {
+          npm: '@ai-sdk/openai-compatible',
+          options: {
+            baseURL: 'https://provider.example/v1',
+            modelsDiscovery: { endpoint: 'https://other.example/v1/models' },
+          },
+        },
+      },
+    })
+
+    expect(validation.errors).toContain("Provider 'local' modelsDiscovery.endpoint must be an origin-relative path starting with /")
+  })
 })
