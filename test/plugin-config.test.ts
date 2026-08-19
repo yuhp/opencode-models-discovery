@@ -13,6 +13,7 @@ describe('JSON config struct parsing', () => {
     { json: '{"modelInfoFormat":"litellm"}', expected: true },
     { json: '{"modelInfoFormat":"models.dev"}', expected: true },
     { json: '{"modelInfoFormat":"vllm"}', expected: true },
+    { json: '{"modelInfoFormat":"llama-swap"}', expected: true },
     { json: '{"modelInfoFormat":"omniroute"}', expected: true },
     { json: '{"modelInfoFormat":"bogus"}', expected: false },
   ])('handles modelInfoFormat=$json', ({ json, expected }) => {

@@ -40,7 +40,7 @@ Each provider can configure discovery behavior through `provider.<name>.options.
 | `provider.<name>.options.modelsDiscovery.endpoint` | `string` | Provider-specific models endpoint as an origin-relative path beginning with `/`. Defaults to `/v1/models` |
 | `provider.<name>.options.modelsDiscovery.timeoutMs` | positive finite `number` | Per-request timeout for the provider's models and provider-specific metadata endpoints. Defaults to `3000` |
 | `provider.<name>.options.modelsDiscovery.modelInfoEndpoint` | `string` | Override a format-specific metadata endpoint as an origin-relative path or complete URL. Defaults to `/v1/model/info` for `"litellm"` and `/api/v1/models` for `"lmstudio"` |
-| `provider.<name>.options.modelsDiscovery.modelInfoFormat` | `string` | Model info response format. Currently supports `"bifrost"`, `"litellm"`, `"models.dev"`, `"vllm"`, `"lmstudio"`, and `"omniroute"` |
+| `provider.<name>.options.modelsDiscovery.modelInfoFormat` | `string` | Model info response format. Currently supports `"bifrost"`, `"litellm"`, `"models.dev"`, `"vllm"`, `"lmstudio"`, `"llama-swap"`, and `"omniroute"` |
 | `provider.<name>.options.modelsDiscovery.filterNonChat` | `boolean` | When model info is available, skip models whose `model_info.mode` is not `chat`. Defaults to `true` |
 | `provider.<name>.options.modelsDiscovery.models.includeRegex` | `string[]` | Shortcut regex allow-list for discovered model ids only |
 | `provider.<name>.options.modelsDiscovery.models.excludeRegex` | `string[]` | Shortcut regex deny-list for discovered model ids only |
@@ -244,7 +244,7 @@ Community provider examples live in [`docs/config_example/`](config_example/).
 
 The generic OpenAI-compatible `/v1/models` endpoint only guarantees a small model list shape. Extra metadata such as context limits, tool calling, reasoning, image input, or structured output is provider-specific, so metadata enrichment is opt-in.
 
-The plugin currently supports six model info formats:
+The plugin currently supports seven model info formats:
 
 | Format | Source | Requires `modelInfoEndpoint` | Notes |
 |--------|--------|------------------------------|-------|
@@ -253,7 +253,34 @@ The plugin currently supports six model info formats:
 | `"models.dev"` | `https://models.dev/models.json` | No | Uses the public models.dev metadata index |
 | `"vllm"` | Fields in the provider's `/v1/models` response | No | Reads vLLM-style `max_model_len` when present |
 | `"lmstudio"` | LM Studio 0.4.0+ `/api/v1/models` inventory | No | Uses `/api/v1/models` by default; set `modelInfoEndpoint` for another path |
+| `"llama-swap"` | Fields in llama-swap's `/v1/models` response | No | Reads inline context, modalities, and function-calling metadata when present |
 | `"omniroute"` | Fields in OmniRoute's `/v1/models` response | No | Reads OmniRoute inline limits, modalities, and capabilities when present |
+
+### llama-swap Model Info
+
+Use `modelInfoFormat: "llama-swap"` for a [llama-swap](https://github.com/mostlygeek/llama-swap) provider. It reads llama-swap's inline metadata from the same `/v1/models` response and does not make another metadata request.
+
+```json
+{
+  "plugin": ["opencode-models-discovery"],
+  "provider": {
+    "llama-swap": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "llama-swap",
+      "options": {
+        "baseURL": "http://127.0.0.1:8080/v1",
+        "modelsDiscovery": {
+          "enabled": true,
+          "modelInfoFormat": "llama-swap"
+        }
+      },
+      "models": {}
+    }
+  }
+}
+```
+
+For each discovered model, the plugin maps `context_length` to `limit.context`, falling back to `meta.n_ctx`. Because llama-swap does not report a distinct output limit, the plugin writes `limit.output: 0` to preserve OpenCode's output-token fallback. Optional `meta.llamaswap.max_input_tokens` and `meta.llamaswap.max_output_tokens` values override the corresponding limits when present. It maps `architecture.input_modalities` and `architecture.output_modalities` to lower-case OpenCode modalities, and maps `capabilities.function_calling` or a `tools` entry in `supported_parameters` to `tool_call`. When `smartModelName: true` is set, a non-empty llama-swap `name` becomes the display name. Missing or malformed metadata is left unset.
 
 ### OmniRoute Model Info
 

@@ -221,6 +221,17 @@ For LM Studio 0.4.0+'s native v1 REST inventory endpoint:
 }
 ```
 
+For llama-swap's inline `/v1/models` metadata, without another metadata request:
+
+```json
+{
+  "modelsDiscovery": {
+    "enabled": true,
+    "modelInfoFormat": "llama-swap"
+  }
+}
+```
+
 If metadata cannot be fetched or matched safely, discovery still succeeds and the plugin leaves unknown capability fields unset rather than guessing defaults. See [model metadata enrichment](docs/configuration.md#model-metadata-enrichment) for format-specific behavior and configuration.
 
 ## Upgrade Note
