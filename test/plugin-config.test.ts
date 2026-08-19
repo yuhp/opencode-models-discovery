@@ -13,6 +13,7 @@ describe('JSON config struct parsing', () => {
     { json: '{"modelInfoFormat":"litellm"}', expected: true },
     { json: '{"modelInfoFormat":"models.dev"}', expected: true },
     { json: '{"modelInfoFormat":"vllm"}', expected: true },
+    { json: '{"modelInfoFormat":"llama-swap"}', expected: true },
     { json: '{"modelInfoFormat":"omniroute"}', expected: true },
     { json: '{"modelInfoFormat":"bogus"}', expected: false },
   ])('handles modelInfoFormat=$json', ({ json, expected }) => {
@@ -101,5 +102,33 @@ describe('JSON config struct parsing', () => {
     const config = parse('{"modelInfoFormat":"litellm"}')
     expect(config.modelInfoEndpoint).toBeUndefined()
     expect(isSupportedModelInfoFormat(config.modelInfoFormat)).toBe(true)
+  })
+
+  it('accepts a complete modelInfoEndpoint URL for models.dev mirrors', () => {
+    const config = parse('{"modelInfoFormat":"models.dev","modelInfoEndpoint":"https://mirror.example/models.json"}')
+    expect(config.modelInfoEndpoint).toBe('https://mirror.example/models.json')
+    expect(isSupportedModelInfoFormat(config.modelInfoFormat)).toBe(true)
+  })
+
+  it('accepts a complete modelInfoEndpoint URL for LiteLLM', () => {
+    const config = parse('{"modelInfoFormat":"litellm","modelInfoEndpoint":"https://metadata.example/v1/model/info"}')
+    expect(config.modelInfoEndpoint).toBe('https://metadata.example/v1/model/info')
+    expect(isSupportedModelInfoFormat(config.modelInfoFormat)).toBe(true)
+  })
+
+  it('rejects discovery endpoints that are not origin-relative paths', () => {
+    const validation = validateConfig({
+      provider: {
+        local: {
+          npm: '@ai-sdk/openai-compatible',
+          options: {
+            baseURL: 'https://provider.example/v1',
+            modelsDiscovery: { endpoint: 'https://other.example/v1/models' },
+          },
+        },
+      },
+    })
+
+    expect(validation.errors).toContain("Provider 'local' modelsDiscovery.endpoint must be an origin-relative path starting with /")
   })
 })

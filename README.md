@@ -180,10 +180,13 @@ For models.dev enrichment:
 {
   "modelsDiscovery": {
     "enabled": true,
-    "modelInfoFormat": "models.dev"
+    "modelInfoFormat": "models.dev",
+    "modelInfoEndpoint": "https://your-mirror.example/models.json"
   }
 }
 ```
+
+`modelInfoEndpoint` is optional for `models.dev`; it must be a complete URL and defaults to `https://models.dev/models.json`. Use it to configure an accessible mirror or proxy. For LiteLLM and LM Studio, it accepts either an origin-relative path or a complete URL.
 
 For LiteLLM-compatible model info endpoints, `/v1/model/info` is used by default:
 
@@ -214,6 +217,17 @@ For LM Studio 0.4.0+'s native v1 REST inventory endpoint:
   "modelsDiscovery": {
     "enabled": true,
     "modelInfoFormat": "lmstudio"
+  }
+}
+```
+
+For llama-swap's inline `/v1/models` metadata, without another metadata request:
+
+```json
+{
+  "modelsDiscovery": {
+    "enabled": true,
+    "modelInfoFormat": "llama-swap"
   }
 }
 ```

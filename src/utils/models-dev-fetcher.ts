@@ -17,11 +17,11 @@ export interface ModelsDevModel {
   }
 }
 
-const MODELS_DEV_URL = 'https://models.dev/models.json'
+export const DEFAULT_MODELS_DEV_URL = 'https://models.dev/models.json'
 const PREFIX_MATCH_MIN_SCORE = 70
 const PREFIX_MATCH_MIN_SHARED_PARTS = 2
 
-let modelsDevCache: Map<string, ModelsDevModel> | null = null
+const modelsDevCaches = new Map<string, Map<string, ModelsDevModel>>()
 
 function isObject(value: unknown): value is Record<string, any> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -85,11 +85,12 @@ function parseModelsDevData(data: unknown): Map<string, ModelsDevModel> {
   return cache
 }
 
-export async function fetchModelsDevData(): Promise<Map<string, ModelsDevModel>> {
-  if (modelsDevCache) return modelsDevCache
+export async function fetchModelsDevData(url: string = DEFAULT_MODELS_DEV_URL): Promise<Map<string, ModelsDevModel>> {
+  const cached = modelsDevCaches.get(url)
+  if (cached) return cached
 
   try {
-    const response = await fetch(MODELS_DEV_URL, {
+    const response = await fetch(url, {
       method: 'GET',
       signal: AbortSignal.timeout(3000),
     })
@@ -98,8 +99,9 @@ export async function fetchModelsDevData(): Promise<Map<string, ModelsDevModel>>
       return new Map()
     }
 
-    modelsDevCache = parseModelsDevData(await response.json())
-    return modelsDevCache
+    const models = parseModelsDevData(await response.json())
+    modelsDevCaches.set(url, models)
+    return models
   } catch {
     return new Map()
   }
@@ -183,6 +185,6 @@ export function lookupModelsDevData(
 export const modelsDevTestUtils = {
   parseModelsDevData,
   resetCache(): void {
-    modelsDevCache = null
+    modelsDevCaches.clear()
   },
 }
