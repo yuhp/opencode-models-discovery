@@ -7,6 +7,7 @@ import { normalizeProviderOriginForCache, discoverModelsFromProvider, discoverMo
 import { createModelInfoEnricher, isSupportedModelInfoFormat, type ModelInfoEnricher } from '../utils/model-info'
 import { DEFAULT_CACHE_TTL_SECONDS, getDefaultDiscoveryConfigFromEnv, getProviderModelFieldFilters, getProviderModelRegexFilter, shouldDiscoverModel, shouldDiscoverModelByFields, shouldDiscoverProviderWithOverride, ModelInfoFormat } from '../types/plugin-config'
 import { DEFAULT_MODELS_DEV_URL, fetchModelsDevData } from '../utils/models-dev-fetcher'
+import { applyOpenAIModelMetadata, getOpenAIModelDisplayName } from '../utils/openai-model-metadata'
 import { isInventoryFresh, mergeModelOverride, ProviderModelStore, type ProviderModelState } from './provider-model-store'
 import type { PluginLogger } from './logger'
 import type { PluginInput } from '@opencode-ai/plugin'
@@ -365,7 +366,9 @@ export async function enhanceConfig(
           const owner = extractModelOwner(model.id)
           const modelConfig: any = {
             id: model.id,
-            name: smartModelNameEnabled ? modelInfoEnricher?.getModelName?.(model.id, model) ?? formatModelName(model) : model.id,
+            name: smartModelNameEnabled
+              ? modelInfoEnricher?.getModelName?.(model.id, model) ?? getOpenAIModelDisplayName(model) ?? formatModelName(model)
+              : model.id,
           }
 
           if (owner) {
@@ -380,6 +383,7 @@ export async function enhanceConfig(
             }
           }
 
+          applyOpenAIModelMetadata(modelConfig, model)
           modelInfoEnricher?.applyModelInfo(modelConfig, model.id, model)
           discoveredModels[modelKey] = modelConfig
         }
