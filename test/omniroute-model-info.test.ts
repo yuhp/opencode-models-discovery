@@ -24,6 +24,7 @@ describe('OmniRoute model info enricher', () => {
         structured_output: true,
         temperature: false,
         vision: true,
+        effort_tiers: ['LOW', 'medium', 'high', 'xhigh', 'ultra'],
       },
     })
 
@@ -35,6 +36,13 @@ describe('OmniRoute model info enricher', () => {
       tool_call: true,
       structured_output: true,
       temperature: false,
+      variants: {
+        low: { reasoningEffort: 'low' },
+        medium: { reasoningEffort: 'medium' },
+        high: { reasoningEffort: 'high' },
+        xhigh: { reasoningEffort: 'xhigh' },
+        ultra: { reasoningEffort: 'ultra' },
+      },
     })
   })
 

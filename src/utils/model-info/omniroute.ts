@@ -23,6 +23,29 @@ function getCapabilities(rawModel: Record<string, unknown> | undefined): Record<
     : undefined
 }
 
+function getReasoningVariants(capabilities: Record<string, unknown> | undefined): Record<string, { reasoningEffort: string }> | undefined {
+  if (capabilities?.reasoning !== true || !Array.isArray(capabilities.effort_tiers)) return undefined
+
+  const supportedTiers: Record<string, true> = {
+    none: true,
+    minimal: true,
+    low: true,
+    medium: true,
+    high: true,
+    xhigh: true,
+    max: true,
+    ultra: true,
+  }
+  const variants = Object.fromEntries(
+    capabilities.effort_tiers
+      .filter((tier): tier is string => typeof tier === 'string')
+      .map(tier => tier.trim().toLowerCase())
+      .filter(tier => supportedTiers[tier] === true)
+      .map(tier => [tier, { reasoningEffort: tier }])
+  )
+  return Object.keys(variants).length > 0 ? variants : undefined
+}
+
 export function createOmniRouteModelInfoEnricher(_data: unknown): ModelInfoEnricher {
   return {
     shouldSkipModel(): boolean {
@@ -58,6 +81,9 @@ export function createOmniRouteModelInfoEnricher(_data: unknown): ModelInfoEnric
       if (typeof capabilities?.tool_calling === 'boolean') modelConfig.tool_call = capabilities.tool_calling
       if (typeof capabilities?.structured_output === 'boolean') modelConfig.structured_output = capabilities.structured_output
       if (typeof capabilities?.temperature === 'boolean') modelConfig.temperature = capabilities.temperature
+
+      const variants = getReasoningVariants(capabilities)
+      if (variants) modelConfig.variants = variants
     },
   }
 }
