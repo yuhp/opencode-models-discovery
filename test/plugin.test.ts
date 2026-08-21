@@ -1430,7 +1430,7 @@ describe('ModelDiscovery Plugin', () => {
         id: 'custom/gpt-4o',
         name: 'GPT-4o',
         tool_call: true,
-        limit: { context: 128000 }
+        limit: { context: 128000, output: 0 }
       }))
     })
 
