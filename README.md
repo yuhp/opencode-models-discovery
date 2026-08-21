@@ -170,9 +170,11 @@ The migration assistant is instructed to inspect project config, user global con
 
 ## Model Metadata Enrichment
 
-Discovery adds model ids to your OpenCode provider config. Some providers only expose minimal `/models` responses, so the plugin can optionally enrich discovered models with OpenCode-compatible capability metadata such as context limits, output limits, reasoning, tool calling, attachments, structured output, temperature support, and modalities.
+Discovery adds model ids to your OpenCode provider config and maps recognized inline metadata into OpenCode-compatible model fields such as context limits, output limits, reasoning, tool calling, attachments, structured output, temperature support, and modalities.
 
-Metadata enrichment is explicit. The plugin does not contact external metadata sources unless configured.
+The plugin always maps recognized metadata present in the provider's `/v1/models` response. This includes OpenCode-shaped `limit`, standard context fields such as `context_length`, `max_context_length`, and `max_input_tokens`, `max_output_tokens`, `modalities`/`input_modalities`/`output_modalities`, capability flags, `cost`, `family`, `release_date`, and `interleaved`. Unknown fields are ignored. `smartModelName: true` also uses a provider `name`, `display_name`, or `normalized_name` when available.
+
+The generic mapping does not guess pricing units from a provider-specific `pricing` object. Configure one of the explicit metadata formats below when a provider documents a pricing or capability schema that needs additional interpretation. The plugin does not contact external metadata sources unless configured.
 
 For models.dev enrichment:
 
