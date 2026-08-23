@@ -242,16 +242,7 @@ Community provider examples live in [`docs/config_example/`](config_example/).
 
 ## Model Metadata Enrichment
 
-The plugin always maps recognized metadata present in a provider's OpenAI-compatible `/v1/models` response. This lets providers such as Carcará expose context and output limits without a second metadata request.
-
-Recognized inline fields include:
-
-- limits: `limit.context/input/output`, `context_length`, `max_context_length`, `native_context_length`, `max_model_len`, `max_input_tokens`, and `max_output_tokens` (plus common aliases);
-- modalities: `modalities`, `input_modalities`, `output_modalities`, and `architecture` modality fields;
-- capabilities: attachment, reasoning, tools/function calling, structured output, temperature, supported parameters, and interleaved reasoning;
-- model metadata: `cost`, `family`, and `release_date`.
-
-The plugin ignores unknown fields and does not infer pricing units from a provider-specific `pricing` object. Explicit `modelInfoFormat` enrichment remains opt-in for provider-specific endpoints and schemas.
+The generic OpenAI-compatible `/v1/models` endpoint only guarantees a small model list shape. Extra metadata such as context limits, tool calling, reasoning, image input, or structured output is provider-specific, so metadata enrichment is opt-in.
 
 The plugin currently supports seven model info formats:
 
