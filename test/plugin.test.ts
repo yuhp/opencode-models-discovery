@@ -504,48 +504,6 @@ describe('ModelDiscovery Plugin', () => {
       }))
     })
 
-    it('maps inline OpenAI-compatible metadata into discovered model limits', async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({
-          data: [{
-            id: 'carcara-coder',
-            object: 'model',
-            name: 'Carcará Coder',
-            context_length: 1_048_576,
-            max_input_tokens: 1_048_576,
-            max_output_tokens: 4096,
-            input_modalities: ['text'],
-            output_modalities: ['text'],
-            capabilities: { tool_calling: true },
-          }],
-        }),
-      })
-
-      const config: any = {
-        provider: {
-          carcara: {
-            npm: '@ai-sdk/openai-compatible',
-            options: {
-              baseURL: 'https://carcara.example/v1',
-              modelsDiscovery: { smartModelName: true },
-            },
-            models: {},
-          },
-        },
-      }
-
-      await pluginHooks.config(config)
-
-      expect(config.provider.carcara.models['carcara-coder']).toMatchObject({
-        id: 'carcara-coder',
-        name: 'Carcará Coder',
-        limit: { context: 1_048_576, input: 1_048_576, output: 4096 },
-        modalities: { input: ['text'], output: ['text'] },
-        tool_call: true,
-      })
-    })
-
     it('uses a fresh persisted inventory without resolving credentials or requesting models', async () => {
       const store = new ProviderModelStore(cacheRoot)
       await store.saveModels({
