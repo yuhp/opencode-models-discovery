@@ -8,7 +8,7 @@
 
 > A universal OpenCode plugin for dynamic model discovery across any OpenAI-compatible provider.
 
-Originally inspired by [opencode-lmstudio](https://github.com/nicktasios/opencode-lmstudio), this project has been refactored into a general-purpose model discovery plugin with provider-level discovery controls, model filtering, metadata enrichment, and `/connect`-backed credential support.
+Originally inspired by [opencode-lmstudio](https://github.com/agustif/opencode-lmstudio), this project has been refactored into a general-purpose model discovery plugin with provider-level discovery controls, model filtering, metadata enrichment, and `/connect`-backed credential support.
 
 ## Features
 
