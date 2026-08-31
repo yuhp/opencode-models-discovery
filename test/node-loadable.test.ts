@@ -120,6 +120,12 @@ describe('Node host compatibility (OpenCode Desktop)', () => {
       entry.endsWith('.js'),
       `runtime entry must be compiled JavaScript, got ${entry} (raw .ts cannot load under Node inside node_modules)`
     ).toBe(true)
+    if (stagedManifest.main) {
+      expect(
+        stagedManifest.main.endsWith('.js'),
+        `main must also be compiled JavaScript, got ${stagedManifest.main} (OpenCode Desktop's loader reads the main string directly, bypassing exports)`
+      ).toBe(true)
+    }
   })
 
   it('ships the declared entry inside the published tarball', () => {
