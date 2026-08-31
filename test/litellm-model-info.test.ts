@@ -49,6 +49,28 @@ describe('LiteLLM model info enricher', () => {
     expect(modelConfig.modalities).toEqual({ input: ['text', 'image'], output: ['text'] })
   })
 
+  it('normalizes modality spellings, maps speech to audio, and drops duplicates', () => {
+    const enricher = litellmEnricher({
+      modalities: { input: ['TEXT', 'speech', ' image ', 'Text'], output: ['Text'] },
+    })
+    expect(enricher).toBeDefined()
+
+    const modelConfig: any = { id: 'test-model' }
+    enricher!.applyModelInfo(modelConfig, 'test-model')
+    expect(modelConfig.modalities).toEqual({ input: ['text', 'audio', 'image'], output: ['text'] })
+  })
+
+  it('drops modalities outside the supported set, defaulting an emptied side to ["text"]', () => {
+    const enricher = litellmEnricher({
+      modalities: { input: ['text', 'hologram'], output: ['hologram'] },
+    })
+    expect(enricher).toBeDefined()
+
+    const modelConfig: any = { id: 'test-model' }
+    enricher!.applyModelInfo(modelConfig, 'test-model')
+    expect(modelConfig.modalities).toEqual({ input: ['text'], output: ['text'] })
+  })
+
   it('leaves existing modalities untouched when info carries no modality signals', () => {
     const enricher = litellmEnricher({ max_tokens: 8192 })
     expect(enricher).toBeDefined()

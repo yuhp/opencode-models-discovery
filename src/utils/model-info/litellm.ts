@@ -70,13 +70,21 @@ function createReasoningVariants(info: LiteLLMModelInfo): Record<string, any> | 
   return Object.keys(variants).length > 0 ? variants : undefined
 }
 
-function toStringArray(value: unknown): string[] | undefined {
-  return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string' && item.length > 0) : undefined
+function getModalities(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) return undefined
+
+  const supportedModalities = new Set(['text', 'audio', 'image', 'video', 'pdf'])
+  const modalities = [...new Set(value
+    .filter((item): item is string => typeof item === 'string')
+    .map(item => item.trim().toLowerCase())
+    .map(item => item === 'speech' ? 'audio' : item)
+    .filter(item => supportedModalities.has(item)))]
+  return modalities.length > 0 ? modalities : undefined
 }
 
 function buildModalities(info: LiteLLMModelInfo): { input: string[]; output: string[] } | undefined {
-  const input = toStringArray(info.modalities?.input)
-  const output = toStringArray(info.modalities?.output)
+  const input = getModalities(info.modalities?.input)
+  const output = getModalities(info.modalities?.output)
   if (input?.length || output?.length) {
     return {
       input: input?.length ? input : ['text'],
