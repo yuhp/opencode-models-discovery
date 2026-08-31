@@ -10,12 +10,12 @@
  * `ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING` (see issue #65).
  *
  * These tests stage the package exactly as npm would publish it, install it
- * into a simulated `node_modules/` tree, and import it with a plain `node`
- * process - the same `await import(entry)` step the Desktop plugin loader
- * performs.
+ * into a simulated `node_modules/` tree, and import it BY PACKAGE NAME with a
+ * plain `node` process, so Node's own exports/main resolution runs - the same
+ * step the Desktop plugin loader performs.
  */
 import { execFileSync } from 'node:child_process'
-import { existsSync, mkdtempSync, mkdirSync, readdirSync, readFileSync, rmSync } from 'node:fs'
+import { existsSync, mkdtempSync, mkdirSync, readdirSync, readFileSync, rmSync, renameSync, cpSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -99,12 +99,12 @@ describe('Node host compatibility (OpenCode Desktop)', () => {
     if (!tarball) throw new Error('npm pack produced no tarball')
     execFileSync('tar', ['-xzf', path.join(workDir, tarball), '-C', stagedRoot], { stdio: 'pipe' })
     rmSync(stagedPkgDir, { recursive: true, force: true })
-    execFileSync('mv', [path.join(stagedRoot, 'package'), stagedPkgDir], { stdio: 'pipe' })
+    renameSync(path.join(stagedRoot, 'package'), stagedPkgDir)
 
     // Provide the runtime dependency the host would install alongside the plugin.
     const depSource = path.join(repoRoot, 'node_modules', 'xdg-basedir')
     if (existsSync(depSource)) {
-      execFileSync('cp', ['-r', depSource, path.join(stagedRoot, 'node_modules', 'xdg-basedir')], { stdio: 'pipe' })
+      cpSync(depSource, path.join(stagedRoot, 'node_modules', 'xdg-basedir'), { recursive: true })
     }
   }, 60_000)
 
@@ -129,22 +129,23 @@ describe('Node host compatibility (OpenCode Desktop)', () => {
 
   it('imports cleanly from plain Node inside a node_modules tree (Desktop loader parity)', () => {
     const node = findNodeBinary()
-    const entry = resolveEntryRelative(readPackageManifest(stagedPkgDir))
-    const entryUrl = new URL(`file://${path.join(stagedPkgDir, entry)}`).href
-    const probe =
-      `const m = await import(${JSON.stringify(entryUrl)});` +
-      `const fn = m.ModelDiscoveryPlugin ?? m.default?.ModelDiscoveryPlugin ?? m.default;` +
-      `if (typeof fn !== 'function') { console.error('NO_PLUGIN_EXPORT'); process.exit(2); }`
+    // A bare-specifier dynamic import run by a real consumer script: Node's own
+    // resolution algorithm reads the staged package's exports/main exactly as the
+    // host loader does, so a manifest Node would reject cannot pass this test.
+    const probeFile = path.join(stagedRoot, 'desktop-loader-probe.mjs')
+    writeFileSync(
+      probeFile,
+      `const m = await import(${JSON.stringify(pkg.name)});\n` +
+        `const fn = m.ModelDiscoveryPlugin ?? m.default?.ModelDiscoveryPlugin ?? m.default;\n` +
+        `if (typeof fn !== 'function') { console.error('NO_PLUGIN_EXPORT'); process.exit(2); }\n` +
+        `console.log('DESKTOP_IMPORT_OK');\n`
+    )
 
     let stdout = ''
     let stderr = ''
     let exitCode = 0
     try {
-      stdout = execFileSync(node, ['--input-type=module', '-e', probe], {
-        cwd: stagedRoot,
-        stdio: 'pipe',
-        encoding: 'utf-8',
-      })
+      stdout = execFileSync(node, [probeFile], { cwd: stagedRoot, stdio: 'pipe', encoding: 'utf-8' })
     } catch (error) {
       const e = error as { status?: number; stdout?: string; stderr?: string }
       exitCode = e.status ?? 1
@@ -152,9 +153,8 @@ describe('Node host compatibility (OpenCode Desktop)', () => {
       stderr = e.stderr ?? ''
     }
     expect(
-      { exitCode, stderr: stderr.slice(0, 800) },
-      'plain Node (OpenCode Desktop runtime) must be able to import the published plugin entry'
-    ).toEqual({ exitCode: 0, stderr: '' })
-    expect(stdout).toBe('')
+      { exitCode, stdout: stdout.trim(), stderr: stderr.slice(0, 800) },
+      'plain Node (OpenCode Desktop runtime) must resolve the published manifest and import the plugin by package name'
+    ).toEqual({ exitCode: 0, stdout: 'DESKTOP_IMPORT_OK', stderr: '' })
   }, 30_000)
 })
