@@ -21,6 +21,8 @@ export interface LiteLLMModelInfo {
   supports_none_reasoning_effort?: boolean | null
   supports_minimal_reasoning_effort?: boolean | null
   supports_low_reasoning_effort?: boolean | null
+  supports_medium_reasoning_effort?: boolean | null
+  supports_high_reasoning_effort?: boolean | null
   supports_xhigh_reasoning_effort?: boolean | null
   supports_max_reasoning_effort?: boolean | null
   supported_openai_params?: string[] | null

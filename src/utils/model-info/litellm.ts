@@ -61,8 +61,8 @@ function createReasoningVariants(info: LiteLLMModelInfo): Record<string, any> | 
 
   // LiteLLM does not always expose per-tier flags for widely supported efforts.
   if (info.supports_low_reasoning_effort !== false) variants.low = { reasoningEffort: 'low' }
-  variants.medium = { reasoningEffort: 'medium' }
-  variants.high = { reasoningEffort: 'high' }
+  if (info.supports_medium_reasoning_effort !== false) variants.medium = { reasoningEffort: 'medium' }
+  if (info.supports_high_reasoning_effort !== false) variants.high = { reasoningEffort: 'high' }
 
   if (info.supports_xhigh_reasoning_effort === true) variants.xhigh = { reasoningEffort: 'xhigh' }
   if (info.supports_max_reasoning_effort === true) variants.max = { reasoningEffort: 'max' }

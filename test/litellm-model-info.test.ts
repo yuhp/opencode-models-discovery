@@ -57,4 +57,41 @@ describe('LiteLLM model info enricher', () => {
     enricher!.applyModelInfo(modelConfig, 'test-model')
     expect(modelConfig.modalities).toEqual({ input: ['text'], output: ['text'] })
   })
+
+  describe('reasoning variants', () => {
+    function variantKeys(modelInfo: Record<string, unknown>): string[] {
+      const enricher = litellmEnricher({
+        supports_reasoning: true,
+        supported_openai_params: ['reasoning_effort'],
+        ...modelInfo,
+      })
+      const modelConfig: any = { id: 'test-model' }
+      enricher!.applyModelInfo(modelConfig, 'test-model')
+      return Object.keys(modelConfig.variants ?? {})
+    }
+
+    it('hides high when supports_high_reasoning_effort is false', () => {
+      expect(variantKeys({ supports_high_reasoning_effort: false })).toEqual(['low', 'medium'])
+    })
+
+    it('hides medium when supports_medium_reasoning_effort is false', () => {
+      expect(variantKeys({ supports_medium_reasoning_effort: false })).toEqual(['low', 'high'])
+    })
+
+    it('keeps medium and high when their flags are absent', () => {
+      expect(variantKeys({})).toEqual(['low', 'medium', 'high'])
+    })
+
+    it('honors all seven per-tier effort flags when set explicitly', () => {
+      expect(variantKeys({
+        supports_none_reasoning_effort: true,
+        supports_minimal_reasoning_effort: true,
+        supports_low_reasoning_effort: true,
+        supports_medium_reasoning_effort: true,
+        supports_high_reasoning_effort: true,
+        supports_xhigh_reasoning_effort: true,
+        supports_max_reasoning_effort: true,
+      })).toEqual(['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'])
+    })
+  })
 })
