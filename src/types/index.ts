@@ -24,6 +24,11 @@ export interface LiteLLMModelInfo {
   supports_xhigh_reasoning_effort?: boolean | null
   supports_max_reasoning_effort?: boolean | null
   supported_openai_params?: string[] | null
+  supports_vision?: boolean | null
+  modalities?: {
+    input?: string[] | null
+    output?: string[] | null
+  } | null
 }
 
 export interface LiteLLMModelInfoEntry {

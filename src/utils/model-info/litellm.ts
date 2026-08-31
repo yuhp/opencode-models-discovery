@@ -70,9 +70,34 @@ function createReasoningVariants(info: LiteLLMModelInfo): Record<string, any> | 
   return Object.keys(variants).length > 0 ? variants : undefined
 }
 
+function toStringArray(value: unknown): string[] | undefined {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string' && item.length > 0) : undefined
+}
+
+function buildModalities(info: LiteLLMModelInfo): { input: string[]; output: string[] } | undefined {
+  const input = toStringArray(info.modalities?.input)
+  const output = toStringArray(info.modalities?.output)
+  if (input?.length || output?.length) {
+    return {
+      input: input?.length ? input : ['text'],
+      output: output?.length ? output : ['text'],
+    }
+  }
+  // Older LiteLLM deployments do not expose modalities; derive image input from supports_vision.
+  if (info.supports_vision === true) {
+    return { input: ['text', 'image'], output: ['text'] }
+  }
+  return undefined
+}
+
 function applyLiteLLMModelInfo(modelConfig: any, entry: LiteLLMModelInfoEntry | undefined): void {
   const info = entry?.model_info
   if (!info) return
+
+  const modalities = buildModalities(info)
+  if (modalities) {
+    modelConfig.modalities = modalities
+  }
 
   const contextLimit = hasUsableNumber(info.max_input_tokens) ? info.max_input_tokens : info.max_tokens
   const outputLimit = hasUsableNumber(info.max_output_tokens) ? info.max_output_tokens : info.max_tokens
