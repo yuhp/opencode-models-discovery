@@ -70,6 +70,36 @@ function createReasoningVariants(info: LiteLLMModelInfo): Record<string, any> | 
   return Object.keys(variants).length > 0 ? variants : undefined
 }
 
+// OpenCode config models price per million tokens (cost.cache_read / cache_write are flat keys);
+// LiteLLM reports per-token costs. Scaling happens inside the guard so an absurd per-token
+// value can never leak an Infinity into the persisted config.
+function nonNegativeCostPerMillion(value: unknown): number | undefined {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) return undefined
+  const perMillion = value * 1_000_000
+  return Number.isFinite(perMillion) ? perMillion : undefined
+}
+
+function positiveCostPerMillion(value: unknown): number | undefined {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) return undefined
+  const perMillion = value * 1_000_000
+  return Number.isFinite(perMillion) ? perMillion : undefined
+}
+
+function buildCost(info: LiteLLMModelInfo): Record<string, unknown> | undefined {
+  const input = nonNegativeCostPerMillion(info.input_cost_per_token)
+  const output = nonNegativeCostPerMillion(info.output_cost_per_token)
+  if (input === undefined || output === undefined) return undefined
+
+  const cacheRead = positiveCostPerMillion(info.cache_read_input_token_cost)
+  const cacheWrite = positiveCostPerMillion(info.cache_creation_input_token_cost)
+  return {
+    input,
+    output,
+    ...(cacheRead !== undefined ? { cache_read: cacheRead } : {}),
+    ...(cacheWrite !== undefined ? { cache_write: cacheWrite } : {}),
+  }
+}
+
 function applyLiteLLMModelInfo(modelConfig: any, entry: LiteLLMModelInfoEntry | undefined): void {
   const info = entry?.model_info
   if (!info) return
@@ -91,6 +121,20 @@ function applyLiteLLMModelInfo(modelConfig: any, entry: LiteLLMModelInfoEntry | 
   const variants = createReasoningVariants(info)
   if (variants) {
     modelConfig.variants = variants
+  }
+
+  const cost = buildCost(info)
+  if (cost) {
+    modelConfig.cost = cost
+  }
+
+  if (typeof info.supports_function_calling === 'boolean') {
+    modelConfig.tool_call = info.supports_function_calling
+  }
+
+  // An empty list means "params undeclared", not "no params supported" — leave temperature alone.
+  if (Array.isArray(info.supported_openai_params) && info.supported_openai_params.length > 0) {
+    modelConfig.temperature = info.supported_openai_params.includes('temperature')
   }
 }
 

@@ -370,6 +370,10 @@ When model info is available, the plugin uses LiteLLM `model_info` fields to pop
 - `max_input_tokens`, `max_output_tokens`, and `max_tokens` become `limit.context`, `limit.input`, and `limit.output`
 - `supports_reasoning` enables `reasoning`
 - `supports_*_reasoning_effort` and `supported_openai_params` create reasoning `variants`
+- `input_cost_per_token` and `output_cost_per_token` become `cost.input` and `cost.output` (per million tokens; only when both sides are present, explicit `0` is kept)
+- `cache_read_input_token_cost` and `cache_creation_input_token_cost` become `cost.cache_read` and `cost.cache_write` when positive
+- `supports_function_calling` becomes `tool_call` when it is a boolean
+- A non-empty `supported_openai_params` list determines `temperature` by whether it includes `"temperature"`
 - By default, entries whose `model_info.mode` is not `chat` are skipped
 
 ### vLLM Model Info
