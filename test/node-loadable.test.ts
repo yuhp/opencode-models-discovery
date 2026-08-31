@@ -56,6 +56,20 @@ function findNodeBinary(): string {
   }
 }
 
+/**
+ * npm exports CLI flags as `npm_config_*` environment variables to lifecycle
+ * children, so this test can run nested inside `npm publish` (prepublishOnly)
+ * or `npm publish --dry-run`. Scrub inherited config so plain `npm pack` and
+ * `npm run compile` behave exactly as if invoked from a clean shell.
+ */
+function cleanNpmEnv(): NodeJS.ProcessEnv {
+  const env = { ...process.env }
+  for (const key of Object.keys(env)) {
+    if (key.startsWith('npm_config_')) delete env[key]
+  }
+  return env
+}
+
 describe('Node host compatibility (OpenCode Desktop)', () => {
   const pkg = readPackageManifest(repoRoot)
   let workDir: string
@@ -71,7 +85,7 @@ describe('Node host compatibility (OpenCode Desktop)', () => {
     // Build the distributable first when the package declares how to.
     const scripts = (readPackageManifest(repoRoot) as unknown as { scripts?: Record<string, string> }).scripts ?? {}
     if (scripts['compile']) {
-      execFileSync('npm', ['run', 'compile'], { cwd: repoRoot, stdio: 'pipe' })
+      execFileSync('npm', ['run', 'compile'], { cwd: repoRoot, stdio: 'pipe', env: cleanNpmEnv() })
     }
 
     // Stage the package exactly as npm would publish it (respecting files/),
@@ -79,6 +93,7 @@ describe('Node host compatibility (OpenCode Desktop)', () => {
     execFileSync('npm', ['pack', '--pack-destination', workDir, '--ignore-scripts'], {
       cwd: repoRoot,
       stdio: 'pipe',
+      env: cleanNpmEnv(),
     })
     const tarball = readdirSync(workDir).find((f) => f.endsWith('.tgz'))
     if (!tarball) throw new Error('npm pack produced no tarball')
