@@ -85,11 +85,14 @@ function getModalities(value: unknown): string[] | undefined {
 function buildModalities(info: LiteLLMModelInfo): { input: string[]; output: string[] } | undefined {
   const input = getModalities(info.modalities?.input)
   const output = getModalities(info.modalities?.output)
-  if (input?.length || output?.length) {
-    return {
-      input: input?.length ? input : ['text'],
-      output: output?.length ? output : ['text'],
-    }
+  const inputDeclared = Array.isArray(info.modalities?.input)
+  const outputDeclared = Array.isArray(info.modalities?.output)
+
+  // A declared side that normalizes to nothing leaves no trustworthy signal: treat the whole
+  // declaration as absent instead of inferring a modality the provider never confirmed.
+  if ((inputDeclared && input === undefined) || (outputDeclared && output === undefined)) return undefined
+  if (input || output) {
+    return { input: input ?? ['text'], output: output ?? ['text'] }
   }
   // Older LiteLLM deployments do not expose modalities; derive image input from supports_vision.
   if (info.supports_vision === true) {

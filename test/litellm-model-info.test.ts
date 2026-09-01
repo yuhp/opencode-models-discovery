@@ -60,15 +60,35 @@ describe('LiteLLM model info enricher', () => {
     expect(modelConfig.modalities).toEqual({ input: ['text', 'audio', 'image'], output: ['text'] })
   })
 
-  it('drops modalities outside the supported set, defaulting an emptied side to ["text"]', () => {
+  it('ignores the whole modalities declaration when a declared side holds only unsupported values', () => {
     const enricher = litellmEnricher({
       modalities: { input: ['text', 'hologram'], output: ['hologram'] },
     })
     expect(enricher).toBeDefined()
 
-    const modelConfig: any = { id: 'test-model' }
+    const modelConfig: any = { id: 'test-model', modalities: { input: ['text'], output: ['audio'] } }
     enricher!.applyModelInfo(modelConfig, 'test-model')
-    expect(modelConfig.modalities).toEqual({ input: ['text'], output: ['text'] })
+    expect(modelConfig.modalities).toEqual({ input: ['text'], output: ['audio'] })
+  })
+
+  it('preserves existing modalities when both declared sides are fully invalid', () => {
+    const enricher = litellmEnricher({
+      modalities: { input: ['hologram'], output: [42, ''] },
+    })
+    expect(enricher).toBeDefined()
+
+    const modelConfig: any = { id: 'test-model', modalities: { input: ['text'], output: ['audio'] } }
+    enricher!.applyModelInfo(modelConfig, 'test-model')
+    expect(modelConfig.modalities).toEqual({ input: ['text'], output: ['audio'] })
+  })
+
+  it('does not overwrite existing modalities when supports_vision is false', () => {
+    const enricher = litellmEnricher({ supports_vision: false })
+    expect(enricher).toBeDefined()
+
+    const modelConfig: any = { id: 'test-model', modalities: { input: ['text', 'image'], output: ['text'] } }
+    enricher!.applyModelInfo(modelConfig, 'test-model')
+    expect(modelConfig.modalities).toEqual({ input: ['text', 'image'], output: ['text'] })
   })
 
   it('leaves existing modalities untouched when info carries no modality signals', () => {
