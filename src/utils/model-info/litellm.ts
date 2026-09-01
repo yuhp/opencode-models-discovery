@@ -61,8 +61,8 @@ function createReasoningVariants(info: LiteLLMModelInfo): Record<string, any> | 
 
   // LiteLLM does not always expose per-tier flags for widely supported efforts.
   if (info.supports_low_reasoning_effort !== false) variants.low = { reasoningEffort: 'low' }
-  variants.medium = { reasoningEffort: 'medium' }
-  variants.high = { reasoningEffort: 'high' }
+  if (info.supports_medium_reasoning_effort !== false) variants.medium = { reasoningEffort: 'medium' }
+  if (info.supports_high_reasoning_effort !== false) variants.high = { reasoningEffort: 'high' }
 
   if (info.supports_xhigh_reasoning_effort === true) variants.xhigh = { reasoningEffort: 'xhigh' }
   if (info.supports_max_reasoning_effort === true) variants.max = { reasoningEffort: 'max' }
@@ -70,9 +70,75 @@ function createReasoningVariants(info: LiteLLMModelInfo): Record<string, any> | 
   return Object.keys(variants).length > 0 ? variants : undefined
 }
 
+function getModalities(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) return undefined
+
+  const supportedModalities = new Set(['text', 'audio', 'image', 'video', 'pdf'])
+  const modalities = [...new Set(value
+    .filter((item): item is string => typeof item === 'string')
+    .map(item => item.trim().toLowerCase())
+    .map(item => item === 'speech' ? 'audio' : item)
+    .filter(item => supportedModalities.has(item)))]
+  return modalities.length > 0 ? modalities : undefined
+}
+
+function buildModalities(info: LiteLLMModelInfo): { input: string[]; output: string[] } | undefined {
+  const input = getModalities(info.modalities?.input)
+  const output = getModalities(info.modalities?.output)
+  const inputDeclared = Array.isArray(info.modalities?.input)
+  const outputDeclared = Array.isArray(info.modalities?.output)
+
+  // A declared side that normalizes to nothing leaves no trustworthy signal: treat the whole
+  // declaration as absent instead of inferring a modality the provider never confirmed.
+  if ((inputDeclared && input === undefined) || (outputDeclared && output === undefined)) return undefined
+  if (input || output) {
+    return { input: input ?? ['text'], output: output ?? ['text'] }
+  }
+  // Older LiteLLM deployments do not expose modalities; derive image input from supports_vision.
+  if (info.supports_vision === true) {
+    return { input: ['text', 'image'], output: ['text'] }
+  }
+  return undefined
+}
+
+// OpenCode config models price per million tokens (cost.cache_read / cache_write are flat keys);
+// LiteLLM reports per-token costs. Scaling happens inside the guard so an absurd per-token
+// value can never leak an Infinity into the persisted config.
+function nonNegativeCostPerMillion(value: unknown): number | undefined {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) return undefined
+  const perMillion = value * 1_000_000
+  return Number.isFinite(perMillion) ? perMillion : undefined
+}
+
+function positiveCostPerMillion(value: unknown): number | undefined {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) return undefined
+  const perMillion = value * 1_000_000
+  return Number.isFinite(perMillion) ? perMillion : undefined
+}
+
+function buildCost(info: LiteLLMModelInfo): Record<string, unknown> | undefined {
+  const input = nonNegativeCostPerMillion(info.input_cost_per_token)
+  const output = nonNegativeCostPerMillion(info.output_cost_per_token)
+  if (input === undefined || output === undefined) return undefined
+
+  const cacheRead = positiveCostPerMillion(info.cache_read_input_token_cost)
+  const cacheWrite = positiveCostPerMillion(info.cache_creation_input_token_cost)
+  return {
+    input,
+    output,
+    ...(cacheRead !== undefined ? { cache_read: cacheRead } : {}),
+    ...(cacheWrite !== undefined ? { cache_write: cacheWrite } : {}),
+  }
+}
+
 function applyLiteLLMModelInfo(modelConfig: any, entry: LiteLLMModelInfoEntry | undefined): void {
   const info = entry?.model_info
   if (!info) return
+
+  const modalities = buildModalities(info)
+  if (modalities) {
+    modelConfig.modalities = modalities
+  }
 
   const contextLimit = hasUsableNumber(info.max_input_tokens) ? info.max_input_tokens : info.max_tokens
   const outputLimit = hasUsableNumber(info.max_output_tokens) ? info.max_output_tokens : info.max_tokens
@@ -91,6 +157,20 @@ function applyLiteLLMModelInfo(modelConfig: any, entry: LiteLLMModelInfoEntry | 
   const variants = createReasoningVariants(info)
   if (variants) {
     modelConfig.variants = variants
+  }
+
+  const cost = buildCost(info)
+  if (cost) {
+    modelConfig.cost = cost
+  }
+
+  if (typeof info.supports_function_calling === 'boolean') {
+    modelConfig.tool_call = info.supports_function_calling
+  }
+
+  // An empty list means "params undeclared", not "no params supported" — leave temperature alone.
+  if (Array.isArray(info.supported_openai_params) && info.supported_openai_params.length > 0) {
+    modelConfig.temperature = info.supported_openai_params.includes('temperature')
   }
 }
 
