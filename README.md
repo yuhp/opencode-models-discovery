@@ -236,13 +236,11 @@ If metadata cannot be fetched or matched safely, discovery still succeeds and th
 
 ## Upgrade Note
 
-If you upgrade the plugin and OpenCode still behaves like it is using an older build, refresh the OpenCode plugin cache and restart OpenCode.
+After upgrading the plugin, refresh the OpenCode plugin cache and restart OpenCode before testing the new version. This avoids stale cached plugin packages being used after an npm upgrade.
 
-This can happen because OpenCode may continue using a previously cached package after the npm package itself has been updated.
+For the upgrade checklist and Desktop-specific loading notes, see the [upgrade guide](docs/upgrading.md).
 
 After changing `opencode.json`, restart OpenCode. OpenCode loads config at startup, so command and provider changes are not guaranteed to take effect in an already-running session.
-
-OpenCode Desktop runs plugins in a plain Node runtime instead of Bun, and Node cannot load the raw TypeScript sources this package used to publish. The package now ships precompiled JavaScript (`dist/`) as its runtime entry, so Desktop hosts can load it. If the plugin never runs on Desktop, remove the stale cache directory (`~/.cache/opencode/packages/opencode-models-discovery@latest`) and restart, so the published build is reinstalled.
 
 ## `/connect` Support
 
