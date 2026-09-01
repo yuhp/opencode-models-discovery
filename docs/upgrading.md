@@ -31,24 +31,49 @@ Use `/models-discovery:config` to get assistant-guided provider-level configurat
 
 Legacy global `models.includeRegex` and `models.excludeRegex` can map to provider-level `modelsDiscovery.models.includeRegex` and `modelsDiscovery.models.excludeRegex`, but the recommended migration is provider-level `models.includeBy` and `models.excludeBy` using `field: "id"` and `match`. Provider-level `models.includeRegex` and `models.excludeRegex` remain available as id-only shortcuts. Provider-level `models.includeBy` and `models.excludeBy` support strict equality with `equals` and regex matching with `match` against top-level raw fields returned by a provider's `/v1/models` response.
 
-## Refresh Plugin Cache After Upgrade
+## Refresh Plugin Cache After Every Upgrade
 
-If you upgrade `opencode-models-discovery` and OpenCode still behaves like it is using an older version, refresh the OpenCode plugin cache and restart OpenCode.
+After every `opencode-models-discovery` upgrade, refresh the OpenCode plugin cache and restart OpenCode before testing the new version. OpenCode may continue using a cached plugin package after the npm package has been updated.
 
-This is worth checking when:
+Refreshing the cache is especially important when:
 
 - a newly released feature does not appear after upgrading
 - behavior still matches an older plugin build
 - issue fixes seem not to have taken effect locally
 
-OpenCode may continue using a cached plugin package even after the npm package has been updated.
-
 ## Recommended Upgrade Checklist
 
 1. Upgrade the npm package version you use.
-2. Restart OpenCode.
-3. If behavior still looks stale, refresh the OpenCode plugin cache.
+2. Refresh the OpenCode plugin cache.
+3. Restart OpenCode.
 4. Start OpenCode again and verify the plugin version now matches the expected build.
+
+The exact cache location is controlled by OpenCode. For the default npm package cache, remove the cached package directory:
+
+```text
+~/.cache/opencode/packages/opencode-models-discovery@<version>
+```
+
+If you use `@latest`, the directory may be:
+
+```text
+~/.cache/opencode/packages/opencode-models-discovery@latest
+```
+
+## OpenCode Desktop
+
+OpenCode Desktop runs plugins in Electron's plain Node runtime, while the OpenCode CLI can load TypeScript source through Bun. The published package therefore uses compiled JavaScript (`dist/index.js`) as its runtime entry so the same npm package works in Desktop and CLI.
+
+Desktop compatibility requires one of these loading modes:
+
+- Use a published npm package. The release process generates and includes `dist/index.js` automatically.
+- Use a local project directory with a `file://` package reference, after running `npm run compile` or `npm run build` in that project.
+
+The local project directory mode resolves the package entry from `package.json`, which points to `dist/index.js`. If `dist/index.js` does not exist, Desktop cannot load the local package.
+
+A direct `file://` reference to `src/index.ts` is suitable for CLI source development, because Bun can load the TypeScript source. It does not verify the published package and does not guarantee Desktop compatibility.
+
+After upgrading a published package, refresh the OpenCode plugin cache as described above before diagnosing a Desktop loading problem.
 
 ## When This Matters Most
 
