@@ -61,8 +61,8 @@ function createReasoningVariants(info: LiteLLMModelInfo): Record<string, any> | 
 
   // LiteLLM does not always expose per-tier flags for widely supported efforts.
   if (info.supports_low_reasoning_effort !== false) variants.low = { reasoningEffort: 'low' }
-  variants.medium = { reasoningEffort: 'medium' }
-  variants.high = { reasoningEffort: 'high' }
+  if (info.supports_medium_reasoning_effort !== false) variants.medium = { reasoningEffort: 'medium' }
+  if (info.supports_high_reasoning_effort !== false) variants.high = { reasoningEffort: 'high' }
 
   if (info.supports_xhigh_reasoning_effort === true) variants.xhigh = { reasoningEffort: 'xhigh' }
   if (info.supports_max_reasoning_effort === true) variants.max = { reasoningEffort: 'max' }
@@ -70,9 +70,45 @@ function createReasoningVariants(info: LiteLLMModelInfo): Record<string, any> | 
   return Object.keys(variants).length > 0 ? variants : undefined
 }
 
+function getModalities(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) return undefined
+
+  const supportedModalities = new Set(['text', 'audio', 'image', 'video', 'pdf'])
+  const modalities = [...new Set(value
+    .filter((item): item is string => typeof item === 'string')
+    .map(item => item.trim().toLowerCase())
+    .map(item => item === 'speech' ? 'audio' : item)
+    .filter(item => supportedModalities.has(item)))]
+  return modalities.length > 0 ? modalities : undefined
+}
+
+function buildModalities(info: LiteLLMModelInfo): { input: string[]; output: string[] } | undefined {
+  const input = getModalities(info.modalities?.input)
+  const output = getModalities(info.modalities?.output)
+  const inputDeclared = Array.isArray(info.modalities?.input)
+  const outputDeclared = Array.isArray(info.modalities?.output)
+
+  // A declared side that normalizes to nothing leaves no trustworthy signal: treat the whole
+  // declaration as absent instead of inferring a modality the provider never confirmed.
+  if ((inputDeclared && input === undefined) || (outputDeclared && output === undefined)) return undefined
+  if (input || output) {
+    return { input: input ?? ['text'], output: output ?? ['text'] }
+  }
+  // Older LiteLLM deployments do not expose modalities; derive image input from supports_vision.
+  if (info.supports_vision === true) {
+    return { input: ['text', 'image'], output: ['text'] }
+  }
+  return undefined
+}
+
 function applyLiteLLMModelInfo(modelConfig: any, entry: LiteLLMModelInfoEntry | undefined): void {
   const info = entry?.model_info
   if (!info) return
+
+  const modalities = buildModalities(info)
+  if (modalities) {
+    modelConfig.modalities = modalities
+  }
 
   const contextLimit = hasUsableNumber(info.max_input_tokens) ? info.max_input_tokens : info.max_tokens
   const outputLimit = hasUsableNumber(info.max_output_tokens) ? info.max_output_tokens : info.max_tokens
