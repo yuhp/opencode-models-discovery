@@ -31,6 +31,11 @@ export interface LiteLLMModelInfo {
     input?: string[] | null
     output?: string[] | null
   } | null
+  supports_function_calling?: boolean | null
+  input_cost_per_token?: number | null
+  output_cost_per_token?: number | null
+  cache_read_input_token_cost?: number | null
+  cache_creation_input_token_cost?: number | null
 }
 
 export interface LiteLLMModelInfoEntry {

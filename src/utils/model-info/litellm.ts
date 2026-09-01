@@ -128,6 +128,20 @@ function applyLiteLLMModelInfo(modelConfig: any, entry: LiteLLMModelInfoEntry | 
   if (variants) {
     modelConfig.variants = variants
   }
+
+  const cost = buildCost(info)
+  if (cost) {
+    modelConfig.cost = cost
+  }
+
+  if (typeof info.supports_function_calling === 'boolean') {
+    modelConfig.tool_call = info.supports_function_calling
+  }
+
+  // An empty list means "params undeclared", not "no params supported" — leave temperature alone.
+  if (Array.isArray(info.supported_openai_params) && info.supported_openai_params.length > 0) {
+    modelConfig.temperature = info.supported_openai_params.includes('temperature')
+  }
 }
 
 function getModelInfo(modelInfoById: Map<string, LiteLLMModelInfoEntry>, modelId: string): LiteLLMModelInfoEntry | undefined {
