@@ -7,6 +7,14 @@ import { normalizeProviderOriginForCache, discoverModelsFromProvider, discoverMo
 import { createModelInfoEnricher, isSupportedModelInfoFormat, type ModelInfoEnricher } from '../utils/model-info'
 import { DEFAULT_CACHE_TTL_SECONDS, getDefaultDiscoveryConfigFromEnv, getProviderModelFieldFilters, getProviderModelRegexFilter, shouldDiscoverModel, shouldDiscoverModelByFields, shouldDiscoverProviderWithOverride, ModelInfoFormat } from '../types/plugin-config'
 import { DEFAULT_MODELS_DEV_URL, fetchModelsDevData } from '../utils/models-dev-fetcher'
+import {
+  extractAttachment,
+  extractContextLimit,
+  extractOutputLimit,
+  extractReasoning,
+  extractTemperature,
+  extractToolCalling,
+} from '../utils/model-capabilities'
 import { isInventoryFresh, mergeModelOverride, ProviderModelStore, type ProviderModelState } from './provider-model-store'
 import type { PluginLogger } from './logger'
 import type { PluginInput } from '@opencode-ai/plugin'
@@ -50,6 +58,60 @@ export const providerModelStoreTestUtils = {
 }
 let currentProviderModelStore = defaultProviderModelStore
 const injectedModelsByConfig = new WeakMap<object, Map<string, Map<string, unknown>>>()
+
+/**
+ * Fill in capability metadata straight from a raw /models entry.
+ *
+ * OpenAI's own /models response carries no capability fields, but most compatible gateways
+ * add their own (context_window, max_tokens, supports_tools, ...). Reading them here means a
+ * provider gets useful limits without configuring a modelInfoFormat. Field spelling varies
+ * between gateways, so extraction normalises the common aliases — see model-capabilities.ts.
+ *
+ * Only fills gaps: never overwrites a value an enricher already set, and only writes
+ * `limit` when at least one bound was found, so we never emit a partial limit object.
+ *
+ * Deliberately no defaults: a gateway that stays silent about tool_call/vision gets no
+ * field, because inventing one would assert a capability the provider never claimed.
+ */
+function applyRawModelCapabilities(modelConfig: Record<string, any>, rawModel: OpenAIModel): void {
+  const context = extractContextLimit(rawModel)
+  const output = extractOutputLimit(rawModel)
+
+  if (modelConfig.limit === undefined && (context !== undefined || output !== undefined)) {
+    modelConfig.limit = {
+      context: context ?? output!,
+      output: output ?? context!,
+    }
+  }
+
+  if (modelConfig.tool_call === undefined) {
+    const toolCalling = extractToolCalling(rawModel)
+    if (toolCalling !== undefined) {
+      modelConfig.tool_call = toolCalling
+    }
+  }
+
+  if (modelConfig.reasoning === undefined) {
+    const reasoning = extractReasoning(rawModel)
+    if (reasoning !== undefined) {
+      modelConfig.reasoning = reasoning
+    }
+  }
+
+  if (modelConfig.attachment === undefined) {
+    const attachment = extractAttachment(rawModel)
+    if (attachment !== undefined) {
+      modelConfig.attachment = attachment
+    }
+  }
+
+  if (modelConfig.temperature === undefined) {
+    const temperature = extractTemperature(rawModel)
+    if (temperature !== undefined) {
+      modelConfig.temperature = temperature
+    }
+  }
+}
 
 function getInjectedModels(config: object, providerID: string): Map<string, unknown> {
   return injectedModelsByConfig.get(config)?.get(providerID) ?? new Map()
@@ -380,6 +442,9 @@ export async function enhanceConfig(
             }
           }
 
+          // Enrichers win: an explicitly configured modelInfoFormat knows the provider's
+          // metadata contract better than field-name guessing.
+          applyRawModelCapabilities(modelConfig, model)
           modelInfoEnricher?.applyModelInfo(modelConfig, model.id, model)
           discoveredModels[modelKey] = modelConfig
         }
