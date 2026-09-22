@@ -1,12 +1,8 @@
-import type { PluginInput } from '@opencode-ai/plugin'
-
 const SERVICE_NAME = 'opencode-models-discovery'
 
 type LogLevel = 'debug' | 'info' | 'warn' | 'error'
 
 type LogExtra = Record<string, unknown>
-
-type PluginClient = PluginInput['client'] | null | undefined
 
 export interface PluginLogger {
   debug(message: string, extra?: LogExtra): void
@@ -53,29 +49,9 @@ function fallbackToConsole(level: LogLevel, message: string, extra?: LogExtra) {
   log(prefix)
 }
 
-export function createPluginLogger(client?: PluginClient, baseExtra: LogExtra = {}): PluginLogger {
+export function createPluginLogger(baseExtra: LogExtra = {}): PluginLogger {
   const log = (level: LogLevel, message: string, extra?: LogExtra) => {
-    const mergedExtra = mergeExtra(baseExtra, extra)
-
-    try {
-      if (client?.app?.log) {
-        void client.app.log({
-          body: {
-            service: SERVICE_NAME,
-            level,
-            message,
-            extra: mergedExtra,
-          },
-        }).catch(() => {
-          fallbackToConsole(level, message, mergedExtra)
-        })
-        return
-      }
-    } catch {
-      // Fall back to console logging when structured logging is unavailable.
-    }
-
-    fallbackToConsole(level, message, mergedExtra)
+    fallbackToConsole(level, message, mergeExtra(baseExtra, extra))
   }
 
   return {
@@ -92,7 +68,7 @@ export function createPluginLogger(client?: PluginClient, baseExtra: LogExtra = 
       log('error', message, extra)
     },
     child(extra) {
-      return createPluginLogger(client, mergeExtra(baseExtra, extra) || {})
+      return createPluginLogger(mergeExtra(baseExtra, extra) || {})
     },
   }
 }

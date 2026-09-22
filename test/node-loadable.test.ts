@@ -23,6 +23,18 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
 const repoRoot = path.resolve(fileURLToPath(new URL('.', import.meta.url)), '..')
 
+// On Windows, npm is a cmd shim that execFileSync cannot spawn directly
+// (ENOENT/EINVAL without a shell). Running npm's CLI JS under the current
+// Node binary is deterministic and cross-platform.
+function runNpm(args: string[], options: { cwd: string; stdio: 'pipe'; env: NodeJS.ProcessEnv }): void {
+  if (process.platform === 'win32') {
+    const npmCli = path.join(path.dirname(process.execPath), 'node_modules', 'npm', 'bin', 'npm-cli.js')
+    execFileSync(process.execPath, [npmCli, ...args], options)
+  } else {
+    execFileSync('npm', args, options)
+  }
+}
+
 function readPackageManifest(dir: string): {
   name: string
   main?: string
@@ -85,12 +97,12 @@ describe('Node host compatibility (OpenCode Desktop)', () => {
     // Build the distributable first when the package declares how to.
     const scripts = (readPackageManifest(repoRoot) as unknown as { scripts?: Record<string, string> }).scripts ?? {}
     if (scripts['compile']) {
-      execFileSync('npm', ['run', 'compile'], { cwd: repoRoot, stdio: 'pipe', env: cleanNpmEnv() })
+      runNpm(['run', 'compile'], { cwd: repoRoot, stdio: 'pipe', env: cleanNpmEnv() })
     }
 
     // Stage the package exactly as npm would publish it (respecting files/),
     // without triggering lifecycle scripts.
-    execFileSync('npm', ['pack', '--pack-destination', workDir, '--ignore-scripts'], {
+    runNpm(['pack', '--pack-destination', workDir, '--ignore-scripts'], {
       cwd: repoRoot,
       stdio: 'pipe',
       env: cleanNpmEnv(),
@@ -106,7 +118,29 @@ describe('Node host compatibility (OpenCode Desktop)', () => {
     if (existsSync(depSource)) {
       cpSync(depSource, path.join(stagedRoot, 'node_modules', 'xdg-basedir'), { recursive: true })
     }
-  }, 60_000)
+
+    // The bundled dist/index.js also imports the V2 SDK as external bare
+    // specifiers, so stage it exactly as the host would. @opencode/plugin is
+    // the plugin entry point; @opencode/schema carries Model.Info/Money used
+    // by the assembled inventory. Both are devDependencies (installed) and
+    // usually carry their own nested node_modules (e.g. effect), making a
+    // recursive copy self-contained (see the effect fallback below).
+    const scopedSdkPackages = ['plugin', 'schema']
+    for (const sdkPackage of scopedSdkPackages) {
+      const sdkSource = path.join(repoRoot, 'node_modules', '@opencode', sdkPackage)
+      if (existsSync(sdkSource)) {
+        cpSync(sdkSource, path.join(stagedRoot, 'node_modules', '@opencode', sdkPackage), { recursive: true })
+      }
+    }
+
+    // Hoisting layout for effect varies by package manager/version: npm and bun
+    // nest it inside @opencode/* on this box, but a consumer layout may hoist it
+    // to the top level. Stage it too so SDK dist resolution matches regardless.
+    const effectSource = path.join(repoRoot, 'node_modules', 'effect')
+    if (existsSync(effectSource)) {
+      cpSync(effectSource, path.join(stagedRoot, 'node_modules', 'effect'), { recursive: true })
+    }
+  }, 180_000)
 
   afterAll(() => {
     if (workDir) rmSync(workDir, { recursive: true, force: true })
@@ -142,8 +176,13 @@ describe('Node host compatibility (OpenCode Desktop)', () => {
     writeFileSync(
       probeFile,
       `const m = await import(${JSON.stringify(pkg.name)});\n` +
-        `const fn = m.ModelDiscoveryPlugin ?? m.default?.ModelDiscoveryPlugin ?? m.default;\n` +
-        `if (typeof fn !== 'function') { console.error('NO_PLUGIN_EXPORT'); process.exit(2); }\n` +
+        `// V2 contract: the default export is the Plugin.define() result, an object\n` +
+        `// with a string id and a setup (or effect) function, not a callable factory.\n` +
+        `const plugin = m.default;\n` +
+        `if (!plugin || typeof plugin !== 'object' || typeof plugin.id !== 'string' ||\n` +
+        `    (typeof plugin.setup !== 'function' && typeof plugin.effect !== 'function')) {\n` +
+        `  console.error('NO_PLUGIN_EXPORT'); process.exit(2);\n` +
+        `}\n` +
         `console.log('DESKTOP_IMPORT_OK');\n`
     )
 

@@ -1,5 +1,3 @@
-import type { PluginLogger } from './logger'
-
 export const MIGRATION_COMMAND_NAME = 'models-discovery:migrate'
 export const CONFIG_COMMAND_NAME = 'models-discovery:config'
 
@@ -176,65 +174,3 @@ Configuration compatibility boundary:
 Preserve unrelated config fields and formatting as much as possible.
 Do not overwrite existing provider.<id>.options.modelsDiscovery fields unless the user explicitly asks you to.
 After editing config, remind the user to quit and restart opencode.`
-
-function ensureCommandConfig(config: any): Record<string, any> | undefined {
-  if (!config || typeof config !== 'object') {
-    return undefined
-  }
-
-  if (!config.command || typeof config.command !== 'object' || Array.isArray(config.command)) {
-    config.command = {}
-  }
-
-  return config.command
-}
-
-function injectCommand(
-  config: any,
-  logger: PluginLogger,
-  commandName: string,
-  command: { description: string; agent: string; template: string },
-  existingMessage: string
-): void {
-  const commands = ensureCommandConfig(config)
-  if (!commands) {
-    return
-  }
-
-  if (commands[commandName]) {
-    logger.warn(existingMessage, {
-      command: commandName,
-    })
-    return
-  }
-
-  commands[commandName] = command
-}
-
-export function injectMigrationCommand(config: any, logger: PluginLogger): void {
-  injectCommand(
-    config,
-    logger,
-    MIGRATION_COMMAND_NAME,
-    {
-      description: 'Migrate opencode-models-discovery config',
-      agent: 'build',
-      template: MIGRATION_COMMAND_TEMPLATE,
-    },
-    'Migration command already exists; leaving user-defined command unchanged'
-  )
-}
-
-export function injectConfigCommand(config: any, logger: PluginLogger): void {
-  injectCommand(
-    config,
-    logger,
-    CONFIG_COMMAND_NAME,
-    {
-      description: 'Configure opencode-models-discovery',
-      agent: 'build',
-      template: CONFIG_COMMAND_TEMPLATE,
-    },
-    'Config command already exists; leaving user-defined command unchanged'
-  )
-}

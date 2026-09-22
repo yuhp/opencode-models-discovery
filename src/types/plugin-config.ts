@@ -110,12 +110,18 @@ export function getDefaultDiscoveryConfigFromEnv(logger?: PluginLogger): Discove
 }
 
 export function hasLegacyGlobalDiscoveryConfig(config: PluginConfig): boolean {
-  return (
-    config.discovery !== undefined ||
-    config.providers !== undefined ||
-    config.models !== undefined ||
-    config.smartModelName !== undefined
-  )
+  if (config.discovery !== undefined || config.models !== undefined || config.smartModelName !== undefined) {
+    return true
+  }
+
+  // `providers` is reused as the per-provider option-override map in V2; only the V1
+  // global include/exclude list shape counts as legacy config here.
+  if (config.providers !== undefined) {
+    const p = config.providers as { include?: unknown; exclude?: unknown }
+    return Array.isArray(p.include) || Array.isArray(p.exclude)
+  }
+
+  return false
 }
 
 export function shouldDiscoverProviderWithOverride(
