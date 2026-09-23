@@ -1,0 +1,21 @@
+{
+  "name": "opencode-models-discovery-v2",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test:run": "vitest run --config vitest.config.ts"
+  },
+  "dependencies": {
+    "@opencode/plugin": "2.0.14"
+  },
+  "devDependencies": {
+    "@types/node": "^25.0.3",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.16"
+  }
+}
