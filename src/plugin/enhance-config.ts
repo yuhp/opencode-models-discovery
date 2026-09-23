@@ -335,7 +335,6 @@ export async function enhanceConfig(
       }
 
       const existingModels = getExplicitModels(config, providerName, p.models || {})
-      let chatModelsCount = 0
 
       const hasProviderModelRegexFilter = !!providerDiscoveryConfig.models?.includeRegex?.length || !!providerDiscoveryConfig.models?.excludeRegex?.length
       const providerModelRegexFilter = getProviderModelRegexFilter(providerDiscoveryConfig, logger.child({ category: 'filtering' }))
@@ -373,7 +372,6 @@ export async function enhanceConfig(
           }
 
           if (modelType === 'chat') {
-            chatModelsCount++
             modelConfig.modalities = {
               input: ["text"],
               output: ["text"]

@@ -10,11 +10,13 @@ function applyModelsDevModelInfo(modelConfig: any, info: ModelsDevModel | undefi
 
   const contextLimit = hasUsableNumber(info.limit?.context) ? info.limit.context : info.limit?.input
   const outputLimit = info.limit?.output
-  if (hasUsableNumber(contextLimit) || hasUsableNumber(outputLimit)) {
+  if (hasUsableNumber(contextLimit)) {
+    // OpenCode requires both fields when a limit object is present. Zero preserves
+    // its output-token fallback when models.dev has no output limit.
     modelConfig.limit = {
-      ...(hasUsableNumber(contextLimit) ? { context: contextLimit } : {}),
+      context: contextLimit,
       ...(hasUsableNumber(info.limit?.input) ? { input: info.limit.input } : {}),
-      ...(hasUsableNumber(outputLimit) ? { output: outputLimit } : {}),
+      output: hasUsableNumber(outputLimit) ? outputLimit : 0,
     }
   }
 

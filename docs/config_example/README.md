@@ -16,6 +16,7 @@ Do not paste secrets into public issues or pull requests. Configure provider cre
 
 ## Examples
 
+- [A2Agent](a2agent.md)
 - [AI-ROUTER](ai-router.md)
 - [DeepSeek](deepseek.md)
 

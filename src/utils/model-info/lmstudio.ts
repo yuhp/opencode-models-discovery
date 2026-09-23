@@ -21,6 +21,22 @@ function getReasoningOptions(model: LMStudioInventoryModel): string[] {
   return model.capabilities?.reasoning?.allowed_options ?? []
 }
 
+function getReasoningVariants(options: string[]): Record<string, { reasoningEffort: string }> | undefined {
+  const reasoningEfforts: Record<string, string> = {
+    off: 'none',
+    low: 'low',
+    medium: 'medium',
+    high: 'high',
+    xhigh: 'xhigh',
+  }
+  const variants: Record<string, { reasoningEffort: string }> = {}
+  for (const option of options) {
+    const reasoningEffort = reasoningEfforts[option]
+    if (reasoningEffort) variants[option] = { reasoningEffort }
+  }
+  return Object.keys(variants).length > 0 ? variants : undefined
+}
+
 function getModelInfo(models: Map<string, LMStudioInventoryModel>, modelId: string): LMStudioInventoryModel | undefined {
   return models.get(modelId)
 }
@@ -71,12 +87,8 @@ export function createLMStudioModelInfoEnricher(data: unknown): ModelInfoEnriche
       const reasoningOptions = getReasoningOptions(model)
       if (reasoningOptions.length > 0) {
         modelConfig.reasoning = true
-        const variants = Object.fromEntries(
-          reasoningOptions
-            .filter((option): option is 'low' | 'medium' | 'high' => option === 'low' || option === 'medium' || option === 'high')
-            .map(option => [option, { reasoningEffort: option }])
-        )
-        if (Object.keys(variants).length > 0) modelConfig.variants = variants
+        const variants = getReasoningVariants(reasoningOptions)
+        if (variants) modelConfig.variants = variants
       }
     },
   }

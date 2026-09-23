@@ -368,8 +368,14 @@ Set `modelInfoFormat` to `"litellm"` to enable it. The plugin requests `/v1/mode
 When model info is available, the plugin uses LiteLLM `model_info` fields to populate OpenCode model configuration:
 
 - `max_input_tokens`, `max_output_tokens`, and `max_tokens` become `limit.context`, `limit.input`, and `limit.output`
+- `modalities.input` and `modalities.output` become `modalities`, normalized to lowercase (`speech` becomes `audio`) and limited to `text`, `audio`, `image`, `video`, and `pdf`; the undeclared side defaults to `["text"]`, but a declared side that contains no supported values makes the whole declaration untrustworthy and the existing configuration is left untouched
+- `supports_vision: true` without `modalities` falls back to input `["text", "image"]`
 - `supports_reasoning` enables `reasoning`
-- `supports_*_reasoning_effort` and `supported_openai_params` create reasoning `variants`
+- `supports_*_reasoning_effort` and `supported_openai_params` create reasoning `variants`: `low`, `medium`, and `high` are kept unless the matching flag is explicitly `false`, while `none`, `minimal`, `xhigh`, and `max` require the flag to be `true`
+- `input_cost_per_token` and `output_cost_per_token` become `cost.input` and `cost.output` (per million tokens; only when both sides are present, explicit `0` is kept)
+- `cache_read_input_token_cost` and `cache_creation_input_token_cost` become `cost.cache_read` and `cost.cache_write` when positive
+- `supports_function_calling` becomes `tool_call` when it is a boolean
+- A non-empty `supported_openai_params` list determines `temperature` by whether it includes `"temperature"`
 - By default, entries whose `model_info.mode` is not `chat` are skipped
 
 ### vLLM Model Info
@@ -426,7 +432,7 @@ Use `modelInfoFormat: "lmstudio"` with LM Studio 0.4.0+, which officially releas
 
 Only models returned by `/v1/models` are injected. A model is enriched only when its `id` exactly matches an inventory `key`; inventory-only models are not injected. `modelsDiscovery.endpoint` controls discovery, while `modelsDiscovery.modelInfoEndpoint` controls the inventory request.
 
-When available, the plugin sets `limit.context` from the largest loaded instance `config.context_length`, otherwise it uses `max_context_length`. LM Studio does not report a distinct output limit, so the plugin writes `limit.output: 0`: this satisfies OpenCode's requirement that a limit object include both context and output while preserving OpenCode's default or configured output-token fallback. The plugin maps `capabilities.vision` to image input, `capabilities.trained_for_tool_use` to `tool_call`, and reported reasoning options to `reasoning` plus `low`, `medium`, and `high` variants. Missing or malformed metadata is left unset without preventing discovery.
+When available, the plugin sets `limit.context` from the largest loaded instance `config.context_length`, otherwise it uses `max_context_length`. LM Studio does not report a distinct output limit, so the plugin writes `limit.output: 0`: this satisfies OpenCode's requirement that a limit object include both context and output while preserving OpenCode's default or configured output-token fallback. The plugin maps `capabilities.vision` to image input and `capabilities.trained_for_tool_use` to `tool_call`. Its reported reasoning options are the source of truth for variants: `off`, `low`, `medium`, `high`, and `xhigh` become variants, with `off` sent as `reasoningEffort: "none"`; `on` and unknown options are omitted because they are not concrete OpenAI-compatible efforts. Missing or malformed metadata is left unset without preventing discovery.
 
 ### models.dev Metadata
 

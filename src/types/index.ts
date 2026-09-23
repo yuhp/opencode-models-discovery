@@ -21,9 +21,21 @@ export interface LiteLLMModelInfo {
   supports_none_reasoning_effort?: boolean | null
   supports_minimal_reasoning_effort?: boolean | null
   supports_low_reasoning_effort?: boolean | null
+  supports_medium_reasoning_effort?: boolean | null
+  supports_high_reasoning_effort?: boolean | null
   supports_xhigh_reasoning_effort?: boolean | null
   supports_max_reasoning_effort?: boolean | null
   supported_openai_params?: string[] | null
+  supports_vision?: boolean | null
+  modalities?: {
+    input?: string[] | null
+    output?: string[] | null
+  } | null
+  supports_function_calling?: boolean | null
+  input_cost_per_token?: number | null
+  output_cost_per_token?: number | null
+  cache_read_input_token_cost?: number | null
+  cache_creation_input_token_cost?: number | null
 }
 
 export interface LiteLLMModelInfoEntry {

@@ -12,7 +12,7 @@
  */
 
 import { existsSync, readFileSync, writeFileSync } from 'fs'
-import { execSync } from 'child_process'
+import { execFileSync, execSync } from 'child_process'
 
 const VERSION_TYPES = ['patch', 'minor', 'major'] as const
 type VersionType = typeof VERSION_TYPES[number]
@@ -84,10 +84,10 @@ function updatePackageManifests(version: string): void {
   }
 }
 
-function runCommand(cmd: string, description: string): void {
+function runCommand(command: string, args: string[], description: string): void {
   console.log(`\n📦 ${description}...`)
   try {
-    execSync(cmd, { stdio: 'inherit' })
+    execFileSync(command, args, { stdio: 'inherit' })
     console.log(`✓ ${description} completed`)
   } catch (error) {
     console.error(`✗ ${description} failed`)
@@ -95,21 +95,13 @@ function runCommand(cmd: string, description: string): void {
   }
 }
 
-function getCommandOutput(cmd: string): string {
-  return execSync(cmd, { encoding: 'utf-8' }).trim()
-}
-
-function shellQuote(value: string): string {
-  return `'${value.replace(/'/g, `'\\''`)}'`
-}
-
 function remoteTagExists(tagName: string): boolean {
-  return getCommandOutput(`git ls-remote --tags origin ${shellQuote(tagName)}`).length > 0
+  return execFileSync('git', ['ls-remote', '--tags', 'origin', tagName], { encoding: 'utf-8' }).trim().length > 0
 }
 
 function npmVersionExists(packageName: string, version: string): boolean {
   try {
-    return getCommandOutput(`npm view ${shellQuote(`${packageName}@${version}`)} version`) === version
+    return execFileSync('npm', ['view', `${packageName}@${version}`, 'version'], { encoding: 'utf-8' }).trim() === version
   } catch {
     return false
   }
@@ -117,7 +109,7 @@ function npmVersionExists(packageName: string, version: string): boolean {
 
 function getPreviousTag(): string | null {
   try {
-    return execSync('git describe --tags --abbrev=0 HEAD^', { encoding: 'utf-8' }).trim() || null
+    return execFileSync('git', ['describe', '--tags', '--abbrev=0', 'HEAD^'], { encoding: 'utf-8' }).trim() || null
   } catch {
     return null
   }
@@ -125,7 +117,7 @@ function getPreviousTag(): string | null {
 
 function getReleaseCommits(previousTag: string | null): CommitEntry[] {
   const range = previousTag ? `${previousTag}..HEAD` : 'HEAD'
-  const output = execSync(`git log ${range} --pretty=format:%h%x09%s`, { encoding: 'utf-8' })
+  const output = execFileSync('git', ['log', range, '--pretty=format:%h%x09%s'], { encoding: 'utf-8' })
 
   return output
     .split('\n')
@@ -223,17 +215,17 @@ function prepareRelease(versionType: string): void {
   console.log(`   Version type: ${versionType}`)
   console.log(`   Branch: ${branchName}`)
 
-  runCommand(`git switch -c ${branchName}`, `Creating release branch ${branchName}`)
+  runCommand('git', ['switch', '-c', branchName], `Creating release branch ${branchName}`)
 
   updatePackageManifests(newVersion)
 
-  runCommand('npm run build', 'Running build and tests')
+  runCommand('npm', ['run', 'build'], 'Running build and tests')
 
   const gitStatus = execSync('git status --porcelain', { encoding: 'utf-8' })
   if (gitStatus.trim()) {
     console.log('\n⚠️  Uncommitted changes detected. Committing...')
-    runCommand('git add -A', 'Staging changes')
-    runCommand(`git commit -m "chore: bump version to ${newVersion}"`, 'Committing version bump')
+    runCommand('git', ['add', '-A'], 'Staging changes')
+    runCommand('git', ['commit', '-m', `chore: bump version to ${newVersion}`], 'Committing version bump')
   }
 
   const prBody = `## Summary
@@ -245,9 +237,10 @@ function prepareRelease(versionType: string): void {
 
 - npm run build`
 
-  runCommand(`git push --set-upstream origin ${branchName}`, 'Pushing release branch')
+  runCommand('git', ['push', '--set-upstream', 'origin', branchName], 'Pushing release branch')
   runCommand(
-    `gh pr create --repo ${repositorySlug} --base main --head ${branchName} --title ${shellQuote(`Publish v${newVersion}`)} --body ${shellQuote(prBody)}`,
+    'gh',
+    ['pr', 'create', '--repo', repositorySlug, '--base', 'main', '--head', branchName, '--title', `Publish v${newVersion}`, '--body', prBody],
     'Creating release pull request'
   )
 
@@ -262,7 +255,7 @@ function publishCurrentVersion(): void {
 
   console.log(`\n🚀 Publishing release ${tagName}`)
 
-  runCommand('npm run build', 'Running build and tests')
+  runCommand('npm', ['run', 'build'], 'Running build and tests')
 
   const releaseNotes = generateReleaseNotes(newVersion)
   const notesFile = `/tmp/release-notes-${newVersion}.md`
@@ -271,14 +264,14 @@ function publishCurrentVersion(): void {
   if (remoteTagExists(tagName)) {
     console.log(`\n✓ ${tagName} already exists on origin. Skipping tag creation.`)
   } else {
-    runCommand(`git tag ${tagName} -m "Release ${tagName}"`, `Creating git tag ${tagName}`)
-    runCommand(`git push origin ${tagName}`, `Pushing tag ${tagName}`)
+    runCommand('git', ['tag', tagName, '-m', `Release ${tagName}`], `Creating git tag ${tagName}`)
+    runCommand('git', ['push', 'origin', tagName], `Pushing tag ${tagName}`)
   }
 
   console.log('\n📝 Creating GitHub release...')
 
   try {
-    execSync(`gh release create ${tagName} --title "v${newVersion}" --notes-file ${notesFile}`, { stdio: 'inherit' })
+    execFileSync('gh', ['release', 'create', tagName, '--title', `v${newVersion}`, '--notes-file', notesFile], { stdio: 'inherit' })
     console.log(`✓ GitHub release created: https://github.com/${repositorySlug}/releases/tag/${tagName}`)
   } catch (error) {
     console.warn('⚠️  GitHub release creation failed (may already exist)')
@@ -296,7 +289,7 @@ function publishCurrentVersion(): void {
   }
 
   try {
-    runCommand('npm publish', 'Publishing to npm')
+    runCommand('npm', ['publish'], 'Publishing to npm')
     console.log(`\n✅ Successfully published ${name}@${newVersion} to npm!`)
     console.log(`   https://www.npmjs.com/package/${name}`)
   } catch (error) {

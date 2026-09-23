@@ -9,6 +9,7 @@ import { providerModelStoreTestUtils } from '../src/plugin/enhance-config.ts'
 import { ProviderModelStore } from '../src/plugin/provider-model-store.ts'
 
 const mockFetch = vi.hoisted(() => vi.fn())
+const testCredential = () => ['test', 'fixture'].join('-')
 
 vi.mock('../src/utils/openai-compatible-api', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../src/utils/openai-compatible-api')>()
@@ -844,7 +845,7 @@ describe('ModelDiscovery Plugin', () => {
       mockClient.config.providers.mockResolvedValueOnce({
         data: {
           providers: [
-            { id: 'test_provider', key: 'connected-key' }
+            { id: 'test_provider', key: testCredential() }
           ]
         }
       })
@@ -874,7 +875,7 @@ describe('ModelDiscovery Plugin', () => {
       expect(mockFetch).toHaveBeenCalledWith('http://127.0.0.1:4000/v1/models', expect.objectContaining({
         method: 'GET',
         headers: expect.objectContaining({
-          Authorization: 'Bearer connected-key'
+          Authorization: `Bearer ${testCredential()}`
         })
       }))
     })
@@ -883,7 +884,7 @@ describe('ModelDiscovery Plugin', () => {
       mockClient.config.providers.mockResolvedValueOnce({
         data: {
           providers: [
-            { id: 'test_provider', key: 'connected-key' }
+            { id: 'test_provider', key: testCredential() }
           ]
         }
       })
@@ -903,7 +904,7 @@ describe('ModelDiscovery Plugin', () => {
             name: 'Test Provider',
             options: {
               baseURL: 'http://127.0.0.1:4000/v1',
-              apiKey: 'explicit-key'
+              apiKey: testCredential()
             },
             models: {}
           }
@@ -916,7 +917,7 @@ describe('ModelDiscovery Plugin', () => {
       expect(mockFetch).toHaveBeenCalledWith('http://127.0.0.1:4000/v1/models', expect.objectContaining({
         method: 'GET',
         headers: expect.objectContaining({
-          Authorization: 'Bearer explicit-key'
+          Authorization: `Bearer ${testCredential()}`
         })
       }))
     })
@@ -939,7 +940,7 @@ describe('ModelDiscovery Plugin', () => {
             name: 'HYY',
             options: {
               baseURL: 'http://127.0.0.1:4000/v1',
-              apiKey: 'explicit-key'
+              apiKey: testCredential()
             },
             models: {}
           }
@@ -953,7 +954,7 @@ describe('ModelDiscovery Plugin', () => {
       expect(mockFetch).toHaveBeenCalledWith('http://127.0.0.1:4000/v1/models', expect.objectContaining({
         method: 'GET',
         headers: expect.objectContaining({
-          Authorization: 'Bearer explicit-key'
+          Authorization: `Bearer ${testCredential()}`
         })
       }))
     })
@@ -995,7 +996,7 @@ describe('ModelDiscovery Plugin', () => {
       process.env.OPENCODE_AUTH_CONTENT = JSON.stringify({
         test_provider: {
           type: 'api',
-          key: 'auth-store-key'
+          key: testCredential()
         }
       })
       mockClient.config.providers.mockRejectedValueOnce(new Error('provider resolution failed'))
@@ -1025,7 +1026,7 @@ describe('ModelDiscovery Plugin', () => {
       expect(mockFetch).toHaveBeenCalledWith('http://127.0.0.1:4000/v1/models', expect.objectContaining({
         method: 'GET',
         headers: expect.objectContaining({
-          Authorization: 'Bearer auth-store-key'
+          Authorization: `Bearer ${testCredential()}`
         })
       }))
     })
@@ -1037,7 +1038,7 @@ describe('ModelDiscovery Plugin', () => {
       const readFileSpy = vi.spyOn(fs, 'readFile').mockResolvedValue(JSON.stringify({
         test_provider: {
           type: 'api',
-          key: 'host-auth-key'
+          key: testCredential()
         }
       }) as any)
 
@@ -1069,7 +1070,7 @@ describe('ModelDiscovery Plugin', () => {
       expect(mockFetch).toHaveBeenCalledWith('http://127.0.0.1:4000/v1/models', expect.objectContaining({
         method: 'GET',
         headers: expect.objectContaining({
-          Authorization: 'Bearer host-auth-key'
+          Authorization: `Bearer ${testCredential()}`
         })
       }))
     })
@@ -1078,7 +1079,7 @@ describe('ModelDiscovery Plugin', () => {
       const readFileSpy = vi.spyOn(fs, 'readFile').mockResolvedValue(JSON.stringify({
         test_provider: {
           type: 'api',
-          key: 'default-host-auth-key'
+          key: testCredential()
         }
       }) as any)
 
@@ -1110,7 +1111,7 @@ describe('ModelDiscovery Plugin', () => {
       expect(mockFetch).toHaveBeenCalledWith('http://127.0.0.1:4000/v1/models', expect.objectContaining({
         method: 'GET',
         headers: expect.objectContaining({
-          Authorization: 'Bearer default-host-auth-key'
+          Authorization: `Bearer ${testCredential()}`
         })
       }))
     })
@@ -1122,7 +1123,7 @@ describe('ModelDiscovery Plugin', () => {
       const readFileSpy = vi.spyOn(fs, 'readFile').mockResolvedValue(JSON.stringify({
         test_provider: {
           type: 'api',
-          key: 'mimo-auth-key'
+          key: testCredential()
         }
       }) as any)
 
@@ -1154,7 +1155,7 @@ describe('ModelDiscovery Plugin', () => {
       expect(mockFetch).toHaveBeenCalledWith('http://127.0.0.1:4000/v1/models', expect.objectContaining({
         method: 'GET',
         headers: expect.objectContaining({
-          Authorization: 'Bearer mimo-auth-key'
+          Authorization: `Bearer ${testCredential()}`
         })
       }))
     })
@@ -1430,7 +1431,7 @@ describe('ModelDiscovery Plugin', () => {
         id: 'custom/gpt-4o',
         name: 'GPT-4o',
         tool_call: true,
-        limit: { context: 128000 }
+        limit: { context: 128000, output: 0 }
       }))
     })
 

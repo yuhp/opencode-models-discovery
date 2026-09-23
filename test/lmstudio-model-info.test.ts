@@ -13,7 +13,7 @@ describe('LM Studio model info enricher', () => {
       capabilities: {
         vision: true,
         trained_for_tool_use: true,
-        reasoning: { allowed_options: ['off', 'on', 'low', 'high'] },
+        reasoning: { allowed_options: ['off', 'low', 'medium', 'xhigh', 'on'] },
       },
     }] })
     expect(enricher).toBeDefined()
@@ -31,8 +31,10 @@ describe('LM Studio model info enricher', () => {
     expect(config.tool_call).toBe(true)
     expect(config.reasoning).toBe(true)
     expect(config.variants).toEqual({
+      off: { reasoningEffort: 'none' },
       low: { reasoningEffort: 'low' },
-      high: { reasoningEffort: 'high' },
+      medium: { reasoningEffort: 'medium' },
+      xhigh: { reasoningEffort: 'xhigh' },
     })
   })
 
@@ -53,11 +55,11 @@ describe('LM Studio model info enricher', () => {
     expect(config.tool_call).toBeUndefined()
   })
 
-  it('ignores incomplete instances and unsupported reasoning options', () => {
+  it('ignores incomplete instances, unknown reasoning options, and on', () => {
     const enricher = createModelInfoEnricher(ModelInfoFormat.LMStudio, { models: [{
       key: 'partial/model',
       loaded_instances: [{}, { config: {} }, { config: { context_length: 2048 } }],
-      capabilities: { reasoning: { allowed_options: ['custom', 'medium'] } },
+      capabilities: { reasoning: { allowed_options: ['custom', 'on', 'medium'] } },
     }] })
     const config: any = { id: 'partial/model' }
 
