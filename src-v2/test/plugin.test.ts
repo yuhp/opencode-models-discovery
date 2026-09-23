@@ -25,17 +25,21 @@ function context(overrides: Record<string, unknown> = {}) {
   return {
     app: { version: "2.0.14" },
     options: {
-      providers: {
-        local: {
-          package: "@opencode-ai/ai/providers/openai-compatible",
-          settings: {
-            baseURL: "http://127.0.0.1:1234/v1",
-            modelsDiscovery: {},
-          },
-        },
-      },
+      providers: {},
     },
-    provider: { transform: providerTransform, reload: providerReload, list: vi.fn().mockResolvedValue({ data: [] }) },
+    provider: {
+      transform: providerTransform,
+      reload: providerReload,
+      list: vi.fn().mockResolvedValue({ data: [{
+        id: "local",
+        name: "Local",
+        package: "@opencode-ai/ai/providers/openai-compatible",
+        settings: {
+          baseURL: "http://127.0.0.1:1234/v1",
+          modelsDiscovery: {},
+        },
+      }] }),
+    },
     integration: {
       transform: integrationTransform,
       reload: integrationReload,
@@ -86,9 +90,57 @@ describe("V2 plugin entrypoint", () => {
   })
 
   it("does not fail when no provider options are configured", async () => {
-    const ctx = context({ options: {} })
+    const ctx = context({ options: {}, provider: {
+      transform: vi.fn().mockImplementation(async (callback) => callback({ get: vi.fn().mockReturnValue(undefined), add: vi.fn(), update: vi.fn(), models: { set: vi.fn() } })),
+      reload: vi.fn().mockResolvedValue(undefined),
+      list: vi.fn().mockResolvedValue({ data: [] }),
+    } })
     await expect(plugin.setup(ctx as never)).resolves.toBeTypeOf("function")
-    expect(ctx.provider.reload).toHaveBeenCalledTimes(1)
+    expect(ctx.provider.reload).toHaveBeenCalled()
+  })
+
+  it("ignores provider definitions inside plugin options", async () => {
+    const fetcher = vi.spyOn(globalThis, "fetch")
+    const ctx = context({
+      options: {
+        providers: {
+          legacy: {
+            package: "@opencode-ai/ai/providers/openai-compatible",
+            settings: { baseURL: "http://127.0.0.1:1234/v1", modelsDiscovery: {} },
+          },
+        },
+      },
+      provider: {
+        transform: vi.fn().mockImplementation(async (callback) => callback({ get: vi.fn().mockReturnValue(undefined), add: vi.fn(), update: vi.fn(), models: { set: vi.fn() } })),
+        reload: vi.fn().mockResolvedValue(undefined),
+        list: vi.fn().mockResolvedValue({ data: [] }),
+      },
+    })
+
+    try {
+      await plugin.setup(ctx as never)
+      expect(fetcher).not.toHaveBeenCalled()
+    } finally {
+      fetcher.mockRestore()
+    }
+  })
+
+  it("reads discovery options from the top-level provider settings", async () => {
+    const fetcher = vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      json: async () => ({ data: [{ id: "top-level-model" }] }),
+    } as Response)
+    const ctx = context({ options: {} })
+
+    try {
+      await plugin.setup(ctx as never)
+      expect(fetcher).toHaveBeenCalledWith(
+        "http://127.0.0.1:1234/v1/models",
+        expect.objectContaining({ headers: expect.objectContaining({ "Content-Type": "application/json" }) }),
+      )
+    } finally {
+      fetcher.mockRestore()
+    }
   })
 
   it("serializes refreshes and does not refresh from its own provider reload", async () => {

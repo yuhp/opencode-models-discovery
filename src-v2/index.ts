@@ -10,44 +10,63 @@ export function integrationID(providerID: string): string {
   return `${integrationPrefix}.${providerID}`
 }
 
-interface ProviderOption extends ConfiguredProvider {
-  readonly enabled?: unknown
-  readonly endpoint?: unknown
-  readonly models?: unknown
-  readonly discovery?: unknown
-  readonly modelsDiscovery?: unknown
+interface ListedProvider {
+  readonly id?: unknown
+  readonly name?: unknown
+  readonly package?: unknown
+  readonly settings?: unknown
 }
 
-function configuredProviders(options: unknown): {
+function providerList(value: unknown): ListedProvider[] {
+  const entries = Array.isArray(value)
+    ? value
+    : value && typeof value === "object" && Array.isArray((value as { data?: unknown }).data)
+      ? (value as { data: unknown[] }).data
+      : []
+  return entries.flatMap((entry) => {
+    if (!entry || typeof entry !== "object") return []
+    const record = entry as { provider?: unknown }
+    const provider = record.provider && typeof record.provider === "object" ? record.provider : entry
+    return [provider as ListedProvider]
+  })
+}
+
+async function configuredProviders(ctx: Plugin.Context): Promise<{
   providers: ConfiguredProvider[]
   discovery: Map<string, ProviderDiscoveryOptions>
-} {
-  if (!options || typeof options !== "object" || Array.isArray(options)) {
-    return { providers: [], discovery: new Map() }
+}> {
+  const fromList = (listed: ListedProvider[]) => {
+    const providers: ConfiguredProvider[] = []
+    const discovery = new Map<string, ProviderDiscoveryOptions>()
+    for (const entry of listed) {
+      if (typeof entry.id !== "string" || typeof entry.package !== "string") continue
+      if (!entry.settings || typeof entry.settings !== "object" || Array.isArray(entry.settings)) continue
+      const settings = entry.settings as Record<string, unknown>
+      const parsed = parseProviderDiscoveryOptions(settings.modelsDiscovery)
+      if (!parsed) continue
+      providers.push({
+        id: entry.id,
+        name: typeof entry.name === "string" ? entry.name : undefined,
+        package: entry.package,
+        settings,
+      })
+      discovery.set(entry.id, parsed)
+    }
+    return { providers, discovery }
   }
 
-  const raw = (options as { providers?: unknown }).providers
-  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
-    return { providers: [], discovery: new Map() }
+  try {
+    let configured = fromList(providerList(await ctx.provider.list()))
+    if (configured.providers.length === 0) {
+      await ctx.provider.reload()
+      configured = fromList(providerList(await ctx.provider.list()))
+    }
+    if (configured.providers.length > 0) return configured
+  } catch {
+    // Provider listing is unavailable; discovery remains inactive for this setup.
   }
 
-  const providers: ConfiguredProvider[] = []
-  const discovery = new Map<string, ProviderDiscoveryOptions>()
-  for (const [id, value] of Object.entries(raw)) {
-    if (!value || typeof value !== "object" || Array.isArray(value)) continue
-    const option = value as Partial<ProviderOption> & { options?: Record<string, unknown>; settings?: Record<string, unknown>; npm?: string }
-    const settings = option.settings ?? option.options
-    const packageName = option.package ?? option.npm
-    if (typeof packageName !== "string" || !settings || typeof settings !== "object") continue
-    const discoveryConfig = option.modelsDiscovery
-      ?? option.discovery
-      ?? (option.enabled !== undefined || option.endpoint !== undefined || option.models !== undefined ? option : settings.modelsDiscovery)
-    const parsed = parseProviderDiscoveryOptions(discoveryConfig)
-    if (!parsed) continue
-    providers.push({ id, name: option.name, package: packageName, settings })
-    discovery.set(id, parsed)
-  }
-  return { providers, discovery }
+  return { providers: [], discovery: new Map() }
 }
 
 async function resolveProviderCredentials(ctx: Plugin.Context, providers: readonly CatalogProvider[]): Promise<CatalogProvider[]> {
@@ -63,12 +82,18 @@ async function resolveProviderCredentials(ctx: Plugin.Context, providers: readon
   }))
 }
 
-export default Plugin.define({
-  id: "opencode.models-discovery",
-  setup: async (ctx) => {
-    const { providers, discovery } = configuredProviders(ctx.options)
+export async function setupV2(ctx: Plugin.Context): Promise<() => void> {
+  const providers: ConfiguredProvider[] = []
+  const discovery = new Map<string, ProviderDiscoveryOptions>()
+  const controller = createProviderController(ctx, providers, integrationID)
+
+  const syncConfiguredProviders = async (): Promise<boolean> => {
+    const configured = await configuredProviders(ctx)
+    if (configured.providers.length === 0) return false
+    providers.splice(0, providers.length, ...configured.providers)
+    discovery.clear()
+    for (const [id, options] of configured.discovery) discovery.set(id, options)
     const integrations = providers.map((provider) => ({ id: integrationID(provider.id), name: provider.name ?? provider.id }))
-    const controller = createProviderController(ctx, providers, integrationID)
 
     await ctx.integration.transform((draft) => {
       for (const integration of integrations) {
@@ -83,36 +108,56 @@ export default Plugin.define({
       }
     })
     await ctx.provider.transform(controller.transform)
+    return true
+  }
 
-    let refreshChain = Promise.resolve()
-    const refresh = () => {
-      const run = refreshChain.then(async () => {
-        if (integrations.length > 0) await ctx.integration.reload()
-        const resolved = await resolveProviderCredentials(ctx, providers)
-        const inventory = await discoverInventory(resolved, discovery)
-        await controller.replaceInventory(inventory)
-        return controller.status()
-      })
-      refreshChain = run.then(() => undefined, () => undefined)
-      return run
-    }
+  await syncConfiguredProviders()
 
-    await registerDiscoveryTools(ctx, refresh, controller.status)
-    await refresh()
+  let refreshChain = Promise.resolve()
+  const refresh = () => {
+    const run = refreshChain.then(async () => {
+      const integrations = providers.map((provider) => integrationID(provider.id))
+      if (integrations.length > 0) await ctx.integration.reload()
+      const resolved = await resolveProviderCredentials(ctx, providers)
+      const inventory = await discoverInventory(resolved, discovery)
+      await controller.replaceInventory(inventory)
+      return controller.status()
+    })
+    refreshChain = run.then(() => undefined, () => undefined)
+    return run
+  }
 
-    const abort = new AbortController()
+  await registerDiscoveryTools(ctx, refresh, controller.status)
+  await refresh()
+
+  const abort = new AbortController()
+  if (providers.length === 0) {
     void (async () => {
-      try {
-        for await (const event of ctx.event.subscribe({ signal: abort.signal })) {
-          if (event.type === "config.updated") await refresh()
+      for (let attempt = 0; attempt < 10 && !abort.signal.aborted; attempt++) {
+        await new Promise((resolve) => setTimeout(resolve, 250))
+        if (await syncConfiguredProviders()) {
+          await refresh()
+          break
         }
-      } catch {
-        // Event streaming is advisory; manual refresh remains available.
       }
     })()
+  }
+  void (async () => {
+    try {
+      for await (const event of ctx.event.subscribe({ signal: abort.signal })) {
+        if (event.type === "config.updated") await refresh()
+      }
+    } catch {
+      // Event streaming is advisory; manual refresh remains available.
+    }
+  })()
 
-    return () => abort.abort()
-  },
+  return () => abort.abort()
+}
+
+export default Plugin.define({
+  id: "opencode.models-discovery",
+  setup: setupV2,
 })
 
 export { createProviderController, type DiscoveredV2Model, type Inventory } from "./catalog.js"

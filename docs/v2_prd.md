@@ -23,9 +23,9 @@ OpenCode 2 can translate existing V1-shaped `opencode.json(c)` files in memory, 
 - Reuse stable host-independent code for HTTP discovery, filtering, enrichment, model classification, and XDG cache storage where practical.
 - Support a manual refresh and status inspection through V2 plugin tools.
 - Keep all provider transform callbacks pure and replay-safe.
-- Establish automated unit and OpenCode 2 integration coverage before any beta package publication.
+- Establish automated unit and OpenCode 2 integration coverage before publication.
 
-## Non-Goals For The First V2 Beta
+## Initial V2 Scope
 
 - Reusing the V1 `config` hook or mutating raw OpenCode configuration.
 - Reading V1 OpenCode or Mimocode `auth.json` files directly.
@@ -44,7 +44,7 @@ Source documents:
 - <https://opencode.ai/v2/docs/providers>
 - <https://opencode.ai/v2/docs/models>
 
-The V2 API is beta. Plugin entrypoints, context methods, catalog draft shapes, and configuration may change. Implementation must use the installed `@opencode-ai/plugin@next` types as the source of truth and record the verified package and `opencode2` versions in test output or release notes.
+The V2 API is the current OpenCode 2 plugin API. Implementation must use the installed `@opencode/plugin` types as the source of truth and record the verified package and `opencode2` versions in test output or release notes.
 
 ### Plugin Entry Point
 
@@ -85,7 +85,7 @@ The provider registry is the runtime directory that OpenCode uses to resolve pro
 The implementation must separate three operations:
 
 1. `refresh()` is plugin-owned. It can resolve supported public credential sources, request model endpoints, filter and enrich results, and replace an in-memory discovered inventory.
-2. `ctx.provider.transform(callback)` registers a replayable mapping from configured plugin-option providers and the in-memory inventory to provider sources. The callback must not request the network, write files, start timers, or otherwise perform side effects.
+2. `ctx.provider.transform(callback)` registers a replayable mapping from top-level configured providers and the in-memory inventory to provider sources. The callback must not request the network, write files, start timers, or otherwise perform side effects.
 3. `ctx.provider.reload()` rebuilds provider sources and replays all registered transforms. Call it after `refresh()` successfully replaces the inventory.
 
 Expected flow:
@@ -176,7 +176,7 @@ The initial spike must verify whether `catalog.model.update(providerID, modelID,
 
 ### V2 Discovery Configuration
 
-The preferred V2 location is plugin options because `modelsDiscovery` is plugin-private configuration and V2 provider `options` is passed to provider runtime packages. The plugin options also provide a reliable source for a provider that has no seed model.
+Discovery configuration is stored with the top-level provider declaration. The plugin reads providers through `ctx.provider.list()`, reuses the provider's package and settings, and reads `settings.modelsDiscovery` for discovery behavior. `plugins[].options.providers` is not part of the V2 contract.
 
 Proposed native V2 shape:
 
@@ -186,24 +186,7 @@ Proposed native V2 shape:
   "plugins": [
     {
       "package": "opencode-models-discovery-v2",
-      "options": {
-        "providers": {
-          "local": {
-            "enabled": true,
-            "endpoint": "/v1/models",
-            "timeoutMs": 3000,
-            "modelInfoFormat": "vllm",
-            "models": {
-              "includeBy": [{ "field": "id", "match": "^qwen" }],
-              "excludeBy": [{ "field": "id", "match": "embedding" }]
-            },
-            "cache": {
-              "enabled": true,
-              "ttlSeconds": 86400
-            }
-          }
-        }
-      }
+      "options": {}
     }
   ],
   "providers": {
@@ -211,7 +194,16 @@ Proposed native V2 shape:
       "name": "Local server",
       "package": "aisdk:@ai-sdk/openai-compatible",
       "settings": {
-        "baseURL": "http://127.0.0.1:1234/v1"
+        "baseURL": "http://127.0.0.1:1234/v1",
+        "modelsDiscovery": {
+          "enabled": true,
+          "endpoint": "/v1/models",
+          "timeoutMs": 3000,
+          "models": {
+            "includeBy": [{ "field": "id", "match": "^qwen" }],
+            "excludeBy": [{ "field": "id", "match": "embedding" }]
+          }
+        }
       }
     }
   }
@@ -220,7 +212,7 @@ Proposed native V2 shape:
 
 The spike must determine whether the V2 catalog exposes enough reliable information to support this lookup, including provider ID, runtime package, `settings.baseURL`, and explicit model overlays.
 
-Optional compatibility reading of V1-shaped `provider.<id>.options.modelsDiscovery` may be considered later because OpenCode 2 translates V1 config in memory. It is not part of the first beta contract, and it must not recreate the V1 migration command.
+V1-shaped `provider.<id>.options.modelsDiscovery` and `plugins[].options.providers` are not read by the V2 adapter. V1 and V2 configuration contracts remain separate even when both adapters are shipped in one package.
 
 ### Authentication
 
@@ -375,7 +367,7 @@ Manual checks:
 | `catalog.model.update` create semantics | The public docs show update but do not explicitly promise it creates new models. | Prove with Phase 0 integration test before porting discovery. |
 | Catalog draft/provider shapes | Beta types and draft shape can change. | Compile against a pinned plugin version and record it. |
 | Explicit model precedence | Transform ordering may affect whether user details win. | Verify with catalog integration tests; adjust composition approach based on observed public contract. |
-| Private config placement | Passing `modelsDiscovery` through provider `settings` may affect provider packages. | Use plugin options by default; only support provider settings if proven safe. |
+| Discovery config placement | `modelsDiscovery` is stored in top-level provider settings and read through the V2 provider registry. | Keep provider identity, connection settings, credentials, explicit models, and discovery controls in one provider declaration. |
 | `/connect` credentials | V2 storage is service-owned and V1 file fallbacks are invalid. | Use a documented V2 resolution mechanism or exclude in initial beta. |
 | Dynamic commands/toasts | Public V2 APIs do not expose V1 equivalents. | Use tools and logs; distribute optional command templates separately only if needed. |
 | OpenCode 2 beta churn | V2 API may change before stable release. | Isolate source, pin versions, and run integration tests on upgrade. |

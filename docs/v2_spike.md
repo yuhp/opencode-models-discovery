@@ -72,15 +72,12 @@ printing their values, starts a mock server and the local CLI, authenticates
 location-scoped API requests, enforces a bounded timeout, and cleans up both
 child processes. It does not use a `--config` flag or `OPENCODE_DB=:memory:`.
 
-The standalone probe records the provider-transform behavior when the production
-plugin owns the provider declaration. An earlier diagnostic observed that the
-native provider was absent during setup but present after setup when
-`ctx.options.providers` was available. That result does not establish whether
-the native config transform is non-bootstrapping or whether setup ordering is
-responsible, so this document does not claim either behavior as a core rule.
-The production V2 plugin therefore uses its canonical plugin-option provider
-declaration and creates zero-model sources through its own public provider
-transform.
+The production V2 plugin reads top-level providers from `ctx.provider.list()`.
+Each provider's `settings.modelsDiscovery` controls discovery, while the
+provider's package, base URL, credentials, and explicit models remain in the
+same top-level provider declaration. The plugin does not read
+`ctx.options.providers` or create a second provider declaration from plugin
+options.
 
 The probe's passing result records:
 
@@ -104,25 +101,30 @@ after the provider source is registered by the plugin.
 
 ## Config Boundary
 
-The production probe uses the canonical V2 plugin-option schema directly:
+The production probe uses the canonical V2 top-level provider schema:
 
 ```json
 {
-  "plugin": [["./models-discovery", {
-    "providers": {
-      "probe": {
-        "package": "@opencode/ai/providers/openai-compatible",
-        "settings": { "baseURL": "http://127.0.0.1:<ephemeral>/v1" }
+  "plugins": [{
+    "package": "./models-discovery",
+    "options": {}
+  }],
+  "providers": {
+    "probe": {
+      "package": "@opencode/ai/providers/openai-compatible",
+      "settings": {
+        "baseURL": "http://127.0.0.1:<ephemeral>/v1",
+        "modelsDiscovery": { "enabled": true }
       }
     }
-  }]]
+  }
 }
 ```
 
 The standalone probe confirms that the public provider transform can add a
 provider with `models: []`, fetch `/v1/models`, and expose the resulting model.
-It does not by itself prove how the native config transform handles an empty
-`models` map during setup.
+The V2 adapter does not maintain a duplicate provider definition in plugin
+options.
 
 ## Existing V2 Scope
 
