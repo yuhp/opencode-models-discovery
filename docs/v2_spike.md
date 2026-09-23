@@ -4,6 +4,47 @@ Verified with the pinned `@opencode/plugin@2.0.14` and `@opencode/cli@2.0.14`
 packages. The `src-v2/` package remains separate from the V1 package and
 contract.
 
+## Dual-Version Entrypoint Finding
+
+The official V2 migration documentation and the OpenCode plugin resolver support
+a combined package entrypoint for recent V1 hosts. The default export may contain
+both adapters:
+
+```ts
+import { Plugin } from "@opencode/plugin"
+
+export default {
+  ...Plugin.define({
+    id: "opencode.models-discovery",
+    async setup(ctx) {
+      // V2 adapter
+    },
+  }),
+  async server(input, options) {
+    // V1 adapter
+    return createV1Hooks(input, options)
+  },
+}
+```
+
+The resolver dispatches by host generation:
+
+```text
+OpenCode V1 >= 1.18.29 -> default.server()
+OpenCode V2              -> default.id + default.setup()
+```
+
+This does not convert V1 hooks into V2 transforms. The adapters remain separate
+and should share only SDK-independent discovery, filtering, and model-mapping
+logic. V1 versions older than 1.18.29 are outside this combined-entrypoint
+contract and require a separate entrypoint or package version.
+
+This finding is confirmed by the published migration documentation and the
+current OpenCode resolver source (`readV1Plugin` and `getServerPlugin`). The
+repository has not yet added a two-host runtime probe for a packed combined
+package, so the V1 minimum-version boundary and clean-install dependency
+behavior remain release verification requirements.
+
 ## Confirmed Contract
 
 - A V2 module default-exported with `Plugin.define({ id, setup })` loads.

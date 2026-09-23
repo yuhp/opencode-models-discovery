@@ -10,9 +10,9 @@ The V1 implementation remains the stable release line. Do not modify the V1 plug
 
 `opencode-models-discovery` currently discovers models from OpenAI-compatible provider endpoints during the OpenCode V1 `config` hook. It directly mutates V1 provider configuration and injects discovered models before the session starts.
 
-OpenCode 2 does not run V1 plugins. Its V2 plugin API uses a default `Plugin.define({ id, setup })` export and exposes a provider registry. Plugins register provider transforms and call `ctx.provider.reload()` to rebuild provider sources after their data changes.
+OpenCode 2 does not run a V1-only plugin implementation. Its V2 plugin API uses a default `Plugin.define({ id, setup })` export and exposes a provider registry. Plugins register provider transforms and call `ctx.provider.reload()` to rebuild provider sources after their data changes. OpenCode V1 1.18.29 and newer can also load a combined default export that contains both the V2 `id/setup` fields and a V1 `server()` entrypoint.
 
-OpenCode 2 can translate existing V1-shaped `opencode.json(c)` files in memory, but that does not make the V1 plugin API compatible. The V2 plugin must be implemented separately.
+OpenCode 2 can translate existing V1-shaped `opencode.json(c)` files in memory, but that does not translate V1 hooks into V2 transforms. The V1 and V2 adapters must remain separate even when they are packaged in one combined default export.
 
 ## Goals
 
@@ -48,20 +48,35 @@ The V2 API is beta. Plugin entrypoints, context methods, catalog draft shapes, a
 
 ### Plugin Entry Point
 
-The V2 module must default-export a uniquely identified plugin:
+The V2 implementation must provide a uniquely identified plugin. A package that supports both host generations may expose the V2 definition and V1 server adapter from one default export:
 
 ```ts
-import { Plugin } from "@opencode-ai/plugin"
+import { Plugin } from "@opencode/plugin"
 
-export default Plugin.define({
-  id: "opencode.models-discovery",
-  setup: async (ctx) => {
-    // Register transforms, tools, refresh behavior, and cleanup.
+export default {
+  ...Plugin.define({
+    id: "opencode.models-discovery",
+    setup: async (ctx) => {
+      // Register V2 transforms, tools, refresh behavior, and cleanup.
+    },
+  }),
+  async server(input, options) {
+    // Return the existing V1 config/event hooks.
+    return createV1Hooks(input, options)
   },
-})
+}
 ```
 
 Plugin options are available unchanged at `ctx.options`. The plugin owns validation and defaults.
+
+The host selects the adapter by runtime generation:
+
+```text
+OpenCode V1 >= 1.18.29 -> default.server(input, options)
+OpenCode V2              -> default.id + default.setup(ctx)
+```
+
+This is an entrypoint compatibility mechanism, not an API translation layer. The V1 `server()` adapter and V2 `setup()` adapter must use their respective SDK contracts and may share only host-independent discovery logic. Supporting V1 releases older than 1.18.29 requires separate entrypoints or package versions.
 
 ### Provider Lifecycle
 
@@ -134,7 +149,7 @@ Initially reuse the following V1 code where it is host independent:
 - filtering and discovery defaults in `src/types/plugin-config.ts`
 - model formatting and classification helpers in `src/utils/`
 
-After the V2 spike is proven, extract only genuinely shared functionality into a neutral `src/core/` directory. V1 and V2 adapters must retain separate OpenCode-specific entrypoints and types.
+After the V2 spike is proven, extract only genuinely shared functionality into a neutral `src/core/` directory. V1 and V2 adapters must retain separate OpenCode-specific implementations and types, but they may be composed into one package-level default export using the combined `server` plus `id/setup` form above.
 
 ### In-Memory Inventory
 
@@ -364,7 +379,7 @@ Manual checks:
 | `/connect` credentials | V2 storage is service-owned and V1 file fallbacks are invalid. | Use a documented V2 resolution mechanism or exclude in initial beta. |
 | Dynamic commands/toasts | Public V2 APIs do not expose V1 equivalents. | Use tools and logs; distribute optional command templates separately only if needed. |
 | OpenCode 2 beta churn | V2 API may change before stable release. | Isolate source, pin versions, and run integration tests on upgrade. |
-| Package compatibility | V1 and V2 plugin APIs are mutually incompatible. | Keep separate entrypoints and release channels until V2 is stable. |
+| Package compatibility | V1 and V2 plugin APIs are different, although recent V1 hosts support a combined default export. | Keep separate adapters, require V1 >= 1.18.29 for the combined form, and run both runtime probes before publishing. |
 
 ## Definition Of Done For Initial V2 Beta
 
