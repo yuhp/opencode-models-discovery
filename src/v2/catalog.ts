@@ -12,7 +12,13 @@ export interface DiscoveredV2Model {
   readonly limit: {
     readonly context: number
     readonly output: number
+    readonly input?: number
   }
+  readonly variants?: Array<{ readonly id: string; readonly settings: Record<string, unknown> }>
+  readonly compatibility?: Record<string, unknown>
+  readonly reasoning?: boolean
+  readonly attachment?: boolean
+  readonly cost?: unknown
 }
 
 export type Inventory = Map<string, Map<string, DiscoveredV2Model>>

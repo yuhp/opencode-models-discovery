@@ -125,4 +125,57 @@ describe("V2 model-mapper", () => {
     expect(enricher?.shouldSkipModel("chat-model")).toBe(false)
     expect(enricher?.shouldSkipModel("embed-model")).toBe(true)
   })
+
+  it("converts variants and configures compatibility.reasoningField for thinking models", () => {
+    const options = parseProviderDiscoveryOptions({
+      enabled: true,
+      smartModelName: true,
+      modelInfoFormat: ModelInfoFormat.LiteLLM,
+    })!
+    const litellmData = {
+      data: [{
+        model_name: "deepseek-reasoner",
+        model_info: {
+          supports_reasoning: true,
+          supported_openai_params: ["reasoning_effort"],
+          supports_low_reasoning_effort: true,
+          supports_high_reasoning_effort: true,
+          mode: "chat",
+        },
+      }],
+    }
+    const enricher = createModelInfoEnricher(ModelInfoFormat.LiteLLM, litellmData, { filterNonChat: true })
+
+    const raw = { id: "deepseek-reasoner" }
+    const mapped = mapToDiscoveredV2Model(raw, options, enricher)
+
+    expect(mapped.reasoning).toBe(true)
+    expect(mapped.compatibility).toEqual({
+      reasoningField: "reasoning_content",
+    })
+    expect(Array.isArray(mapped.variants)).toBe(true)
+    expect(mapped.variants).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: "low", settings: { reasoningEffort: "low" } }),
+        expect.objectContaining({ id: "high", settings: { reasoningEffort: "high" } }),
+      ])
+    )
+  })
+
+  it("auto-injects thinking variants for models with r1 or reasoning in id", () => {
+    const options = parseProviderDiscoveryOptions({
+      enabled: true,
+    })!
+
+    const raw = { id: "deepseek-r1-distill" }
+    const mapped = mapToDiscoveredV2Model(raw, options)
+
+    expect(mapped.reasoning).toBe(true)
+    expect(mapped.compatibility?.reasoningField).toBe("reasoning_content")
+    expect(mapped.variants).toEqual([
+      { id: "low", settings: { reasoningEffort: "low" } },
+      { id: "medium", settings: { reasoningEffort: "medium" } },
+      { id: "high", settings: { reasoningEffort: "high" } },
+    ])
+  })
 })

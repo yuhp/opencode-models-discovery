@@ -90,13 +90,37 @@ export function mapToDiscoveredV2Model(
   }
 
   // Reasoning capability: from enricher or rawModel
-  if (typeof intermediateV1.reasoning === "boolean") {
-    result.reasoning = intermediateV1.reasoning
-  } else if (
-    model.supports_reasoning === true ||
-    (model.capabilities && typeof model.capabilities === "object" && (model.capabilities as Record<string, unknown>).reasoning === true)
-  ) {
+  const isReasoning = typeof intermediateV1.reasoning === "boolean"
+    ? intermediateV1.reasoning
+    : (
+        model.supports_reasoning === true ||
+        (model.capabilities && typeof model.capabilities === "object" && (model.capabilities as Record<string, unknown>).reasoning === true) ||
+        /(?:^|[-_/])(r1|reasoner|thinking|reasoning)(?:[-_/]|$)/i.test(model.id)
+      )
+
+  if (isReasoning) {
     result.reasoning = true
+    result.compatibility = {
+      ...result.compatibility,
+      reasoningField: "reasoning_content",
+    }
+  }
+
+  // Variants mapping: convert V1 Record<string, Variant> to V2 Array<{ id, settings }>
+  if (Array.isArray(intermediateV1.variants)) {
+    result.variants = intermediateV1.variants
+  } else if (intermediateV1.variants && typeof intermediateV1.variants === "object") {
+    result.variants = Object.entries(intermediateV1.variants).map(([id, settings]) => ({
+      id,
+      settings: settings as Record<string, unknown>,
+    }))
+  } else if (isReasoning && !result.variants) {
+    // If reasoning is supported but no variants provided, define default reasoning effort variants
+    result.variants = [
+      { id: "low", settings: { reasoningEffort: "low" } },
+      { id: "medium", settings: { reasoningEffort: "medium" } },
+      { id: "high", settings: { reasoningEffort: "high" } },
+    ]
   }
 
   // Attachment capability
