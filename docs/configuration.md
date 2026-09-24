@@ -2,11 +2,51 @@
 
 This plugin discovers models for OpenAI-compatible providers and merges them into the active OpenCode config at startup.
 
-Use `provider.<name>.options.modelsDiscovery` for provider-specific behavior. This is the only supported configuration boundary in `1.0.0`.
+The package supports both OpenCode v1 and OpenCode v2. Their provider configuration shapes are different. The OpenCode v2 adapter is currently in beta.
+
+For a step-by-step conversion between the two configuration formats, see [Migrating Configuration from OpenCode v1 to OpenCode v2](migrate-v1-to-v2.md).
+
+## OpenCode v2 configuration (beta support)
+
+OpenCode v2 uses `plugins` and `providers`. Discovery configuration is read from `providers.<id>.settings.modelsDiscovery`; it is not read from `provider.<id>.options.modelsDiscovery` or `plugins[].options.providers`.
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "plugins": [
+    { "package": "opencode-models-discovery", "options": {} }
+  ],
+  "providers": {
+    "lmstudio": {
+      "name": "LM Studio",
+      "package": "@opencode-ai/ai/providers/openai-compatible",
+      "settings": {
+        "baseURL": "http://127.0.0.1:1234/v1",
+        "modelsDiscovery": {
+          "enabled": true,
+          "modelInfoFormat": "models.dev",
+          "smartModelName": true,
+          "models": {
+            "includeBy": [{ "field": "id", "match": "^llama" }]
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+The V2 options are the same discovery options described below, except that their path starts with `providers.<id>.settings.modelsDiscovery`. V2 defaults the discovery endpoint to `/v1/models`, uses a default request timeout of 5000 ms, and requires `enabled: true` for the provider to participate. For a provider such as DeepSeek that exposes `/models`, set `"endpoint": "/models"`. Local plugin development should use a directory URL such as `file:///absolute/path/to/opencode-models-discovery/dist`; OpenCode v2 does not accept a direct path to a JavaScript entry file.
+
+The V2 adapter currently does not implement the V1 persisted disk cache, V1 auth-store fallback, or V1 helper slash commands. After rebuilding a local plugin, restart the OpenCode v2 background service with `opencode service restart`.
+
+## OpenCode v1 configuration
+
+The remainder of this guide documents the OpenCode v1 adapter. Use `provider.<name>.options.modelsDiscovery` for provider-specific behavior. This is the supported provider-level configuration boundary for OpenCode v1.
 
 OpenCode's own provider config still controls provider identity, npm package, `baseURL`, credentials, and provider availability. This plugin controls model discovery for providers that OpenCode has made available.
 
-## Provider-Level Configuration
+## Provider-Level Configuration (OpenCode v1)
 
 Each provider can configure discovery behavior through `provider.<name>.options.modelsDiscovery`:
 

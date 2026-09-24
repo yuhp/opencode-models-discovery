@@ -1,5 +1,7 @@
 # Persisted Model Discovery Cache
 
+This feature belongs to the OpenCode v1 adapter. OpenCode v2 support is currently in beta and does not currently include the V1 persisted disk cache.
+
 Persisted model discovery cache is an opt-in, provider-scoped cache for discovered OpenAI-compatible models. It reduces provider startup requests by saving the latest successful discovered model configuration in the plugin's XDG data directory.
 
 The cache is plugin-owned data. It does not replace `opencode.json`, and it does not write to OpenCode or Mimocode configuration or auth stores.
