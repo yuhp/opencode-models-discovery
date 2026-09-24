@@ -106,6 +106,21 @@ describe('Node host compatibility (OpenCode Desktop)', () => {
     if (existsSync(depSource)) {
       cpSync(depSource, path.join(stagedRoot, 'node_modules', 'xdg-basedir'), { recursive: true })
     }
+
+    // The combined V1/V2 entrypoint has an external V2 SDK dependency. Install
+    // production dependencies in the temporary consumer just like a package
+    // manager would for a published plugin.
+    const dependencyRoot = path.join(workDir, 'runtime-dependencies')
+    mkdirSync(dependencyRoot, { recursive: true })
+    execFileSync('npm', [
+      'install',
+      '--prefix', dependencyRoot,
+      '--ignore-scripts',
+      '--no-package-lock',
+      '--omit=dev',
+      '@opencode/plugin@2.0.14',
+    ], { stdio: 'pipe', env: cleanNpmEnv() })
+    cpSync(path.join(dependencyRoot, 'node_modules'), path.join(stagedRoot, 'node_modules'), { recursive: true })
   }, 60_000)
 
   afterAll(() => {

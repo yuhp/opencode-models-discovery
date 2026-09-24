@@ -76,6 +76,12 @@ OpenCode V1 >= 1.18.29 -> default.server(input, options)
 OpenCode V2              -> default.id + default.setup(ctx)
 ```
 
+In addition, OpenCode V2's resolver (`yT(r)`) attempts `"package/server"` before `"package"`.
+To support both generations seamlessly in production and local development:
+- `package.json` declares both `exports["."]` (`./dist/index.js`) and `exports["./server"]` (`./dist/server.js`).
+- Both `dist/index.js` and `dist/server.js` export the combined adapter containing `id`, `setup`, and `server`.
+- For local `file://` directory references, OpenCode 2 mandates directory paths and resolves `server.(js|ts)` or `index.(js|ts)` inside that directory (e.g. `file:///path/to/dist`).
+
 This is an entrypoint compatibility mechanism, not an API translation layer. The V1 `server()` adapter and V2 `setup()` adapter must use their respective SDK contracts and may share only host-independent discovery logic. Supporting V1 releases older than 1.18.29 requires separate entrypoints or package versions.
 
 ### Provider Lifecycle

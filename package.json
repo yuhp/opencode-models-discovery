@@ -10,6 +10,10 @@
     ".": {
       "types": "./src/index.ts",
       "default": "./dist/index.js"
+    },
+    "./server": {
+      "types": "./src/server.ts",
+      "default": "./dist/server.js"
     }
   },
   "files": [
@@ -24,7 +28,9 @@
     "test:watch": "vitest watch",
     "lint": "eslint src",
     "lint:fix": "eslint src --fix",
-    "compile": "esbuild src/index.ts --bundle --format=esm --platform=node --packages=external --target=node18 --sourcemap --keep-names --outfile=dist/index.js",
+    "compile": "npm run compile:root && npm run compile:server",
+    "compile:root": "esbuild src/index.ts --bundle --format=esm --platform=node --packages=external --target=node18 --sourcemap --keep-names --outfile=dist/index.js",
+    "compile:server": "esbuild src/server.ts --bundle --format=esm --platform=node --packages=external --target=node18 --sourcemap --keep-names --outfile=dist/server.js",
     "build": "npm run typecheck && npm run test:run && npm run compile",
     "validate": "npm run lint && npm run typecheck && npm run test:run",
     "validate:config": "bun scripts/validate-config.ts",
@@ -45,17 +51,18 @@
   "author": "",
   "license": "MIT",
   "engines": {
-    "opencode": ">=1.4.0"
+    "opencode": ">=1.18.29"
   },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/yuhp/opencode-models-discovery.git"
   },
   "dependencies": {
+    "@opencode/plugin": "2.0.14",
     "xdg-basedir": "^5.1.0"
   },
   "peerDependencies": {
-    "@opencode-ai/plugin": ">=1.4.0"
+    "@opencode-ai/plugin": ">=1.18.29"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
