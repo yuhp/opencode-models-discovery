@@ -1,12 +1,12 @@
-# OpenCode 2 Provider Spike
+# OpenCode v2 Provider Spike
 
 Verified with the pinned `@opencode/plugin@2.0.14` and `@opencode/cli@2.0.14`
-packages. The `src-v2/` package remains separate from the V1 package and
-contract.
+packages. The v2 implementation now lives under `src/v2/` and is packaged
+alongside the OpenCode v1 adapter and contract.
 
 ## Dual-Version Entrypoint Finding
 
-The official V2 migration documentation and the OpenCode plugin resolver support
+The official v2 migration documentation and the OpenCode plugin resolver support
 a combined package entrypoint for recent V1 hosts. The default export may contain
 both adapters:
 
@@ -17,11 +17,11 @@ export default {
   ...Plugin.define({
     id: "opencode.models-discovery",
     async setup(ctx) {
-      // V2 adapter
+    // OpenCode v2 adapter
     },
   }),
   async server(input, options) {
-    // V1 adapter
+    // OpenCode v1 adapter
     return createV1Hooks(input, options)
   },
 }
@@ -30,11 +30,11 @@ export default {
 The resolver dispatches by host generation:
 
 ```text
-OpenCode V1 >= 1.18.29 -> default.server()
-OpenCode V2              -> default.id + default.setup()
+OpenCode v1 >= 1.18.29 -> default.server()
+OpenCode v2              -> default.id + default.setup()
 ```
 
-This does not convert V1 hooks into V2 transforms. The adapters remain separate
+This does not convert v1 hooks into v2 transforms. The adapters remain separate
 and should share only SDK-independent discovery, filtering, and model-mapping
 logic. V1 versions older than 1.18.29 are outside this combined-entrypoint
 contract and require a separate entrypoint or package version.
@@ -42,13 +42,13 @@ contract and require a separate entrypoint or package version.
 This finding is confirmed by the published migration documentation and the
 current OpenCode resolver source (`readV1Plugin` and `getServerPlugin`).
 
-## Plugin Resolution Mechanism (OpenCode 2 Binary Analysis)
+## Plugin Resolution Mechanism (OpenCode v2 Binary Analysis)
 
-Disassembly and runtime tracing of the official OpenCode V2 binary (`$HOME/.opencode/bin/opencode`, version `2.0.15`)
+Disassembly and runtime tracing of the official OpenCode v2 binary (`$HOME/.opencode/bin/opencode`, version `2.0.15`)
 revealed the exact internal resolver mechanics in `ConfigPluginSource.scan` and `yT(r)`:
 
 1. **Directory Enforcement for Local Plugins**:
-   Direct file references (e.g. `file:///path/to/dist/index.js`) are explicitly rejected by OpenCode 2:
+   Direct file references (e.g. `file:///path/to/dist/index.js`) are explicitly rejected by OpenCode v2:
    ```text
    configured plugin path must be a directory
    ```
@@ -73,11 +73,11 @@ revealed the exact internal resolver mechanics in `ConfigPluginSource.scan` and 
      };
    }
    ```
-   - **When configuring a local directory (`file:///...`)**: `r.name` is undefined. The resolver does **not**
+    - **When configuring a local directory (`file:///...`)**: `r.name` is undefined. The resolver does **not**
      read `package.json` (`main` or `exports`). Instead, it directly probes the directory via `Bun.resolveSync`:
      - 1st attempt: `path.resolve(directory, "server")` (looks for `server.ts`, `server.js`, `server.mjs`, `server.cjs`).
      - 2nd attempt: `path.resolve(directory, "index")` (looks for `index.ts`, `index.js`, `index.mjs`, `index.cjs`).
-     - This explains why `file://.../src-v2` loaded successfully (found `src-v2/index.ts`).
+      - This explains why an earlier standalone spike directory loaded successfully (found its `index.ts`).
      - This explains why `file://.../dist` loaded successfully (found `dist/server.js` or `dist/index.js`).
      - And why pointing to the bare repository root failed when neither `server.js` nor `index.js` existed directly in the root.
 
@@ -89,11 +89,11 @@ revealed the exact internal resolver mechanics in `ConfigPluginSource.scan` and 
 3. **Community Best Practice (`opencode-planner`)**:
    Production dual-compatible plugins (such as `opencode-planner`) follow this exact model:
    - Provide `./dist/index.js` for `exports["."]` (V1 root fallback and standard Node import).
-   - Provide `./dist/server.js` for `exports["./server"]` (V2 primary server entrypoint).
-   - Package both V1 `server()` and V2 `setup()` in the combined export.
+    - Provide `./dist/server.js` for `exports["./server"]` (v2 primary server entrypoint).
+    - Package both v1 `server()` and v2 `setup()` in the combined export.
    - For local development, point to the output directory containing the entrypoint (`file://.../dist`).
 
-## Confirmed Contract
+## Confirmed v2 Contract
 
 - A V2 module default-exported with `Plugin.define({ id, setup })` loads.
 - `ctx.provider.transform()` registers a provider transform and
@@ -120,7 +120,7 @@ printing their values, starts a mock server and the local CLI, authenticates
 location-scoped API requests, enforces a bounded timeout, and cleans up both
 child processes. It does not use a `--config` flag or `OPENCODE_DB=:memory:`.
 
-The production V2 plugin reads top-level providers from `ctx.provider.list()`.
+The production v2 plugin reads top-level providers from `ctx.provider.list()`.
 Each provider's `settings.modelsDiscovery` controls discovery, while the
 provider's package, base URL, credentials, and explicit models remain in the
 same top-level provider declaration. The plugin does not read
@@ -147,7 +147,7 @@ This proves the 2.0.14 plugin loader, provider transform lifecycle, actual
 `/v1/models` HTTP discovery, and runtime model visibility through `/api/model`
 after the provider source is registered by the plugin.
 
-## Config Boundary
+## v2 Config Boundary
 
 The production probe uses the canonical V2 top-level provider schema:
 
@@ -171,28 +171,28 @@ The production probe uses the canonical V2 top-level provider schema:
 
 The standalone probe confirms that the public provider transform can add a
 provider with `models: []`, fetch `/v1/models`, and expose the resulting model.
-The V2 adapter does not maintain a duplicate provider definition in plugin
+The v2 adapter does not maintain a duplicate provider definition in plugin
 options.
 
-## Existing V2 Scope
+## Current v2 Scope
 
-The probe does not alter V1 `src/` or existing `src-v2/` code. Run the existing
-V2 checks separately:
+The probe does not alter the OpenCode v1 `src/` adapter. Run the current v2
+checks from the repository root:
 
 ```sh
-npm --prefix src-v2 run typecheck
-npm --prefix src-v2 run test:run
+npm run typecheck
+npm run test:run
 ```
 
 ## Dual-Host Runtime Verification
 
 A real packed tarball (`opencode-models-discovery-1.5.5.tgz`) containing `dist/index.js` and `dist/server.js` was verified against clean, isolated test projects on both OpenCode generations:
 
-1. **OpenCode V2 (`2.0.15`)**:
-   - Configuration: `"plugins": [{ "package": "opencode-models-discovery", "options": {} }]`
+1. **OpenCode v2 (`2.0.15`)**:
+    - Configuration: `"plugins": [{ "package": "opencode-models-discovery", "options": {} }]`
    - Verified: Plugin ID `opencode.models-discovery` active; `DeepSeek` OpenAI-compatible `/models` discovery executed; `deepseek-flash` and `deepseek-v4-pro` dynamically injected and visible via `/api/model`.
    - Local directory testing: `file:///path/to/dist` successfully resolves `dist/server.js` or `dist/index.js`.
 
-2. **OpenCode V1 (`1.18.32`)**:
+2. **OpenCode v1 (`1.18.32`)**:
    - Configuration: `"plugin": ["opencode-models-discovery"]`
    - Verified: `opencode debug config` successfully invokes `server(input, options)`; V1 hooks executed; `models-discovery:config` custom command registered.

@@ -2,6 +2,8 @@
 
 This directory contains community-maintained provider configuration examples for `opencode-models-discovery`.
 
+Examples currently use the OpenCode v1 configuration shape. OpenCode v2 support is currently in beta and uses `plugins`, `providers`, `package`, and `settings`; adapt examples using the [configuration guide](../configuration.md#opencode-v2-configuration-beta-support).
+
 Examples may include provider declarations, non-standard `modelsDiscovery.endpoint` values, provider-level `models.includeBy` and `models.excludeBy` raw-field filters using `equals` or `match`, metadata enrichment options, and notes about provider-specific behavior. Provider-level `models.includeRegex` and `models.excludeRegex` are supported as id-only shortcuts, but examples should prefer `includeBy` and `excludeBy`.
 
 ## Disclaimer
@@ -33,7 +35,7 @@ Do not include unrelated changes in provider example PRs. In particular, do not 
 
 Each example should:
 
-- Use provider-level `provider.<id>.options.modelsDiscovery` config.
+- Use provider-level `provider.<id>.options.modelsDiscovery` config for OpenCode v1. OpenCode v2 examples must use `providers.<id>.settings.modelsDiscovery`.
 - Prefer `models.includeBy` and `models.excludeBy` over `includeRegex` and `excludeRegex`.
 - Avoid secrets, tokens, API keys, account IDs, or private URLs.
 - Include a provider-specific disclaimer that this project is not affiliated with, endorsed by, or sponsored by that provider.

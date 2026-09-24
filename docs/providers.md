@@ -1,5 +1,7 @@
 # Provider Compatibility
 
+This page primarily documents the OpenCode v1 provider shape. OpenCode v2 support is currently in beta and uses `plugins` plus `providers.<id>.settings`; see the [OpenCode v2 configuration](configuration.md#opencode-v2-configuration-beta-support) section before using these examples with OpenCode v2.
+
 ## Supported Providers
 
 The plugin supports any OpenAI-compatible provider. Common examples:
@@ -16,7 +18,7 @@ The plugin supports any OpenAI-compatible provider. Common examples:
 | DeepSeek | Cloud | OpenAI-compatible API with `/models` discovery endpoint | `@ai-sdk/openai-compatible` |
 | CLIProxyAPI | 8317 | LLM proxy server | `@ai-sdk/anthropic` with `/v1` backend and `@ai-sdk/openai-compatible` |
 
-## Anthropic API with Custom Backend
+## Anthropic API with Custom Backend (OpenCode v1)
 
 Providers using `@ai-sdk/anthropic` but backed by OpenAI-compatible servers are also supported:
 
@@ -58,6 +60,8 @@ In addition, `options.modelsDiscovery.enabled === true` can force discovery even
 A provider is considered discoverable if it matches any detection signal above, or if discovery is explicitly forced on.
 
 ## Supported Configuration Examples
+
+The examples below use the OpenCode v1 keys `plugin`, `provider`, `npm`, and `options`. For OpenCode v2, translate them to `plugins`, `providers`, `package`, and `settings`, and put `modelsDiscovery` under `settings`.
 
 ### Standard OpenAI-Compatible Provider
 
