@@ -32,6 +32,7 @@
     "compile:root": "esbuild src/index.ts --bundle --format=esm --platform=node --packages=external --target=node18 --sourcemap --keep-names --outfile=dist/index.js",
     "compile:server": "esbuild src/server.ts --bundle --format=esm --platform=node --packages=external --target=node18 --sourcemap --keep-names --outfile=dist/server.js",
     "build": "npm run typecheck && npm run test:run && npm run compile",
+    "test:e2e": "node test-v2/combined-package/e2e.mjs",
     "validate": "npm run lint && npm run typecheck && npm run test:run",
     "validate:config": "bun scripts/validate-config.ts",
     "release": "bun scripts/release.ts",
