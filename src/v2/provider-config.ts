@@ -53,22 +53,25 @@ function filters(value: unknown): ModelFieldFilter[] {
   return result
 }
 
-export function parseProviderDiscoveryOptions(value: unknown): ProviderDiscoveryOptions | undefined {
-  const config = object(value)
-  if (!config) return undefined
+export function parseProviderDiscoveryOptions(raw: unknown): ProviderDiscoveryOptions | undefined {
+  const value = object(raw)
+  if (!value) return undefined
+  if (value.enabled !== true) return undefined
 
-  const models = object(config.models)
-  const timeoutMs = typeof config.timeoutMs === "number" && Number.isFinite(config.timeoutMs) && config.timeoutMs > 0
-    ? config.timeoutMs
-    : 3_000
+  const models = object(value.models)
+  const endpoint = typeof value.endpoint === "string" && value.endpoint.startsWith("/") ? value.endpoint : "/v1/models"
+  const timeoutMs = typeof value.timeoutMs === "number" && Number.isFinite(value.timeoutMs) && value.timeoutMs > 0
+    ? Math.max(1_000, Math.floor(value.timeoutMs))
+    : 5_000
+
   return {
-    enabled: config.enabled !== false,
-    endpoint: typeof config.endpoint === "string" && config.endpoint.length > 0 ? config.endpoint : "/v1/models",
+    enabled: true,
+    endpoint,
     timeoutMs,
     includeRegex: regexes(models?.includeRegex),
     excludeRegex: regexes(models?.excludeRegex),
     includeBy: filters(models?.includeBy),
     excludeBy: filters(models?.excludeBy),
-    smartModelName: config.smartModelName === true,
+    smartModelName: value.smartModelName === true,
   }
 }

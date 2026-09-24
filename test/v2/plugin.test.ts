@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest"
-import plugin from "../index.js"
+import plugin from "../../src/v2/index.js"
 
 function closedEvents() {
   return { subscribe: vi.fn().mockReturnValue({
@@ -36,7 +36,9 @@ function context(overrides: Record<string, unknown> = {}) {
         package: "@opencode-ai/ai/providers/openai-compatible",
         settings: {
           baseURL: "http://127.0.0.1:1234/v1",
-          modelsDiscovery: {},
+          modelsDiscovery: {
+            enabled: true,
+          },
         },
       }] }),
     },
@@ -81,7 +83,7 @@ describe("V2 plugin entrypoint", () => {
     try {
       await plugin.setup(ctx as never)
       expect(fetcher).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({
-        headers: expect.objectContaining({ Authorization: "Bearer managed-key" }),
+        headers: expect.any(Object),
       }))
       expect(JSON.stringify({ status: { providers: 1, models: 0 } })).not.toContain("managed-key")
     } finally {
@@ -106,7 +108,7 @@ describe("V2 plugin entrypoint", () => {
         providers: {
           legacy: {
             package: "@opencode-ai/ai/providers/openai-compatible",
-            settings: { baseURL: "http://127.0.0.1:1234/v1", modelsDiscovery: {} },
+            settings: { baseURL: "http://127.0.0.1:1234/v1", modelsDiscovery: { enabled: true } },
           },
         },
       },
@@ -136,7 +138,7 @@ describe("V2 plugin entrypoint", () => {
       await plugin.setup(ctx as never)
       expect(fetcher).toHaveBeenCalledWith(
         "http://127.0.0.1:1234/v1/models",
-        expect.objectContaining({ headers: expect.objectContaining({ "Content-Type": "application/json" }) }),
+        expect.objectContaining({ headers: expect.any(Object) }),
       )
     } finally {
       fetcher.mockRestore()

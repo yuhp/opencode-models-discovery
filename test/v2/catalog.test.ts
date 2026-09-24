@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest"
-import { createProviderController, type Inventory } from "../catalog.js"
+import { createProviderController, type Inventory } from "../../src/v2/catalog.js"
 
 function inventory(modelID = "spike-model"): Inventory {
   return new Map([["local", new Map([[modelID, {

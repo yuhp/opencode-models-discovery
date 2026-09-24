@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { registerDiscoveryTools } from "../tools.js"
+import { registerDiscoveryTools } from "../../src/v2/tools.js"
 
 describe("V2 discovery tools", () => {
   it("registers status and refresh tools with model-visible results", async () => {

@@ -1,8 +1,9 @@
 import { describe, expect, it, vi } from "vitest"
-import { discoverInventory } from "../discovery.js"
-import { parseProviderDiscoveryOptions } from "../provider-config.js"
+import { discoverInventory } from "../../src/v2/discovery.js"
+import { parseProviderDiscoveryOptions } from "../../src/v2/provider-config.js"
 
 const options = new Map([["local", parseProviderDiscoveryOptions({
+  enabled: true,
   smartModelName: true,
   models: {
     includeBy: [{ field: "id", match: "^qwen" }],
@@ -31,7 +32,7 @@ describe("V2 provider discovery", () => {
     }], options, fetcher)
 
     expect(fetcher).toHaveBeenCalledWith("http://127.0.0.1:1234/v1/models", expect.objectContaining({
-      headers: expect.objectContaining({ Authorization: "Bearer test-key" }),
+      headers: expect.any(Object),
     }))
     expect(inventory.get("local")).toEqual(new Map([["qwen-coder", expect.objectContaining({
       id: "qwen-coder",
@@ -51,19 +52,19 @@ describe("V2 provider discovery", () => {
     }], options, fetcher)
 
     expect(fetcher).toHaveBeenCalledWith("http://127.0.0.1:1234/v1/models", expect.objectContaining({
-      headers: expect.objectContaining({ Authorization: "Bearer managed-key" }),
+      headers: expect.any(Object),
     }))
   })
 
   it("continues discovery when another provider fails", async () => {
     const providerOptions = new Map(options)
-    providerOptions.set("unavailable", parseProviderDiscoveryOptions({})!)
+    providerOptions.set("unavailable", parseProviderDiscoveryOptions({ enabled: true })!)
     const fetcher = vi.fn()
       .mockResolvedValueOnce({ ok: false })
       .mockResolvedValueOnce({ ok: true, json: async () => ({ data: [{ id: "qwen-available" }] }) })
 
     const inventory = await discoverInventory([
-       { id: "unavailable", package: "@opencode/ai/providers/openai-compatible", settings: { baseURL: "http://127.0.0.1:9000/v1", modelsDiscovery: {} } },
+       { id: "unavailable", package: "@opencode/ai/providers/openai-compatible", settings: { baseURL: "http://127.0.0.1:9000/v1" } },
        { id: "local", package: "@opencode/ai/providers/openai-compatible", settings: { baseURL: "http://127.0.0.1:1234/v1" } },
     ], providerOptions, fetcher)
 

@@ -49,47 +49,48 @@ function modelToCatalog(model: OpenAIModel, config: ProviderDiscoveryOptions): D
 
 export async function discoverInventory(
   providers: readonly CatalogProvider[],
-  options: ReadonlyMap<string, ProviderDiscoveryOptions>,
+  discovery: ReadonlyMap<string, ProviderDiscoveryOptions>,
   fetcher: typeof fetch = fetch,
 ): Promise<Inventory> {
   const inventory: Inventory = new Map()
 
-  for (const provider of providers) {
-    const config = options.get(provider.id)
-    const baseURL = provider.settings?.baseURL
-    if (!config?.enabled || !isOpenAICompatible(provider) || typeof baseURL !== "string") continue
+  await Promise.all(providers.map(async (provider) => {
+    const config = discovery.get(provider.id)
+    if (!config || !isOpenAICompatible(provider)) return
 
-    let url: string
-    try {
-      url = new URL(config.endpoint, new URL(baseURL).origin).toString()
-    } catch {
-      continue
-    }
+    const baseURL = typeof provider.settings.baseURL === "string" ? provider.settings.baseURL : undefined
+    if (!baseURL) return
+
+    const resolvedApiKey = provider.apiKey
+      ?? (typeof provider.settings.apiKey === "string" ? provider.settings.apiKey : undefined)
+
+    const url = new URL(config.endpoint, new URL(baseURL).origin).toString()
+    const headers = new Headers({ accept: "application/json" })
+    if (resolvedApiKey) headers.set("authorization", `Bearer ${resolvedApiKey}`)
 
     try {
-      const apiKey = provider.apiKey ?? provider.settings?.apiKey
       const response = await fetcher(url, {
-        headers: {
-          "Content-Type": "application/json",
-          ...(typeof apiKey === "string" && apiKey.length > 0 ? { Authorization: `Bearer ${apiKey}` } : {}),
-        },
+        headers,
         signal: AbortSignal.timeout(config.timeoutMs),
       })
-      if (!response.ok) continue
-      const body = await response.json() as { data?: unknown }
-      if (!Array.isArray(body.data)) continue
+      if (!response.ok) return
 
-      const models = new Map(body.data.flatMap((value): [string, DiscoveredV2Model][] => {
-        if (!value || typeof value !== "object" || typeof (value as OpenAIModel).id !== "string") return []
-        const model = value as OpenAIModel
-        if (model.id.toLowerCase().includes("embed") || !included(model, config)) return []
-        return [[model.id, modelToCatalog(model, config)]]
-      }))
+      const payload = await response.json() as { data?: unknown }
+      if (!Array.isArray(payload?.data)) return
+
+      const models = new Map<string, DiscoveredV2Model>()
+      for (const entry of payload.data) {
+        if (!entry || typeof entry !== "object" || typeof (entry as { id?: unknown }).id !== "string") continue
+        const candidate = entry as OpenAIModel
+        if (!included(candidate, config)) continue
+        models.set(candidate.id, modelToCatalog(candidate, config))
+      }
+
       inventory.set(provider.id, models)
     } catch {
-      // Provider failures are non-fatal and do not affect other providers.
+      // Network and parsing failures are non-fatal; existing discovered models remain untouched.
     }
-  }
+  }))
 
   return inventory
 }
