@@ -174,4 +174,44 @@ describe("V2 plugin entrypoint", () => {
       fetcher.mockRestore()
     }
   })
+
+  it("reloads provider configuration before refreshing after config updates", async () => {
+    const fetcher = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ data: [{ id: "initial-model" }] }) } as Response)
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ data: [{ id: "updated-model" }] }) } as Response)
+    let currentBaseURL = "http://127.0.0.1:1234/v1"
+    const events = {
+      subscribe: vi.fn().mockReturnValue((async function* () {
+        yield { type: "config.updated" }
+      })()),
+    }
+    const ctx = context({
+      event: events,
+      provider: {
+        transform: vi.fn().mockImplementation(async (callback) => callback({ get: vi.fn().mockReturnValue(undefined), add: vi.fn(), update: vi.fn(), models: { set: vi.fn() } })),
+        reload: vi.fn().mockImplementation(async () => {
+          currentBaseURL = "http://127.0.0.1:5678/v1"
+        }),
+        list: vi.fn().mockImplementation(async () => ({ data: [{
+          id: "local",
+          name: "Local",
+          package: "@opencode-ai/ai/providers/openai-compatible",
+          settings: {
+            baseURL: currentBaseURL,
+            modelsDiscovery: { enabled: true },
+          },
+        }] })),
+      },
+    })
+
+    try {
+      await plugin.setup(ctx as never)
+      await new Promise((resolve) => setTimeout(resolve, 0))
+      expect(ctx.provider.reload).toHaveBeenCalledTimes(3)
+      expect(fetcher).toHaveBeenNthCalledWith(1, "http://127.0.0.1:1234/v1/models", expect.any(Object))
+      expect(fetcher).toHaveBeenNthCalledWith(2, "http://127.0.0.1:5678/v1/models", expect.any(Object))
+    } finally {
+      fetcher.mockRestore()
+    }
+  })
 })
