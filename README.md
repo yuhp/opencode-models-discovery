@@ -33,7 +33,7 @@ bun add opencode-models-discovery
 
 ## OpenCode v2 configuration (beta support)
 
-OpenCode v2 uses **`plugins`** (an array of objects) and **`providers`** (a map). Configure discovery under `providers.<id>.settings.modelsDiscovery`; it runs only when `enabled` is explicitly `true`. OpenCode v1 instead uses `plugin`, `provider`, and `options` (see [OpenCode v1 quick start](#opencode-v1-quick-start)).
+OpenCode v2 uses **`plugins`** (an array of package names) and **`providers`** (a map). Configure discovery under `providers.<id>.settings.modelsDiscovery`; it runs only when `enabled` is explicitly `true`. OpenCode v1 instead uses `plugin`, `provider`, and `options` (see [OpenCode v1 quick start](#opencode-v1-quick-start)).
 
 Install the package from npm, then add a provider to your OpenCode v2 `opencode.json`:
 
@@ -41,7 +41,7 @@ Install the package from npm, then add a provider to your OpenCode v2 `opencode.
 {
   "$schema": "https://opencode.ai/config.json",
   "plugins": [
-    { "package": "opencode-models-discovery", "options": {} }
+    "opencode-models-discovery@1.6.1"
   ],
   "providers": {
     "gateway": {

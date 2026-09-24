@@ -9,7 +9,7 @@ OpenCode v2 support is currently in beta. The package contains separate adapters
 | OpenCode v1 | OpenCode v2 |
 |---|---|
 | `plugin` | `plugins` |
-| `plugin: ["opencode-models-discovery"]` | `plugins: [{ "package": "opencode-models-discovery", "options": {} }]` |
+| `plugin: ["opencode-models-discovery"]` | `plugins: ["opencode-models-discovery@1.6.1"]` |
 | `provider` | `providers` |
 | `provider.<id>.npm` | `providers.<id>.package` |
 | `provider.<id>.options` | `providers.<id>.settings` |
@@ -64,7 +64,7 @@ The V1 package commonly uses:
 {
   "$schema": "https://opencode.ai/config.json",
   "plugins": [
-    { "package": "opencode-models-discovery", "options": {} }
+    "opencode-models-discovery@1.6.1"
   ],
   "providers": {
     "gateway": {
@@ -91,7 +91,7 @@ The V1 package commonly uses:
 ## Migration steps
 
 1. Keep a backup of the working `opencode.json`.
-2. Replace the V1 `plugin` array with the V2 `plugins` array of package objects.
+2. Replace the V1 `plugin` array with the V2 `plugins` array of package names.
 3. Rename `provider` to `providers`.
 4. Move each provider's `npm` value to `package`.
 5. Move each provider's `options` object to `settings`.

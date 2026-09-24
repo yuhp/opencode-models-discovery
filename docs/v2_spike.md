@@ -153,10 +153,7 @@ The production probe uses the canonical V2 top-level provider schema:
 
 ```json
 {
-  "plugins": [{
-    "package": "./models-discovery",
-    "options": {}
-  }],
+  "plugins": ["./models-discovery"],
   "providers": {
     "probe": {
       "package": "@opencode/ai/providers/openai-compatible",
@@ -189,7 +186,7 @@ npm run test:run
 A real packed tarball (`opencode-models-discovery-1.5.5.tgz`) containing `dist/index.js` and `dist/server.js` was verified against clean, isolated test projects on both OpenCode generations:
 
 1. **OpenCode v2 (`2.0.15`)**:
-    - Configuration: `"plugins": [{ "package": "opencode-models-discovery", "options": {} }]`
+    - Configuration: `"plugins": ["opencode-models-discovery@1.6.1"]`
    - Verified: Plugin ID `opencode.models-discovery` active; `DeepSeek` OpenAI-compatible `/models` discovery executed; `deepseek-flash` and `deepseek-v4-pro` dynamically injected and visible via `/api/model`.
    - Local directory testing: `file:///path/to/dist` successfully resolves `dist/server.js` or `dist/index.js`.
 

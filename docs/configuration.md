@@ -8,13 +8,13 @@ For a step-by-step conversion between the two configuration formats, see [Migrat
 
 ## OpenCode v2 configuration (beta support)
 
-OpenCode v2 uses `plugins` and `providers`. Discovery configuration is read from `providers.<id>.settings.modelsDiscovery`; it is not read from `provider.<id>.options.modelsDiscovery` or `plugins[].options.providers`.
+OpenCode v2 uses `plugins` and `providers`. The plugin can be declared directly as a package name in `plugins`. Discovery configuration is read from `providers.<id>.settings.modelsDiscovery`; it is not read from `provider.<id>.options.modelsDiscovery` or `plugins[].options.providers`.
 
 ```json
 {
   "$schema": "https://opencode.ai/config.json",
   "plugins": [
-    { "package": "opencode-models-discovery", "options": {} }
+    "opencode-models-discovery@1.6.1"
   ],
   "providers": {
     "lmstudio": {
