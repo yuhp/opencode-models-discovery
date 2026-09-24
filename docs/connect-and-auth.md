@@ -2,6 +2,8 @@
 
 For custom OpenAI-compatible providers, you still need to define the provider in `opencode.json` so OpenCode and this plugin know the provider id, npm package, and `baseURL`.
 
+This page documents the OpenCode v1 `/connect` and auth-store integration. OpenCode v2 support is currently in beta and does not use the V1 auth-store fallback; configure credentials in `providers.<id>.settings` according to the [V2 configuration guide](configuration.md#opencode-v2-configuration-beta-support).
+
 However, you do not have to hardcode `options.apiKey` when the provider credential is managed through OpenCode `/connect`.
 
 ## Example

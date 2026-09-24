@@ -1,5 +1,7 @@
 # DeepSeek Configuration Example
 
+This example uses the OpenCode v1 configuration shape. OpenCode v2 support is currently in beta; use `plugins`, `providers`, `package`, and `settings` instead. See the [V2 configuration guide](../configuration.md#opencode-v2-configuration-beta-support).
+
 ## Disclaimer
 
 This project is not affiliated with, endorsed by, or sponsored by DeepSeek.

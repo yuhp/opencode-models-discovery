@@ -1,0 +1,18 @@
+{
+  "name": "provider-transform-probe",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node runner.mjs",
+    "typecheck": "tsc --noEmit --skipLibCheck --module nodenext --moduleResolution nodenext --target es2023 provider-probe.ts"
+  },
+  "dependencies": {
+    "@opencode/ai": "2.0.14",
+    "@opencode/cli": "2.0.14",
+    "@opencode/plugin": "2.0.14"
+  },
+  "devDependencies": {
+    "@types/node": "25.0.3",
+    "typescript": "5.9.3"
+  }
+}
