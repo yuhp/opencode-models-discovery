@@ -1,3 +1,5 @@
+import { ModelInfoFormat } from "../types/plugin-config.js"
+
 export interface ModelFieldFilter {
   readonly field: string
   readonly equals?: string | number | boolean | null
@@ -13,6 +15,9 @@ export interface ProviderDiscoveryOptions {
   readonly includeBy: ModelFieldFilter[]
   readonly excludeBy: ModelFieldFilter[]
   readonly smartModelName: boolean
+  readonly modelInfoFormat?: ModelInfoFormat
+  readonly modelInfoEndpoint?: string
+  readonly filterNonChat: boolean
 }
 
 function object(value: unknown): Record<string, unknown> | undefined {
@@ -53,6 +58,10 @@ function filters(value: unknown): ModelFieldFilter[] {
   return result
 }
 
+function isModelInfoFormat(value: unknown): value is ModelInfoFormat {
+  return Object.values(ModelInfoFormat).includes(value as ModelInfoFormat)
+}
+
 export function parseProviderDiscoveryOptions(raw: unknown): ProviderDiscoveryOptions | undefined {
   const value = object(raw)
   if (!value) return undefined
@@ -64,6 +73,14 @@ export function parseProviderDiscoveryOptions(raw: unknown): ProviderDiscoveryOp
     ? Math.max(1_000, Math.floor(value.timeoutMs))
     : 5_000
 
+  const modelInfoFormat = isModelInfoFormat(value.modelInfoFormat) ? value.modelInfoFormat : undefined
+  const modelInfoEndpoint = typeof value.modelInfoEndpoint === "string" && value.modelInfoEndpoint.trim().length > 0
+    ? value.modelInfoEndpoint.trim()
+    : undefined
+
+  // Default filterNonChat to true when LiteLLM or ModelsDev is active, matching V1 behavior
+  const filterNonChat = typeof value.filterNonChat === "boolean" ? value.filterNonChat : true
+
   return {
     enabled: true,
     endpoint,
@@ -73,5 +90,8 @@ export function parseProviderDiscoveryOptions(raw: unknown): ProviderDiscoveryOp
     includeBy: filters(models?.includeBy),
     excludeBy: filters(models?.excludeBy),
     smartModelName: value.smartModelName === true,
+    modelInfoFormat,
+    modelInfoEndpoint,
+    filterNonChat,
   }
 }
