@@ -78,7 +78,79 @@ describe('Bifrost model info enricher', () => {
       pricing: { prompt: '0.000003' },
     })
 
-    expect(modelConfig.limit).toBeUndefined()
+    expect(modelConfig.limit).toEqual({ context: 128000, input: 128000, output: 0 })
     expect(modelConfig.cost).toBeUndefined()
+  })
+
+  it('maps reasoning supported_efforts and default_effort to variants', () => {
+    const enricher = createModelInfoEnricher(ModelInfoFormat.Bifrost, null)
+    const modelConfig: any = { id: 'vllm/chat-fast' }
+
+    enricher!.applyModelInfo(modelConfig, modelConfig.id, {
+      id: modelConfig.id,
+      context_length: 131072,
+      reasoning: {
+        supported_efforts: ['low', 'medium', 'xhigh'],
+        default_effort: 'xhigh',
+      },
+    })
+
+    expect(modelConfig.reasoning).toBe(true)
+    expect(modelConfig.variants).toEqual({
+      low: { reasoningEffort: 'low' },
+      medium: { reasoningEffort: 'medium' },
+      xhigh: { reasoningEffort: 'xhigh', default: true },
+    })
+  })
+
+  it('omits the default flag when default_effort is not a supported tier', () => {
+    const enricher = createModelInfoEnricher(ModelInfoFormat.Bifrost, null)
+    const modelConfig: any = { id: 'vllm/reasoning' }
+
+    enricher!.applyModelInfo(modelConfig, modelConfig.id, {
+      id: modelConfig.id,
+      reasoning: {
+        supported_efforts: ['low', 'high'],
+        default_effort: 'medium',
+      },
+    })
+
+    expect(modelConfig.reasoning).toBe(true)
+    expect(modelConfig.variants).toEqual({
+      low: { reasoningEffort: 'low' },
+      high: { reasoningEffort: 'high' },
+    })
+  })
+
+  it('ignores unsupported or malformed reasoning blocks', () => {
+    const enricher = createModelInfoEnricher(ModelInfoFormat.Bifrost, null)
+    const modelConfig: any = { id: 'vllm/glm' }
+
+    enricher!.applyModelInfo(modelConfig, modelConfig.id, {
+      id: modelConfig.id,
+      context_length: 400000,
+      reasoning: {
+        supported_efforts: ['ultra', ''],
+        default_effort: 'ultra',
+      },
+    })
+
+    expect(modelConfig.variants).toBeUndefined()
+    expect(modelConfig.reasoning).toBeUndefined()
+    expect(modelConfig.limit).toEqual({ context: 400000, output: 0 })
+  })
+
+  it('does not emit variants when supported_efforts is absent', () => {
+    const enricher = createModelInfoEnricher(ModelInfoFormat.Bifrost, null)
+    const modelConfig: any = { id: 'vllm/base' }
+
+    enricher!.applyModelInfo(modelConfig, modelConfig.id, {
+      id: modelConfig.id,
+      context_length: 400000,
+      reasoning: { default_enabled: true },
+    })
+
+    expect(modelConfig.variants).toBeUndefined()
+    expect(modelConfig.reasoning).toBeUndefined()
   })
 })
