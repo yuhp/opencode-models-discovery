@@ -29,6 +29,45 @@ function getModalities(value: unknown): string[] | undefined {
   return modalities.length > 0 ? modalities : undefined
 }
 
+const SUPPORTED_REASONING_TIERS: Record<string, true> = {
+  none: true,
+  minimal: true,
+  low: true,
+  medium: true,
+  high: true,
+  xhigh: true,
+  max: true,
+}
+
+// Bifrost reports reasoning metadata per model as
+// `reasoning: { supported_efforts: [...], default_effort: "..." }`
+// (core/schemas/models.go, ModelReasoning struct). Map it to OpenCode variants
+// the same way the LiteLLM and OmniRoute enrichers do.
+function getReasoningVariants(rawModel: Record<string, unknown> | undefined): Record<string, { reasoningEffort: string; default?: boolean }> | undefined {
+  const reasoning = rawModel?.reasoning
+  if (!reasoning || typeof reasoning !== 'object' || Array.isArray(reasoning)) return undefined
+
+  const block = reasoning as Record<string, unknown>
+  if (!Array.isArray(block.supported_efforts) || block.supported_efforts.length === 0) return undefined
+
+  const variants: Record<string, { reasoningEffort: string; default?: boolean }> = {}
+  for (const tier of block.supported_efforts) {
+    if (typeof tier !== 'string') continue
+    const normalized = tier.trim().toLowerCase()
+    if (!SUPPORTED_REASONING_TIERS[normalized] || variants[normalized]) continue
+    variants[normalized] = { reasoningEffort: normalized }
+  }
+
+  const defaultEffort = typeof block.default_effort === 'string'
+    ? block.default_effort.trim().toLowerCase()
+    : undefined
+  if (defaultEffort && variants[defaultEffort]) {
+    variants[defaultEffort].default = true
+  }
+
+  return Object.keys(variants).length > 0 ? variants : undefined
+}
+
 export function createBifrostModelInfoEnricher(_data: unknown): ModelInfoEnricher {
   return {
     shouldSkipModel(): boolean {
@@ -42,11 +81,15 @@ export function createBifrostModelInfoEnricher(_data: unknown): ModelInfoEnriche
       const context = rawModel?.context_length
       const input = rawModel?.max_input_tokens
       const output = rawModel?.max_output_tokens
-      if (hasUsableNumber(context) && hasUsableNumber(output)) {
+      // Bifrost often declares context_length only (max_input_tokens and
+      // max_output_tokens are both omitempty in its schema). Map the limit rather
+      // than dropping it; OpenCode requires limit.output to exist (#73), so emit
+      // 0 as the fallback when Bifrost does not declare max_output_tokens.
+      if (hasUsableNumber(context)) {
         modelConfig.limit = {
           context,
           ...(hasUsableNumber(input) ? { input } : {}),
-          output,
+          output: hasUsableNumber(output) ? output : 0,
         }
       }
 
@@ -72,6 +115,12 @@ export function createBifrostModelInfoEnricher(_data: unknown): ModelInfoEnriche
             output: outputCost * 1_000_000,
           }
         }
+      }
+
+      const variants = getReasoningVariants(rawModel)
+      if (variants) {
+        modelConfig.reasoning = true
+        modelConfig.variants = variants
       }
     },
   }
