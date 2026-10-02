@@ -46,6 +46,57 @@ function getReasoningVariants(capabilities: Record<string, unknown> | undefined)
   return Object.keys(variants).length > 0 ? variants : undefined
 }
 
+type ServiceTierVariant = {
+  body: {
+    service_tier: string
+  }
+}
+
+function normalizeServiceTier(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined
+
+  const tier = value.trim().toLowerCase()
+  if (tier === 'priority' || tier === 'fast') return 'fast'
+  if (tier === 'flex') return 'flex'
+  return undefined
+}
+
+function getServiceTierVariants(
+  rawModel: Record<string, unknown> | undefined,
+  capabilities: Record<string, unknown> | undefined,
+): Record<string, ServiceTierVariant> | undefined {
+  const tiers = new Set<string>()
+
+  const addTier = (value: unknown): void => {
+    const tier = normalizeServiceTier(value)
+    if (tier) tiers.add(tier)
+  }
+
+  if (Array.isArray(capabilities?.service_tiers)) {
+    capabilities.service_tiers.forEach(addTier)
+  }
+
+  if (Array.isArray(rawModel?.service_tiers)) {
+    for (const entry of rawModel.service_tiers) {
+      if (typeof entry === 'string') {
+        addTier(entry)
+      } else if (entry && typeof entry === 'object' && !Array.isArray(entry)) {
+        addTier((entry as Record<string, unknown>).id)
+      }
+    }
+  }
+
+  if (Array.isArray(rawModel?.additional_speed_tiers)) {
+    rawModel.additional_speed_tiers.forEach(addTier)
+  }
+
+  if (tiers.size === 0) return undefined
+
+  return Object.fromEntries(
+    [...tiers].map(tier => [tier, { body: { service_tier: tier } }])
+  )
+}
+
 export function createOmniRouteModelInfoEnricher(_data: unknown): ModelInfoEnricher {
   return {
     shouldSkipModel(): boolean {
@@ -82,8 +133,11 @@ export function createOmniRouteModelInfoEnricher(_data: unknown): ModelInfoEnric
       if (typeof capabilities?.structured_output === 'boolean') modelConfig.structured_output = capabilities.structured_output
       if (typeof capabilities?.temperature === 'boolean') modelConfig.temperature = capabilities.temperature
 
-      const variants = getReasoningVariants(capabilities)
-      if (variants) modelConfig.variants = variants
+      const variants = {
+        ...(getReasoningVariants(capabilities) ?? {}),
+        ...(getServiceTierVariants(rawModel, capabilities) ?? {}),
+      }
+      if (Object.keys(variants).length > 0) modelConfig.variants = variants
     },
   }
 }

@@ -14,7 +14,12 @@ export interface DiscoveredV2Model {
     readonly output: number
     readonly input?: number
   }
-  readonly variants?: Array<{ readonly id: string; readonly settings: Record<string, unknown> }>
+  readonly variants?: Array<{
+    readonly id: string
+    readonly settings: Record<string, unknown>
+    readonly body?: Record<string, unknown>
+    readonly headers?: Record<string, string>
+  }>
   readonly compatibility?: Record<string, unknown>
   readonly reasoning?: boolean
   readonly attachment?: boolean

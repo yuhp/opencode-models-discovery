@@ -346,7 +346,9 @@ Use `modelInfoFormat: "omniroute"` for an [OmniRoute](https://github.com/diegoso
 }
 ```
 
-For each discovered model, the plugin maps `context_length`, `max_input_tokens`, and `max_output_tokens` to `limit.context`, `limit.input`, and `limit.output` when both context and output limits are present. It maps `input_modalities` and `output_modalities` to lower-case OpenCode modalities, translating `SPEECH` to `audio` and ignoring unsupported values. When no valid input modalities are reported, `capabilities.vision: true` enables `text` and `image` input. The plugin also maps OmniRoute's `attachment`, `reasoning`, `tool_calling`, `structured_output`, and `temperature` capability booleans. Missing or malformed metadata is left unset.
+For each discovered model, the plugin maps `context_length`, `max_input_tokens`, and `max_output_tokens` to `limit.context`, `limit.input`, and `limit.output` when both context and output limits are present. It maps `input_modalities` and `output_modalities` to lower-case OpenCode modalities, translating `SPEECH` to `audio` and ignoring unsupported values. When no valid input modalities are reported, `capabilities.vision: true` enables `text` and `image` input. The plugin also maps OmniRoute's `attachment`, `reasoning`, `tool_calling`, `structured_output`, and `temperature` capability booleans.
+
+When OmniRoute advertises service-tier metadata through `capabilities.service_tiers`, `service_tiers`, or `additional_speed_tiers`, supported tiers become OpenCode variants with request-body overlays. `priority` and `fast` are normalized to a `fast` variant that sends `service_tier: "fast"`; `flex` becomes a `flex` variant. Reasoning-effort variants remain available alongside service-tier variants. Missing or malformed metadata is left unset.
 
 This format is intentionally explicit because these fields are OmniRoute extensions to the generic OpenAI-compatible model-list response. For the most complete OmniRoute integration, including dynamic provider support, use OmniRoute's official `@omniroute/opencode-plugin`.
 

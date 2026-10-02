@@ -8,6 +8,40 @@ export interface RawOpenAIModel {
   readonly [key: string]: unknown
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value)
+}
+
+function mapV1Variant(id: string, value: unknown): {
+  id: string
+  settings: Record<string, unknown>
+  body?: Record<string, unknown>
+  headers?: Record<string, string>
+} {
+  if (!isRecord(value)) return { id, settings: {} }
+
+  const settings: Record<string, unknown> = {}
+  for (const [key, item] of Object.entries(value)) {
+    if (key === "settings" || key === "body" || key === "headers") continue
+    settings[key] = item
+  }
+
+  if (isRecord(value.settings)) Object.assign(settings, value.settings)
+
+  const headers = isRecord(value.headers)
+    ? Object.fromEntries(
+        Object.entries(value.headers).filter((entry): entry is [string, string] => typeof entry[1] === "string"),
+      )
+    : undefined
+
+  return {
+    id,
+    settings,
+    ...(isRecord(value.body) ? { body: value.body } : {}),
+    ...(headers && Object.keys(headers).length > 0 ? { headers } : {}),
+  }
+}
+
 function resolveModelName(
   model: RawOpenAIModel,
   options: ProviderDiscoveryOptions,
@@ -106,14 +140,11 @@ export function mapToDiscoveredV2Model(
     }
   }
 
-  // Variants mapping: convert V1 Record<string, Variant> to V2 Array<{ id, settings }>
+  // Variants mapping: preserve V2 request overlays such as body and headers.
   if (Array.isArray(intermediateV1.variants)) {
     result.variants = intermediateV1.variants
   } else if (intermediateV1.variants && typeof intermediateV1.variants === "object") {
-    result.variants = Object.entries(intermediateV1.variants).map(([id, settings]) => ({
-      id,
-      settings: settings as Record<string, unknown>,
-    }))
+    result.variants = Object.entries(intermediateV1.variants).map(([id, value]) => mapV1Variant(id, value))
   } else if (isReasoning && !result.variants) {
     // If reasoning is supported but no variants provided, define default reasoning effort variants
     result.variants = [
