@@ -176,6 +176,39 @@ describe("V2 model-mapper", () => {
     )
   })
 
+  it("preserves discovered variant body overlays separately from settings", () => {
+    const options = parseProviderDiscoveryOptions({
+      enabled: true,
+      modelInfoFormat: ModelInfoFormat.OmniRoute,
+    })!
+    const enricher = createModelInfoEnricher(ModelInfoFormat.OmniRoute, null)
+
+    const raw = {
+      id: "openai/gpt-fast",
+      capabilities: {
+        reasoning: true,
+        effort_tiers: ["medium"],
+        service_tiers: ["fast"],
+      },
+    }
+    const mapped = mapToDiscoveredV2Model(raw, options, enricher)
+
+    expect(mapped.variants).toEqual(
+      expect.arrayContaining([
+        {
+          id: "medium",
+          settings: { reasoningEffort: "medium" },
+        },
+        {
+          id: "fast",
+          settings: {},
+          body: { service_tier: "fast" },
+        },
+      ]),
+    )
+    expect(mapped.variants?.find(variant => variant.id === "fast")?.settings).not.toHaveProperty("body")
+  })
+
   it("auto-injects thinking variants for models with r1 or reasoning in id", () => {
     const options = parseProviderDiscoveryOptions({
       enabled: true,

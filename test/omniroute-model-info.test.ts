@@ -46,6 +46,33 @@ describe('OmniRoute model info enricher', () => {
     })
   })
 
+  it('maps advertised service tiers to request-body variants', () => {
+    const enricher = createModelInfoEnricher(ModelInfoFormat.OmniRoute, null)
+    const config: any = { id: 'openai/gpt-fast' }
+
+    enricher!.applyModelInfo(config, config.id, {
+      id: config.id,
+      service_tiers: [
+        { id: 'priority', name: 'Fast' },
+        { id: 'unsupported', name: 'Unsupported' },
+      ],
+      additional_speed_tiers: ['fast'],
+      capabilities: {
+        reasoning: true,
+        effort_tiers: ['low', 'medium', 'high'],
+        service_tiers: ['flex'],
+      },
+    })
+
+    expect(config.variants).toEqual({
+      low: { reasoningEffort: 'low' },
+      medium: { reasoningEffort: 'medium' },
+      high: { reasoningEffort: 'high' },
+      fast: { body: { service_tier: 'fast' } },
+      flex: { body: { service_tier: 'flex' } },
+    })
+  })
+
   it('uses vision as an image-input fallback without replacing default output modalities', () => {
     const enricher = createModelInfoEnricher(ModelInfoFormat.OmniRoute, null)
     const config: any = {
