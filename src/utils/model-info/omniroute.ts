@@ -46,6 +46,57 @@ function getReasoningVariants(capabilities: Record<string, unknown> | undefined)
   return Object.keys(variants).length > 0 ? variants : undefined
 }
 
+type ServiceTierVariant = {
+  body: {
+    service_tier: string
+  }
+}
+
+function normalizeServiceTier(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined
+
+  const tier = value.trim().toLowerCase()
+  if (tier === 'priority' || tier === 'fast') return 'fast'
+  if (tier === 'flex') return 'flex'
+  return undefined
+}
+
+function getServiceTierVariants(
+  rawModel: Record<string, unknown>,
+  capabilities: Record<string, unknown> | undefined,
+): Record<string, ServiceTierVariant> | undefined {
+  const tiers = new Set<string>()
+
+  const addTier = (value: unknown): void => {
+    const tier = normalizeServiceTier(value)
+    if (tier) tiers.add(tier)
+  }
+
+  if (Array.isArray(capabilities?.service_tiers)) {
+    capabilities.service_tiers.forEach(addTier)
+  }
+
+  if (Array.isArray(rawModel.service_tiers)) {
+    for (const entry of rawModel.service_tiers) {
+      if (typeof entry === 'string') {
+        addTier(entry)
+      } else if (entry && typeof entry === 'object' && !Array.isArray(entry)) {
+        addTier((entry as Record<string, unknown>).id)
+      }
+    }
+  }
+
+  if (Array.isArray(rawModel.additional_speed_tiers)) {
+    rawModel.additional_speed_tiers.forEach(addTier)
+  }
+
+  if (tiers.size === 0) return undefined
+
+  return Object.fromEntries(
+    [...tiers].map(tier => [tier, { body: { service_tier: tier } }])
+  )
+}
+
 export function createOmniRouteEnricher(_data: unknown): ModelEnricher {
   return {
     enrich(model) {
@@ -53,11 +104,11 @@ export function createOmniRouteEnricher(_data: unknown): ModelEnricher {
       const inputLimit = model.max_input_tokens
       const output = model.max_output_tokens
       const result: Record<string, unknown> = {}
-      if (hasUsableNumber(context) && hasUsableNumber(output)) {
+      if (hasUsableNumber(context)) {
         result.limit = {
           context,
           ...(hasUsableNumber(inputLimit) ? { input: inputLimit } : {}),
-          output,
+          ...(hasUsableNumber(output) ? { output } : {}),
         }
       }
 
@@ -78,8 +129,11 @@ export function createOmniRouteEnricher(_data: unknown): ModelEnricher {
       if (typeof capabilities?.structured_output === 'boolean') result.structuredOutput = capabilities.structured_output
       if (typeof capabilities?.temperature === 'boolean') result.temperature = capabilities.temperature
 
-      const variants = getReasoningVariants(capabilities)
-      if (variants) result.variants = variants
+      const variants = {
+        ...(getReasoningVariants(capabilities) ?? {}),
+        ...(getServiceTierVariants(model, capabilities) ?? {}),
+      }
+      if (Object.keys(variants).length > 0) result.variants = variants
       return result
     },
   }

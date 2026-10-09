@@ -34,7 +34,12 @@ export interface DiscoveredV2ModelProjection {
     readonly output: number
     readonly input?: number
   }
-  readonly variants?: Array<{ readonly id: string; readonly settings: Record<string, unknown> }>
+  readonly variants?: Array<{
+    readonly id: string
+    readonly settings: Record<string, unknown>
+    readonly body?: Record<string, unknown>
+    readonly headers?: Record<string, string>
+  }>
   readonly compatibility?: Record<string, unknown>
   readonly reasoning?: boolean
   readonly attachment?: boolean
@@ -58,6 +63,40 @@ export function mapToV1Model(draft: DiscoveredModelDraft): DiscoveredV1Model {
     ...(draft.cost !== undefined ? { cost: draft.cost } : {}),
     ...(draft.variants !== undefined ? { variants: draft.variants } : {}),
     ...(draft.compatibility ? { compatibility: draft.compatibility } : {}),
+  }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+}
+
+function mapV1Variant(id: string, value: unknown): {
+  id: string
+  settings: Record<string, unknown>
+  body?: Record<string, unknown>
+  headers?: Record<string, string>
+} {
+  if (!isRecord(value)) return { id, settings: {} }
+
+  const settings: Record<string, unknown> = {}
+  for (const [key, item] of Object.entries(value)) {
+    if (key === 'settings' || key === 'body' || key === 'headers') continue
+    settings[key] = item
+  }
+
+  if (isRecord(value.settings)) Object.assign(settings, value.settings)
+
+  const headers = isRecord(value.headers)
+    ? Object.fromEntries(
+        Object.entries(value.headers).filter((entry): entry is [string, string] => typeof entry[1] === 'string'),
+      )
+    : undefined
+
+  return {
+    id,
+    settings,
+    ...(isRecord(value.body) ? { body: value.body } : {}),
+    ...(headers && Object.keys(headers).length > 0 ? { headers } : {}),
   }
 }
 
@@ -118,10 +157,7 @@ export function mapToDiscoveredV2Model(
   if (Array.isArray(resultDraft.variants)) {
     mapped.variants = resultDraft.variants
   } else if (resultDraft.variants && typeof resultDraft.variants === 'object') {
-    mapped.variants = Object.entries(resultDraft.variants).map(([id, settings]) => ({
-      id,
-      settings: settings as Record<string, unknown>,
-    }))
+    mapped.variants = Object.entries(resultDraft.variants).map(([id, value]) => mapV1Variant(id, value))
   } else if (isReasoning && !mapped.variants) {
     mapped.variants = [
       { id: 'low', settings: { reasoningEffort: 'low' } },

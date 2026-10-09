@@ -47,4 +47,43 @@ describe('shared model projections', () => {
       limit: { context: 128_000, output: 16_384 },
     })
   })
+
+  it('preserves variant body and header request overlays for V2 models', () => {
+    const customDraft = draft({
+      id: 'openai/gpt-fast',
+      variants: {
+        medium: { reasoningEffort: 'medium' },
+        fast: {
+          settings: { custom: true },
+          body: { service_tier: 'fast' },
+          headers: { 'x-tier': 'fast' },
+        },
+      },
+    })
+
+    const mapped = mapToDiscoveredV2Model(customDraft, { smartModelName: true })
+    expect(mapped.variants).toEqual(expect.arrayContaining([
+      {
+        id: 'medium',
+        settings: { reasoningEffort: 'medium' },
+      },
+      {
+        id: 'fast',
+        settings: { custom: true },
+        body: { service_tier: 'fast' },
+        headers: { 'x-tier': 'fast' },
+      },
+    ]))
+  })
+
+  it('safely bounds missing output token limit while preserving large context', () => {
+    const customDraft = draft({
+      id: 'oc/long-context',
+      limit: { context: 1_048_576 },
+    })
+
+    const mapped = mapToDiscoveredV2Model(customDraft, { smartModelName: true })
+    expect(mapped.limit.context).toBe(1_048_576)
+    expect(mapped.limit.output).toBe(32_000)
+  })
 })
