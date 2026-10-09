@@ -1,4 +1,4 @@
-import { createModelLimits, DEFAULT_CONTEXT_TOKEN_LIMIT, type DiscoveredModelDraft, type NormalizedModelLimit } from './model-types'
+import { createModelLimits, DEFAULT_CONTEXT_TOKEN_LIMIT, type DiscoveredModelDraft, type ModelLimitDraft, type NormalizedModelLimit } from './model-types'
 
 export interface DiscoveredV1Model {
   readonly id: string
@@ -9,7 +9,7 @@ export interface DiscoveredV1Model {
     readonly input?: readonly string[]
     readonly output?: readonly string[]
   }
-  readonly limit?: NormalizedModelLimit
+  readonly limit?: ModelLimitDraft
   readonly reasoning?: boolean
   readonly attachment?: boolean
   readonly tool_call?: boolean
@@ -29,11 +29,7 @@ export interface DiscoveredV2ModelProjection {
     readonly input: string[]
     readonly output: string[]
   }
-  readonly limit: {
-    readonly context: number
-    readonly output: number
-    readonly input?: number
-  }
+  readonly limit: NormalizedModelLimit
   readonly variants?: Array<{
     readonly id: string
     readonly settings: Record<string, unknown>

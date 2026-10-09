@@ -1,5 +1,5 @@
 import type { ModelEnricher } from '../../core/model-enrichment'
-import type { NormalizedModelLimit } from '../../core/model-types'
+import type { ModelLimitDraft } from '../../core/model-types'
 
 function hasUsableNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value) && value > 0
@@ -30,6 +30,34 @@ function getModalities(value: unknown): string[] | undefined {
   return modalities.length > 0 ? modalities : undefined
 }
 
+const SUPPORTED_REASONING_TIERS: Record<string, true> = {
+  none: true,
+  minimal: true,
+  low: true,
+  medium: true,
+  high: true,
+  xhigh: true,
+  max: true,
+}
+
+function getReasoningVariants(rawModel: Record<string, unknown>): Record<string, { reasoningEffort: string }> | undefined {
+  const reasoning = rawModel.reasoning
+  if (!reasoning || typeof reasoning !== 'object' || Array.isArray(reasoning)) return undefined
+
+  const block = reasoning as Record<string, unknown>
+  if (!Array.isArray(block.supported_efforts) || block.supported_efforts.length === 0) return undefined
+
+  const variants: Record<string, { reasoningEffort: string }> = {}
+  for (const tier of block.supported_efforts) {
+    if (typeof tier !== 'string') continue
+    const normalized = tier.trim().toLowerCase()
+    if (!SUPPORTED_REASONING_TIERS[normalized] || variants[normalized]) continue
+    variants[normalized] = { reasoningEffort: normalized }
+  }
+
+  return Object.keys(variants).length > 0 ? variants : undefined
+}
+
 export function createBifrostEnricher(_data: unknown): ModelEnricher {
   return {
     enrich(model) {
@@ -38,16 +66,18 @@ export function createBifrostEnricher(_data: unknown): ModelEnricher {
       const output = model.max_output_tokens
       const result: {
         metadataName?: string
-        limit?: NormalizedModelLimit
+        limit?: ModelLimitDraft
         modalities?: { input?: string[]; output?: string[] }
         cost?: { input: number; output: number }
+        reasoning?: boolean
+        variants?: Record<string, { reasoningEffort: string }>
       } = {}
 
-      if (hasUsableNumber(context) && hasUsableNumber(output)) {
+      if (hasUsableNumber(context)) {
         result.limit = {
           context,
           ...(hasUsableNumber(input) ? { input } : {}),
-          output,
+          ...(hasUsableNumber(output) ? { output } : {}),
         }
       }
 
@@ -73,6 +103,12 @@ export function createBifrostEnricher(_data: unknown): ModelEnricher {
         if (inputCost !== undefined && outputCost !== undefined) {
           result.cost = { input: inputCost * 1_000_000, output: outputCost * 1_000_000 }
         }
+      }
+
+      const variants = getReasoningVariants(model as Record<string, unknown>)
+      if (variants) {
+        result.reasoning = true
+        result.variants = variants
       }
 
       return result

@@ -166,4 +166,44 @@ describe('end-to-end V1 and V2 adapter projection parity', () => {
     expect(v1.modalities?.input).toEqual(['text', 'image'])
     expect(v2.capabilities.input).toEqual(['text', 'image'])
   })
+
+  it('projects Bifrost context-only models with reasoning variants correctly across V1 and V2', () => {
+    const raw = [
+      {
+        id: 'vllm/qwen-thinking',
+        context_length: 131072,
+        reasoning: {
+          supported_efforts: ['low', 'medium', 'high'],
+          default_effort: 'medium',
+        },
+      },
+    ]
+
+    const drafts = discoverModelDrafts(raw, {
+      filter: { includeBy: [], excludeBy: [], includeRegex: [], excludeRegex: [] },
+      smartModelName: true,
+      enricher: createBifrostEnricher(null),
+    })
+
+    const v1 = mapToV1Model(drafts[0]!)
+    const v2 = mapToDiscoveredV2Model(drafts[0]!, { smartModelName: true })
+
+    expect(v1.limit?.context).toBe(131072)
+    expect(v1.limit?.output).toBeUndefined()
+    expect(v1.reasoning).toBe(true)
+    expect(v1.variants).toEqual({
+      low: { reasoningEffort: 'low' },
+      medium: { reasoningEffort: 'medium' },
+      high: { reasoningEffort: 'high' },
+    })
+
+    expect(v2.limit.context).toBe(131072)
+    expect(v2.limit.output).toBe(32000)
+    expect(v2.reasoning).toBe(true)
+    expect(v2.variants).toEqual([
+      { id: 'low', settings: { reasoningEffort: 'low' } },
+      { id: 'medium', settings: { reasoningEffort: 'medium' } },
+      { id: 'high', settings: { reasoningEffort: 'high' } },
+    ])
+  })
 })
