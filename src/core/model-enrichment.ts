@@ -1,4 +1,4 @@
-import type { DiscoveredModelDraft, DiscoveredRawModel, NormalizedModelLimit } from './model-types'
+import type { DiscoveredModelDraft, DiscoveredRawModel, ModelLimitDraft } from './model-types'
 
 export interface ModelEnrichmentContext {
   readonly filterNonChat: boolean
@@ -8,7 +8,7 @@ export interface ModelEnrichmentResult {
   readonly skip?: boolean
   readonly metadataName?: string
   readonly capabilities?: Record<string, unknown>
-  readonly limit?: NormalizedModelLimit
+  readonly limit?: ModelLimitDraft
   readonly modalities?: {
     readonly input?: readonly string[]
     readonly output?: readonly string[]
