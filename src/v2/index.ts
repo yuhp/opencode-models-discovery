@@ -162,7 +162,7 @@ export async function setupV2(ctx: Plugin.Context): Promise<() => void> {
     return activeRefresh
   }
 
-  const inspectStatus = async (options?: DiscoveryStatusInput): Promise<string> => {
+  const collectStatus = async (options?: DiscoveryStatusInput): Promise<DiscoveryStatusProviderReport[]> => {
     const inventory = controller.getInventory()
     const reports: DiscoveryStatusProviderReport[] = []
     const storageBackend = ctx.storage ? createV2StorageCache(ctx.storage) : undefined
@@ -212,8 +212,11 @@ export async function setupV2(ctx: Plugin.Context): Promise<() => void> {
       })
     }
 
-    return formatStatusReport(reports, options)
+    return options?.providerID ? reports.filter((provider) => provider.id === options.providerID) : reports
   }
+
+  const inspectStatus = async (options?: DiscoveryStatusInput): Promise<string> =>
+    formatStatusReport(await collectStatus(options), options)
 
   await ensureTransformsRegistered()
   await registerDiscoveryTools(ctx, refreshFromCurrentConfig, inspectStatus)
@@ -223,8 +226,28 @@ export async function setupV2(ctx: Plugin.Context): Promise<() => void> {
       status: async (rawInput) => {
         const input = rawInput as DiscoveryStatusInput | undefined
         await syncConfiguredProviders()
-        const report = await inspectStatus(input)
-        return { report }
+        const reports = await collectStatus(input)
+        return {
+          report: formatStatusReport(reports, input),
+          providers: reports.map((provider) => ({
+            id: provider.id,
+            name: provider.name ?? provider.id,
+            models: provider.models.map((model) => ({
+              id: model.id,
+              name: model.name,
+              detail: [
+                formatStatusReport([{ ...provider, models: [model] }], { details: true }),
+                `\nAPI model ID: ${model.modelID}`,
+                `Input limit: ${model.limit.input ?? "unknown"}`,
+                `Input modalities: ${model.capabilities.input.join(", ") || "unknown"}`,
+                `Output modalities: ${model.capabilities.output.join(", ") || "unknown"}`,
+                `Reasoning: ${model.reasoning === undefined ? "unknown" : model.reasoning ? "yes" : "no"}`,
+                `Attachments: ${model.attachment === undefined ? "unknown" : model.attachment ? "yes" : "no"}`,
+                `Variants: ${model.variants?.map((variant) => variant.id).join(", ") || "none"}`,
+              ].join("\n"),
+            })),
+          })),
+        }
       },
       refresh: async (rawInput) => {
         const input = rawInput as { readonly force?: boolean } | undefined

@@ -58,17 +58,50 @@ export default defineTuiPlugin({
                 { details: true, ...(providerID ? { providerID } : {}) },
                 { location },
               )) as RpcStatusOutput
-              if (context.ui?.dialog?.alert) {
+              if (result.providers.length === 0) {
                 await context.ui.dialog.alert({
-                  title: providerID ? `Models Discovery: ${providerID}` : "Models Discovery Status",
-                  message: result.report,
-                })
-              } else {
-                context.ui.toast.show({
                   title: "Models Discovery Status",
                   message: result.report,
-                  variant: "info",
                 })
+                return
+              }
+              while (true) {
+                const selected = await context.ui.dialog.select({
+                  title: "Models Discovery: Providers",
+                  placeholder: "Select a provider",
+                  options: result.providers.map((provider) => ({
+                    title: `${provider.id} | ${provider.name} | ${provider.models.length} models`,
+                    value: provider.id,
+                  })),
+                })
+                if (selected === undefined) return
+                const provider = result.providers.find((entry) => entry.id === selected)
+                if (!provider) return
+                if (provider.models.length === 0) {
+                  await context.ui.dialog.alert({ title: provider.name, message: "No discovered models for this provider." })
+                  continue
+                }
+                while (true) {
+                  const modelIndex = await context.ui.dialog.select({
+                    title: `${provider.id} | ${provider.name}: Models`,
+                    placeholder: "Select a model to inspect",
+                    options: [
+                      { title: "← Back to providers", value: -1 },
+                      ...provider.models.map((model, index) => ({
+                        title: `${model.id} | ${model.name}`,
+                        value: index,
+                      })),
+                    ],
+                  })
+                  if (modelIndex === undefined) return
+                  if (modelIndex === -1) break
+                  const model = provider.models[modelIndex]
+                  if (!model) return
+                  await context.ui.dialog.alert({
+                    title: `${provider.id} / ${model.id}`,
+                    message: model.detail,
+                  })
+                }
               }
             } catch (error) {
               context.ui.toast.show({

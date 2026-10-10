@@ -17,6 +17,11 @@ export interface RpcStatusInput {
 
 export interface RpcStatusOutput {
   readonly report: string
+  readonly providers: readonly {
+    readonly id: string
+    readonly name: string
+    readonly models: readonly { readonly id: string; readonly name: string; readonly detail: string }[]
+  }[]
 }
 
 export interface RpcCacheEntry {
@@ -95,8 +100,31 @@ export const DiscoveryRpcDefinition = Rpc.define({
         type: "object",
         properties: {
           report: { type: "string" },
+          providers: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                id: { type: "string" },
+                name: { type: "string" },
+                models: {
+                  type: "array",
+                  items: {
+                    type: "object",
+                    properties: {
+                      id: { type: "string" },
+                      name: { type: "string" },
+                      detail: { type: "string" },
+                    },
+                    required: ["id", "name", "detail"],
+                  },
+                },
+              },
+              required: ["id", "name", "models"],
+            },
+          },
         },
-        required: ["report"],
+        required: ["report", "providers"],
       },
     },
     refresh: {

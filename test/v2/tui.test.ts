@@ -6,6 +6,7 @@ describe("V2 TUI Plugin", () => {
   function createMockTuiContext(rpcOverrides: Record<string, unknown> = {}) {
     const status = vi.fn().mockResolvedValue({
       report: "Current discovery inventory has 10 models from 2 providers.\n\nProvider details",
+      providers: [{ id: "hyy", name: "HYY", models: [{ id: "model-a", name: "Model A", detail: "Context: 1000\nTools: yes" }] }],
     })
     const refresh = vi.fn().mockResolvedValue({ providers: 2, models: 10 })
     const cacheInspect = vi.fn().mockResolvedValue({
@@ -121,8 +122,9 @@ describe("V2 TUI Plugin", () => {
     expect(cacheCmd.slash?.aliases).toBeUndefined()
   })
 
-  it("executes status via RPC and displays the resolved report", async () => {
-    const { ctx, status, dialogAlert, getKeymapLayer } = createMockTuiContext()
+  it("browses providers, models and details then returns to each list", async () => {
+    const { ctx, status, dialogSelect, dialogAlert, getKeymapLayer } = createMockTuiContext()
+    dialogSelect.mockResolvedValueOnce("hyy").mockResolvedValueOnce(0).mockResolvedValueOnce(-1)
     await tuiPlugin.setup(ctx as never)
 
     const commands = getKeymapLayer()?.commands as Array<{
@@ -138,13 +140,21 @@ describe("V2 TUI Plugin", () => {
       { location: { directory: "/test/dir" } },
     )
     expect(dialogAlert).toHaveBeenCalledWith({
-      title: "Models Discovery Status",
-      message: "Current discovery inventory has 10 models from 2 providers.\n\nProvider details",
+      title: "hyy / model-a",
+      message: "Context: 1000\nTools: yes",
     })
+    expect(dialogSelect).toHaveBeenNthCalledWith(1, expect.objectContaining({
+      options: [{ title: "hyy | HYY | 1 models", value: "hyy" }],
+    }))
+    expect(dialogSelect).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      options: [{ title: "← Back to providers", value: -1 }, { title: "model-a | Model A", value: 0 }],
+    }))
+    expect(dialogSelect.mock.calls[2][0]).toEqual(dialogSelect.mock.calls[1][0])
+    expect(dialogSelect.mock.calls[3][0]).toEqual(dialogSelect.mock.calls[0][0])
   })
 
   it("passes an optional provider filter to the status RPC", async () => {
-    const { ctx, status, dialogAlert, getKeymapLayer } = createMockTuiContext()
+    const { ctx, status, dialogSelect, dialogAlert, getKeymapLayer } = createMockTuiContext()
     await tuiPlugin.setup(ctx as never)
 
     const commands = getKeymapLayer()?.commands as Array<{
@@ -159,10 +169,19 @@ describe("V2 TUI Plugin", () => {
       { details: true, providerID: "hyy" },
       { location: { directory: "/test/dir" } },
     )
-    expect(dialogAlert).toHaveBeenCalledWith({
-      title: "Models Discovery: hyy",
-      message: expect.any(String),
-    })
+    expect(dialogSelect).toHaveBeenCalledTimes(1)
+    expect(dialogAlert).not.toHaveBeenCalled()
+  })
+
+  it.each([{ providers: [] }, { providers: [{ id: "hyy", name: "HYY", models: [] }] }])("handles empty status lists", async ({ providers }) => {
+    const { ctx, status, dialogSelect, dialogAlert, getKeymapLayer } = createMockTuiContext()
+    status.mockResolvedValueOnce({ report: "No models found.", providers })
+    if (providers.length) dialogSelect.mockResolvedValueOnce("hyy")
+    await tuiPlugin.setup(ctx as never)
+    const commands = getKeymapLayer()?.commands as Array<{ id: string; run: () => Promise<void> }>
+    await commands.find((command) => command.id === "models-discovery.status")!.run()
+    expect(dialogAlert).toHaveBeenCalledTimes(1)
+    expect(dialogAlert.mock.calls[0][0].message).toContain(providers.length ? "No discovered models" : "No models found")
   })
 
   it("shows an error toast when status RPC fails", async () => {

@@ -290,6 +290,12 @@ describe("V2 Status RPC", () => {
 
       expect(result.report).toContain("Provider: `provider-a` (Provider A)")
       expect(result.report).toContain("model-a")
+      expect(result.providers).toEqual([{
+        id: "provider-a",
+        name: "Provider A",
+        models: [expect.objectContaining({ id: "model-a", name: expect.any(String), detail: expect.stringContaining("API model ID:") })],
+      }])
+      expect((await status({ providerID: "missing" })).providers).toEqual([])
       expect(result.report).not.toContain("apiKey")
       expect(result.report).not.toContain("Authorization")
     } finally {
