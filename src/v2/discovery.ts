@@ -24,6 +24,7 @@ export async function discoverInventory(
   discovery: ReadonlyMap<string, ProviderDiscoveryOptions>,
   fetcher: typeof fetch = fetch,
   storage?: DiscoveryCacheBackend,
+  options?: { readonly force?: boolean },
 ): Promise<Inventory> {
   const inventory: Inventory = new Map()
 
@@ -35,10 +36,11 @@ export async function discoverInventory(
     if (!baseURL) return
 
     const cacheConfig = config.cache
-    const cacheEnabled = cacheConfig?.enabled === true && storage !== undefined
+    const cacheSupported = cacheConfig?.enabled === true && storage !== undefined
+    const cacheReadable = cacheSupported && options?.force !== true
     const endpoint = config.endpoint
     let cached: DiscoveryCacheEntry | undefined
-    if (cacheEnabled) {
+    if (cacheReadable) {
       cached = await readDiscoveryCache(storage, discoveryCacheKey("opencode.models-discovery.v2", provider.id), {
         providerID: provider.id,
         baseURL,
@@ -111,7 +113,7 @@ export async function discoverInventory(
         const models = new Map<string, DiscoveredV2Model>(drafts.map((draft) => [draft.id, mapToDiscoveredV2Model(draft, config)]))
 
         inventory.set(provider.id, models)
-        if (cacheEnabled && !cached) {
+        if (cacheSupported && !cached) {
           await writeDiscoveryCache(storage, discoveryCacheKey("opencode.models-discovery.v2", provider.id), createDiscoveryCacheEntry({
               providerID: provider.id,
               baseURL,

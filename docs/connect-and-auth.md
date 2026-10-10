@@ -1,12 +1,83 @@
 # `/connect` and Auth-Backed Discovery
 
-For custom OpenAI-compatible providers, you still need to define the provider in `opencode.json` so OpenCode and this plugin know the provider id, npm package, and `baseURL`.
+For custom OpenAI-compatible providers, you define the provider in `opencode.json` so OpenCode and this plugin know the provider identity, package, and `baseURL`.
 
-This page documents the OpenCode v1 `/connect` and auth-store integration. OpenCode v2 support is currently in beta and does not use the V1 auth-store fallback; configure credentials in `providers.<id>.settings` according to the [V2 configuration guide](configuration.md#opencode-v2-configuration-beta-support).
+However, you do not need to hardcode `apiKey` in `opencode.json` when the provider credential is managed through OpenCode's native `/connect` command.
 
-However, you do not have to hardcode `options.apiKey` when the provider credential is managed through OpenCode `/connect`.
+The plugin provides auth-backed model discovery and runtime execution across both **OpenCode v2** and **OpenCode v1**, utilizing the native credential architecture appropriate for each host generation.
 
-## Example
+---
+
+## OpenCode v2 Integration Credentials
+
+OpenCode v2 features a first-class Integration subsystem (`ctx.integration`) and an event-driven lifecycle. The V2 adapter seamlessly links provider model discovery and runtime LLM execution with OpenCode v2's `/connect` workflows.
+
+### Example V2 Configuration
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "plugins": [
+    "opencode-models-discovery@latest"
+  ],
+  "providers": {
+    "deepseek": {
+      "name": "DeepSeek",
+      "package": "@opencode-ai/ai/providers/openai-compatible",
+      "settings": {
+        "baseURL": "https://api.deepseek.com",
+        "modelsDiscovery": {
+          "enabled": true,
+          "endpoint": "/models"
+        }
+      }
+    }
+  }
+}
+```
+
+Notice that `settings.apiKey` is completely omitted.
+
+### Usage Workflow
+
+1. Run `/connect` in the OpenCode v2 TUI.
+2. Select your provider (`DeepSeek` / `deepseek`).
+3. Enter your API key.
+4. Model discovery triggers immediately, populating available models in your session without requiring a restart.
+5. Selecting a discovered model and sending a prompt authenticates successfully.
+
+### How OpenCode v2 Credential Integration Works
+
+1. **Native Integration Registration & Deduplication**:
+   - The plugin registers an API-key authentication method for every configured provider via `ctx.integration.transform`.
+   - The integration ID strictly aligns with the provider ID (`provider.id`), preventing duplicate entries from appearing in the `/connect` menu.
+   - An optional `settings.integrationID` can override the integration target if you want to share credentials across multiple provider definitions.
+
+2. **Real-time Event Reactivity**:
+   - The plugin subscribes to host lifecycle events: `credential.updated`, `credential.switched`, `integration.updated`, and `config.updated`.
+   - When you connect, update, or disconnect credentials in `/connect`, the plugin immediately triggers an inventory refresh and re-evaluates provider authorization without requiring a process restart.
+
+3. **Dual-Layer Provider Authentication Binding**:
+   - When OpenCode v2's host runner executes a chat completion for a discovered model, it requires upstream credentials.
+   - The plugin's provider controller (`src/v2/catalog.ts`) binds `draft.integrationID` on the editor and injects memory-only `Authorization: Bearer <key>` headers into `draft.headers`.
+   - This ensures downstream provider packages (such as `@opencode-ai/ai/providers/openai-compatible`) always transmit the required authorization headers.
+
+4. **Credential Revocation & Cleanup**:
+   - When credentials are deleted or disconnected in `/connect`, the event stream fires and the resolver observes the missing credential.
+   - The controller explicitly cleans up and deletes `draft.headers.authorization` in runtime memory, preventing revoked credentials from remaining active.
+
+5. **Credential Resolution Precedence (V2)**:
+   1. Explicit `providers.<id>.settings.apiKey` (highest priority).
+   2. Active Integration credential resolved via `ctx.integration.connection.active` and `resolve` matching `settings.integrationID` (if set) or `provider.id`.
+   3. Unauthenticated (for local engines such as LM Studio, Ollama, or vLLM).
+
+---
+
+## OpenCode v1 Auth-Store Integration
+
+OpenCode v1 does not have the V2 plugin integration API. Instead, the V1 adapter integrates with OpenCode's host-managed auth store and XDG files.
+
+### Example V1 Configuration
 
 ```json
 {
@@ -29,33 +100,28 @@ However, you do not have to hardcode `options.apiKey` when the provider credenti
 }
 ```
 
-Then run `/connect`, choose the same provider id, and save the API key there.
+Then run `/connect`, select the provider ID, and save the API key there.
 
-## Credential Precedence
+### Credential Resolution Precedence (V1)
 
-Discovery requests resolve credentials in this order:
+1. `provider.<name>.options.apiKey` (explicit setting).
+2. OpenCode resolved provider key, when available during plugin startup.
+3. Host auth store (`auth.json`) for same-id `type: "api"` credentials.
 
-1. `provider.<name>.options.apiKey`
-2. OpenCode resolved provider key, when available during plugin startup
-3. Host auth store for same-id `type: "api"` credentials
+### Notes for V1 Fallback
 
-This preserves existing explicit `apiKey` configs while also allowing custom providers to rely on `/connect` without duplicating secrets in `opencode.json`.
-
-## How It Works
-
-1. On OpenCode startup, the plugin's `config` hook is called.
-2. The plugin iterates through all configured providers.
-3. For each provider, it checks whether it is OpenAI-compatible by npm, by a `/v1` baseURL, by an explicit discovery endpoint override, or by a forced provider-level discovery override.
-4. For each accessible provider, it resolves discovery auth from explicit config first and then from OpenCode-managed auth when available.
-5. It queries the configured models endpoint, defaulting to `/v1/models`.
-6. Discovered models are automatically merged into the provider's configuration.
-7. The enhanced configuration is used for the current session.
-
-## Notes
-
-- OpenCode's provider resolution API can time out inside the `config` hook, so the plugin includes a fallback for `/connect` API-key credentials.
-- That fallback first respects `OPENCODE_AUTH_CONTENT`, then reads a host-specific auth store location derived from `xdg-basedir`.
+- OpenCode's provider resolution API can time out inside the V1 `config` hook, so the plugin includes a fallback for `/connect` API-key credentials.
+- The fallback first respects `OPENCODE_AUTH_CONTENT`, then reads a host-specific auth store location derived from `xdg-basedir`.
 - When `OPENCODE=1` is present, the plugin reads `~/.local/share/opencode/auth.json`.
 - When `MIMOCODE=1` is present, the plugin reads `~/.local/share/mimocode/auth.json`.
 - When neither host marker is present, the plugin defaults to `~/.local/share/opencode/auth.json`.
-- The plugin never writes the recovered key back into `opencode.json` and never logs the secret value.
+
+---
+
+## Security & Privacy Guarantees
+
+Regardless of host generation (V1 or V2):
+
+- **No Config Tampering**: The plugin never writes recovered API keys or secrets back into `opencode.json`.
+- **No Cache Leakage**: Resolved secrets are never saved to V1 XDG cache files or V2 `ctx.storage` cache records. Cache stores strictly retain metadata, raw model IDs, and enrichments.
+- **No Diagnostic Leakage**: Raw credentials and Authorization headers are masked and redacted from agent tools (`models_discovery_status`), RPC outputs, and logging.

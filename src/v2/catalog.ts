@@ -33,6 +33,7 @@ export interface ConfiguredProvider {
   readonly name?: string
   readonly package: string
   readonly settings: Record<string, unknown>
+  readonly apiKey?: string
 }
 
 type ProviderContext = Pick<Plugin.Context, "provider">
@@ -58,7 +59,10 @@ export function createProviderController(
   const transform: ProviderController["transform"] = (editor) => {
     for (const provider of configured) {
       const providerID = Provider.ID.make(provider.id)
+      const targetIntegrationID = (provider.settings.integrationID as string | undefined) ?? integrationID(provider.id)
       const current = editor.get(providerID)
+      const authHeaders = provider.apiKey ? { authorization: `Bearer ${provider.apiKey}` } : undefined
+
       if (!current) {
         editor.add({
           info: {
@@ -66,11 +70,33 @@ export function createProviderController(
             name: provider.name ?? provider.id,
             package: provider.package,
             settings: provider.settings,
-            integrationID: integrationID(provider.id) as never,
+            headers: authHeaders,
+            integrationID: targetIntegrationID as never,
             activation: "enabled",
           },
           models: [],
         })
+      } else {
+        const needsIntegration = !current.provider?.integrationID
+        const hasExistingAuthHeader = Boolean(current.provider?.headers?.authorization)
+        const needsHeaders = Boolean(authHeaders) || hasExistingAuthHeader
+        if (needsIntegration || needsHeaders) {
+          editor.update(providerID, (draft) => {
+            if (needsIntegration) {
+              draft.integrationID = targetIntegrationID as never
+            }
+            if (authHeaders) {
+              draft.headers = {
+                ...draft.headers,
+                ...authHeaders,
+              }
+            } else if (draft.headers?.authorization) {
+              const nextHeaders = { ...draft.headers }
+              delete nextHeaders.authorization
+              draft.headers = nextHeaders
+            }
+          })
+        }
       }
 
       const models = inventory.get(provider.id)

@@ -256,4 +256,27 @@ describe("V2 plugin entrypoint", () => {
       fetcher.mockRestore()
     }
   })
+
+  it("refreshes discovery after credential.updated and integration.updated events", async () => {
+    const fetcher = vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      json: async () => ({ data: [{ id: "model-after-connect" }] }),
+    } as Response)
+
+    const events = {
+      subscribe: vi.fn().mockReturnValue((async function* () {
+        yield { type: "credential.updated" }
+        yield { type: "integration.updated" }
+      })()),
+    }
+    const ctx = context({ event: events })
+
+    try {
+      await plugin.setup(ctx as never)
+      await new Promise((resolve) => setTimeout(resolve, 0))
+      expect(fetcher).toHaveBeenCalledTimes(3)
+    } finally {
+      fetcher.mockRestore()
+    }
+  })
 })

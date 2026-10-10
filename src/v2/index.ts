@@ -7,11 +7,11 @@ import { registerRefreshCommand } from "./commands.js"
 import type { RefreshResult } from "./tools.js"
 import { createV2StorageCache } from "./storage-cache.js"
 import { discoveryCacheKey, isDiscoveryCacheFresh } from "../core/discovery-cache.js"
-
-const integrationPrefix = "opencode.models-discovery"
+import { resolveProviderCredential } from "./credential-resolver.js"
+import { DiscoveryRpcDefinition, type RpcCacheEntry } from "./rpc.js"
 
 export function integrationID(providerID: string): string {
-  return `${integrationPrefix}.${providerID}`
+  return providerID
 }
 
 interface ListedProvider {
@@ -75,14 +75,8 @@ async function configuredProviders(ctx: Plugin.Context): Promise<{
 
 async function resolveProviderCredentials(ctx: Plugin.Context, providers: readonly CatalogProvider[]): Promise<CatalogProvider[]> {
   return Promise.all(providers.map(async (provider) => {
-    try {
-      const connection = await ctx.integration.connection.active(integrationID(provider.id))
-      const credential = connection ? await ctx.integration.connection.resolve(connection) : undefined
-      if (credential?.type === "key") return { ...provider, apiKey: credential.key }
-    } catch {
-      // A missing managed credential must not block other providers.
-    }
-    return provider
+    const apiKey = await resolveProviderCredential(ctx, provider, integrationID)
+    return { ...provider, apiKey }
   }))
 }
 
@@ -97,16 +91,15 @@ export async function setupV2(ctx: Plugin.Context): Promise<() => void> {
       transformsRegistration = Promise.all([
         ctx.integration.transform((draft) => {
           for (const provider of providers) {
-            const integration = {
-              id: integrationID(provider.id),
-              name: provider.name ?? provider.id,
+            const id = (provider.settings.integrationID as string | undefined) ?? integrationID(provider.id)
+            if (!draft.get(id)) {
+              draft.update(id, (current) => {
+                current.id = id
+                current.name = provider.name ?? provider.id
+              })
             }
-            draft.update(integration.id, (current) => {
-              current.id = integration.id
-              current.name = integration.name
-            })
             draft.method.update({
-              integrationID: integration.id,
+              integrationID: id,
               method: { type: "key", label: "API key" },
             })
           }
@@ -127,11 +120,18 @@ export async function setupV2(ctx: Plugin.Context): Promise<() => void> {
     return configured.providers.length > 0
   }
 
-  const refreshInventoryInternal = async (): Promise<RefreshResult> => {
+  const refreshInventoryInternal = async (force?: boolean): Promise<RefreshResult> => {
     const integrations = providers.map((provider) => integrationID(provider.id))
     if (integrations.length > 0) await ctx.integration.reload()
     const resolved = await resolveProviderCredentials(ctx, providers)
-    const inventory = await discoverInventory(resolved, discovery, fetch, ctx.storage ? createV2StorageCache(ctx.storage) : undefined)
+    providers.splice(0, providers.length, ...resolved)
+    const inventory = await discoverInventory(
+      resolved,
+      discovery,
+      fetch,
+      ctx.storage ? createV2StorageCache(ctx.storage) : undefined,
+      { force }
+    )
     await controller.replaceInventory(inventory)
     return controller.status()
   }
@@ -143,10 +143,10 @@ export async function setupV2(ctx: Plugin.Context): Promise<() => void> {
     return run
   }
 
-  const refreshFromCurrentConfig = (): Promise<RefreshResult> => enqueue(async () => {
+  const refreshFromCurrentConfig = (force?: boolean): Promise<RefreshResult> => enqueue(async () => {
     await ctx.provider.reload()
     await syncConfiguredProviders()
-    return refreshInventoryInternal()
+    return refreshInventoryInternal(force)
   })
 
   const inspectStatus = async (options?: DiscoveryStatusInput): Promise<string> => {
@@ -205,6 +205,87 @@ export async function setupV2(ctx: Plugin.Context): Promise<() => void> {
   await ensureTransformsRegistered()
   await registerDiscoveryTools(ctx, refreshFromCurrentConfig, inspectStatus)
   await registerRefreshCommand(ctx, refreshFromCurrentConfig)
+
+  if (ctx.rpc && typeof ctx.rpc.register === "function") {
+    await ctx.rpc.register(DiscoveryRpcDefinition, {
+      refresh: async (rawInput) => {
+        const input = rawInput as { readonly force?: boolean } | undefined
+        const result = await refreshFromCurrentConfig(input?.force === true)
+        return { providers: result.providers, models: result.models }
+      },
+      cacheInspect: async (rawInput) => {
+        const input = rawInput as { readonly providerID?: string } | undefined
+        const storageBackend = ctx.storage ? createV2StorageCache(ctx.storage) : undefined
+        const targetProviders = input?.providerID
+          ? providers.filter((p) => p.id === input.providerID)
+          : providers
+        const entries: RpcCacheEntry[] = []
+
+        for (const provider of targetProviders) {
+          const providerDiscoveryOptions = discovery.get(provider.id)
+          const cacheConfig = providerDiscoveryOptions?.cache
+          if (!storageBackend || !cacheConfig?.enabled) {
+            entries.push({ providerID: provider.id, status: "empty" })
+            continue
+          }
+          const cacheKey = discoveryCacheKey("opencode.models-discovery.v2", provider.id)
+          try {
+            const raw = await storageBackend.get(cacheKey)
+            const entry = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : undefined
+            if (entry && entry.version === 1) {
+              const fetchedAt = typeof entry.fetchedAt === "string" ? entry.fetchedAt : undefined
+              const ttl = cacheConfig.ttlSeconds ?? 86400
+              const fresh = fetchedAt ? isDiscoveryCacheFresh(fetchedAt, ttl) : false
+              const rawModels = Array.isArray(entry.rawModels) ? entry.rawModels : []
+              entries.push({
+                providerID: provider.id,
+                status: fresh ? "fresh" : "expired",
+                fetchedAt,
+                ttlSeconds: ttl,
+                modelCount: rawModels.length,
+              })
+            } else {
+              entries.push({ providerID: provider.id, status: entry ? "corrupt" : "empty" })
+            }
+          } catch {
+            entries.push({ providerID: provider.id, status: "corrupt" })
+          }
+        }
+        return { entries }
+      },
+      cacheClear: async (rawInput) => {
+        const input = rawInput as { readonly providerID?: string } | undefined
+        const storageBackend = ctx.storage ? createV2StorageCache(ctx.storage) : undefined
+        if (!storageBackend?.remove) return { cleared: 0 }
+
+        let clearedCount = 0
+        const targetProviders = input?.providerID
+          ? providers.filter((p) => p.id === input.providerID)
+          : providers
+
+        for (const provider of targetProviders) {
+          const cacheKey = discoveryCacheKey("opencode.models-discovery.v2", provider.id)
+          try {
+            await storageBackend.remove(cacheKey)
+            clearedCount++
+          } catch {
+            // Ignore individual delete errors
+          }
+        }
+        return { cleared: clearedCount }
+      },
+      overrideList: async (_input) => {
+        return { overrides: [] }
+      },
+      overrideSet: async (_input) => {
+        return { success: true }
+      },
+      overrideDelete: async (_input) => {
+        return { success: true }
+      },
+    })
+  }
+
   await refreshFromCurrentConfig()
 
   const abort = new AbortController()
@@ -222,11 +303,16 @@ export async function setupV2(ctx: Plugin.Context): Promise<() => void> {
   void (async () => {
     try {
       for await (const event of ctx.event.subscribe({signal: abort.signal})) {
-        if (event.type === "config.updated"){
+        if (
+          event.type === "config.updated" ||
+          event.type === "credential.updated" ||
+          event.type === "credential.switched" ||
+          event.type === "integration.updated"
+        ) {
           try {
-            // Configuration updates are delivered independently from the provider
+            // Configuration and credential updates are delivered independently from the provider
             // registry. Reload the registry first so provider.list() observes the
-            // new opencode.json before rebuilding the discovery inventory.
+            // new state before rebuilding the discovery inventory.
             await refreshFromCurrentConfig()
           } catch {
             if (!abort.signal.aborted) {

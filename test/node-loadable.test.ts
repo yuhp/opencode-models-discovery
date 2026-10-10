@@ -177,5 +177,28 @@ describe('Node host compatibility (OpenCode Desktop)', () => {
       { exitCode, stdout: stdout.trim(), stderr: stderr.slice(0, 800) },
       'plain Node (OpenCode Desktop runtime) must resolve the published manifest and import the plugin by package name'
     ).toEqual({ exitCode: 0, stdout: 'DESKTOP_IMPORT_OK', stderr: '' })
+
+    const tuiProbeFile = path.join(stagedRoot, 'desktop-tui-probe.mjs')
+    writeFileSync(
+      tuiProbeFile,
+      `const m = await import(${JSON.stringify(`${pkg.name}/tui`)});\n` +
+        `if (!m.default || typeof m.default.setup !== 'function') { console.error('NO_TUI_EXPORT'); process.exit(2); }\n` +
+        `console.log('TUI_IMPORT_OK');\n`
+    )
+    let tuiStdout = ''
+    let tuiStderr = ''
+    let tuiExitCode = 0
+    try {
+      tuiStdout = execFileSync(node, [tuiProbeFile], { cwd: stagedRoot, stdio: 'pipe', encoding: 'utf-8' })
+    } catch (error) {
+      const e = error as { status?: number; stdout?: string; stderr?: string }
+      tuiExitCode = e.status ?? 1
+      tuiStdout = e.stdout ?? ''
+      tuiStderr = e.stderr ?? ''
+    }
+    expect(
+      { exitCode: tuiExitCode, stdout: tuiStdout.trim(), stderr: tuiStderr.slice(0, 800) },
+      'plain Node must resolve package/tui export and import cleanly'
+    ).toEqual({ exitCode: 0, stdout: 'TUI_IMPORT_OK', stderr: '' })
   }, 30_000)
 })
