@@ -10,8 +10,8 @@ export function formatRefreshResult(result: RefreshResult): string {
 }
 
 export function formatRefreshFailure(error: unknown): string {
-  void error
-  return "Model discovery refresh failed."
+  const message = error instanceof Error ? error.message : (error && typeof error === "object" && "message" in error ? String((error as { message: unknown }).message) : String(error))
+  return `Model discovery refresh failed: ${message}`
 }
 
 export interface DiscoveryStatusInput {

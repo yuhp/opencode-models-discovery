@@ -3,7 +3,6 @@ import { createProviderController, type ConfiguredProvider } from "./catalog.js"
 import { discoverInventory, type CatalogProvider } from "./discovery.js"
 import { parseProviderDiscoveryOptions, type ProviderDiscoveryOptions } from "./provider-config.js"
 import { registerDiscoveryTools, type DiscoveryStatusInput, type DiscoveryStatusProviderReport, formatStatusReport } from "./tools.js"
-import { registerRefreshCommand } from "./commands.js"
 import type { RefreshResult } from "./tools.js"
 import { createV2StorageCache } from "./storage-cache.js"
 import { discoveryCacheKey, isDiscoveryCacheFresh } from "../core/discovery-cache.js"
@@ -59,11 +58,12 @@ async function configuredProviders(ctx: Plugin.Context): Promise<{
     return { providers, discovery }
   }
 
+  const listInput = ctx.location ? { location: ctx.location } : undefined
   try {
-    let configured = fromList(providerList(await ctx.provider.list()))
+    let configured = fromList(providerList(await ctx.provider.list(listInput as never)))
     if (configured.providers.length === 0) {
       await ctx.provider.reload()
-      configured = fromList(providerList(await ctx.provider.list()))
+      configured = fromList(providerList(await ctx.provider.list(listInput as never)))
     }
     if (configured.providers.length > 0) return configured
   } catch {
@@ -105,7 +105,13 @@ export async function setupV2(ctx: Plugin.Context): Promise<() => void> {
           }
         }),
         ctx.provider.transform(controller.transform),
-      ]).then(() => undefined)
+      ]).then(async () => {
+        try {
+          await ctx.integration.reload()
+        } catch {
+          // Non-fatal if integration reload is unsupported
+        }
+      })
     }
     await transformsRegistration
   }
@@ -121,8 +127,6 @@ export async function setupV2(ctx: Plugin.Context): Promise<() => void> {
   }
 
   const refreshInventoryInternal = async (force?: boolean): Promise<RefreshResult> => {
-    const integrations = providers.map((provider) => integrationID(provider.id))
-    if (integrations.length > 0) await ctx.integration.reload()
     const resolved = await resolveProviderCredentials(ctx, providers)
     providers.splice(0, providers.length, ...resolved)
     const inventory = await discoverInventory(
@@ -136,18 +140,27 @@ export async function setupV2(ctx: Plugin.Context): Promise<() => void> {
     return controller.status()
   }
 
-  let operationChain = Promise.resolve()
-  const enqueue = <T>(operation: () => Promise<T>): Promise<T> => {
-    const run = operationChain.then(operation)
-    operationChain = run.then(() => undefined, () => undefined)
-    return run
-  }
+  let activeRefresh: Promise<RefreshResult> | undefined
+  let pendingRefreshForce = false
 
-  const refreshFromCurrentConfig = (force?: boolean): Promise<RefreshResult> => enqueue(async () => {
-    await ctx.provider.reload()
-    await syncConfiguredProviders()
-    return refreshInventoryInternal(force)
-  })
+  const refreshFromCurrentConfig = (force?: boolean): Promise<RefreshResult> => {
+    if (force) pendingRefreshForce = true
+    if (activeRefresh) {
+      return activeRefresh.then(() => refreshFromCurrentConfig(pendingRefreshForce))
+    }
+    const runForce = force || pendingRefreshForce
+    pendingRefreshForce = false
+    activeRefresh = (async () => {
+      try {
+        await ctx.provider.reload()
+        await syncConfiguredProviders()
+        return await refreshInventoryInternal(runForce)
+      } finally {
+        activeRefresh = undefined
+      }
+    })()
+    return activeRefresh
+  }
 
   const inspectStatus = async (options?: DiscoveryStatusInput): Promise<string> => {
     const inventory = controller.getInventory()
@@ -204,7 +217,6 @@ export async function setupV2(ctx: Plugin.Context): Promise<() => void> {
 
   await ensureTransformsRegistered()
   await registerDiscoveryTools(ctx, refreshFromCurrentConfig, inspectStatus)
-  await registerRefreshCommand(ctx, refreshFromCurrentConfig)
 
   if (ctx.rpc && typeof ctx.rpc.register === "function") {
     await ctx.rpc.register(DiscoveryRpcDefinition, {

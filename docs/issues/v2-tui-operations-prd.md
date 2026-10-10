@@ -2,13 +2,9 @@
 
 ## Status
 
-Approved Proposal & In Progress. Phase 1 (Shared RPC Definition & Public Credential Integration) is completed and verified against OpenCode v2 host runtime:
-- Public Integration Credential resolution (`ctx.integration.connection`) implemented with strict memory scoping and no secret persistence.
-- Integration ID alignment (`provider.id`) resolved `/connect` duplicate display items.
-- Event reactivity (`credential.updated`, `credential.switched`, `integration.updated`) triggers automatic discovery refresh on connect/disconnect.
-- Dual-layer runtime binding: `draft.integrationID` + memory-only `draft.headers.authorization` fixes host runtime 401 Unauthorized chat execution failures.
-- Credential revocation: explicit cleanup of `draft.headers.authorization` ensures immediate session revocation upon disconnection.
-- Packaging updated with `./tui` entrypoint and build pipeline.
+Approved Proposal & In Progress. Phase 1 & Phase 2 completed:
+- Phase 1: Public Integration Credential resolution, /connect deduplication, event reactivity, 401 host execution fix, and dual-layer authorization binding.
+- Phase 2: Native TUI keymap commands (`/models-discovery-refresh`, `/models-discovery-refresh-force`, aliases `/md-refresh`, `/models-refresh`), cross-process RPC dispatch, and lightweight Toast notifications (`context.ui.toast.show`), eliminating session message pollution.
 
 The phase groups user-facing model discovery operations and credential resolution into one
 TUI-oriented workflow. The existing V2 Agent Tools remain supported for automation and agent

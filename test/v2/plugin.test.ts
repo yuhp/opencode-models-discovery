@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest"
 import plugin from "../../src/v2/index.js"
+import { registerRefreshCommand } from "../../src/v2/commands.js"
 
 function closedEvents() {
   return { subscribe: vi.fn().mockReturnValue({
@@ -70,8 +71,6 @@ describe("V2 plugin entrypoint", () => {
       await plugin.setup(ctx as never)
       expect(ctx.integration.transform).toHaveBeenCalledTimes(1)
       expect(ctx.provider.transform).toHaveBeenCalledTimes(1)
-      expect(ctx.command.transform).toHaveBeenCalledTimes(1)
-      expect(ctx.command.reload).toHaveBeenCalledTimes(1)
       expect(ctx.integration.reload).toHaveBeenCalledTimes(1)
       expect(ctx.provider.reload).toHaveBeenCalledTimes(2)
       expect(fetcher).toHaveBeenCalledTimes(1)
@@ -80,7 +79,7 @@ describe("V2 plugin entrypoint", () => {
     }
   })
 
-  it("registers and executes the manual refresh command", async () => {
+  it("registers and executes the manual refresh command when used directly", async () => {
     const fetcher = vi.spyOn(globalThis, "fetch").mockResolvedValue({
       ok: true,
       json: async () => ({ data: [{ id: "discovered-model" }] }),
@@ -94,9 +93,9 @@ describe("V2 plugin entrypoint", () => {
     })
 
     try {
-      await plugin.setup(ctx as never)
+      await registerRefreshCommand(ctx as never, async () => ({ providers: 1, models: 1 }))
       const command = commands.find((entry) => entry.name === "models-discovery-refresh")
-      expect(command?.description).toBe("Refresh models discovered from configured providers.")
+      expect(command?.description).toContain("Refresh models discovered from configured providers")
       await command?.execute({ sessionID: "session-1" })
       expect(ctx.session.synthetic).toHaveBeenCalledWith({
         sessionID: "session-1",
