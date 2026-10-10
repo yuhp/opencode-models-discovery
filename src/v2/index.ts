@@ -227,11 +227,40 @@ export async function setupV2(ctx: Plugin.Context): Promise<() => void> {
       },
       cacheInspect: async (rawInput) => {
         const input = rawInput as { readonly providerID?: string } | undefined
+        await syncConfiguredProviders()
         const storageBackend = ctx.storage ? createV2StorageCache(ctx.storage) : undefined
         const targetProviders = input?.providerID
           ? providers.filter((p) => p.id === input.providerID)
           : providers
         const entries: RpcCacheEntry[] = []
+
+        if (input?.providerID && targetProviders.length === 0) {
+          if (storageBackend) {
+            const cacheKey = discoveryCacheKey("opencode.models-discovery.v2", input.providerID)
+            try {
+              const raw = await storageBackend.get(cacheKey)
+              const entry = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : undefined
+              if (entry && entry.version === 1) {
+                const fetchedAt = typeof entry.fetchedAt === "string" ? entry.fetchedAt : undefined
+                const rawModels = Array.isArray(entry.rawModels) ? entry.rawModels : []
+                entries.push({
+                  providerID: input.providerID,
+                  status: fetchedAt ? (isDiscoveryCacheFresh(fetchedAt, 86400) ? "fresh" : "expired") : "expired",
+                  fetchedAt,
+                  ttlSeconds: 86400,
+                  modelCount: rawModels.length,
+                })
+              } else {
+                entries.push({ providerID: input.providerID, status: entry ? "corrupt" : "empty" })
+              }
+            } catch {
+              entries.push({ providerID: input.providerID, status: "corrupt" })
+            }
+          } else {
+            entries.push({ providerID: input.providerID, status: "empty" })
+          }
+          return { entries }
+        }
 
         for (const provider of targetProviders) {
           const providerDiscoveryOptions = discovery.get(provider.id)
@@ -270,13 +299,14 @@ export async function setupV2(ctx: Plugin.Context): Promise<() => void> {
         const storageBackend = ctx.storage ? createV2StorageCache(ctx.storage) : undefined
         if (!storageBackend?.remove) return { cleared: 0 }
 
+        await syncConfiguredProviders()
         let clearedCount = 0
-        const targetProviders = input?.providerID
-          ? providers.filter((p) => p.id === input.providerID)
-          : providers
+        const targetIDs = input?.providerID
+          ? [input.providerID]
+          : providers.map((p) => p.id)
 
-        for (const provider of targetProviders) {
-          const cacheKey = discoveryCacheKey("opencode.models-discovery.v2", provider.id)
+        for (const providerID of targetIDs) {
+          const cacheKey = discoveryCacheKey("opencode.models-discovery.v2", providerID)
           try {
             await storageBackend.remove(cacheKey)
             clearedCount++
