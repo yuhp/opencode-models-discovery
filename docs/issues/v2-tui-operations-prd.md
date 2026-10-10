@@ -267,16 +267,14 @@ The existing `models_discovery_status` Agent Tool becomes available through a na
 
 1. User enters `/models-discovery-status` in the prompt or selects it from the palette.
 2. TUI calls the status RPC with the active location.
-3. TUI presents provider-level and model-level details through a dialog or alert, including:
-   - Provider ID and display name;
-   - Discovery enabled/disabled state;
-   - Cache status and TTL when caching is enabled;
-   - Resolved model ID and display name;
-   - Context and output limits;
-   - Tools, reasoning, and other resolved capability metadata;
-   - Safe failure summaries without API keys or authorization data.
-4. The command may accept an optional provider or model filter to keep large inventories readable.
-5. No model configuration is changed by this command.
+3. TUI presents a three-level browsing flow:
+   - **Provider list**: shows Provider ID, display name, and the total number of resolved models;
+   - **Model list**: after selecting a Provider, shows each model ID and display name;
+   - **Model details**: after selecting a model, shows its resolved identity, API model ID, context/output/input limits, modalities, tools, reasoning, attachments, and variants.
+4. The model list provides a return action to go back to the Provider list; closing a dialog exits the flow.
+5. The command accepts an optional Provider filter, for example `/models-discovery-status --provider hyy`.
+6. The presentation uses structured sections and one property per line rather than embedding the Markdown status report in the detail view.
+7. No model configuration is changed by this command.
 
 ### 4. Model Override Management (`/models-discovery-override`) — Deferred
 
