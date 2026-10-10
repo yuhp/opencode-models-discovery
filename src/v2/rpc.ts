@@ -20,6 +20,7 @@ export interface RpcStatusOutput {
   readonly providers: readonly {
     readonly id: string
     readonly name: string
+    readonly modelCount: number
     readonly models: readonly { readonly id: string; readonly name: string; readonly detail: string }[]
   }[]
 }
@@ -107,6 +108,7 @@ export const DiscoveryRpcDefinition = Rpc.define({
               properties: {
                 id: { type: "string" },
                 name: { type: "string" },
+                modelCount: { type: "number" },
                 models: {
                   type: "array",
                   items: {
@@ -120,7 +122,7 @@ export const DiscoveryRpcDefinition = Rpc.define({
                   },
                 },
               },
-              required: ["id", "name", "models"],
+              required: ["id", "name", "modelCount", "models"],
             },
           },
         },

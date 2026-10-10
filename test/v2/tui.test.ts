@@ -6,7 +6,7 @@ describe("V2 TUI Plugin", () => {
   function createMockTuiContext(rpcOverrides: Record<string, unknown> = {}) {
     const status = vi.fn().mockResolvedValue({
       report: "Current discovery inventory has 10 models from 2 providers.\n\nProvider details",
-      providers: [{ id: "hyy", name: "HYY", models: [{ id: "model-a", name: "Model A", detail: "Context: 1000\nTools: yes" }] }],
+      providers: [{ id: "hyy", name: "HYY", modelCount: 16, models: [{ id: "model-a", name: "Model A", detail: "Context: 1000\nTools: yes" }] }],
     })
     const refresh = vi.fn().mockResolvedValue({ providers: 2, models: 10 })
     const cacheInspect = vi.fn().mockResolvedValue({
@@ -144,7 +144,7 @@ describe("V2 TUI Plugin", () => {
       message: "Context: 1000\nTools: yes",
     })
     expect(dialogSelect).toHaveBeenNthCalledWith(1, expect.objectContaining({
-      options: [{ title: "hyy | HYY | 1 models", value: "hyy" }],
+      options: [{ title: "hyy | HYY | 16 models", value: "hyy" }],
     }))
     expect(dialogSelect).toHaveBeenNthCalledWith(2, expect.objectContaining({
       options: [{ title: "← Back to providers", value: -1 }, { title: "model-a | Model A", value: 0 }],

@@ -70,7 +70,7 @@ export default defineTuiPlugin({
                   title: "Models Discovery: Providers",
                   placeholder: "Select a provider",
                   options: result.providers.map((provider) => ({
-                    title: `${provider.id} | ${provider.name} | ${provider.models.length} models`,
+                    title: `${provider.id} | ${provider.name} | ${provider.modelCount} models`,
                     value: provider.id,
                   })),
                 })
