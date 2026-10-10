@@ -1,4 +1,5 @@
-import type { ModelInfoEnricher } from './types'
+import type { ModelEnricher } from '../../core/model-enrichment'
+import { createModelLimits } from '../../core/model-types'
 
 function hasUsableNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value) && value > 0
@@ -29,54 +30,45 @@ function getLlamaSwapMetadata(rawModel: Record<string, unknown> | undefined): Re
   return getRecord(getRecord(rawModel?.meta)?.llamaswap)
 }
 
-export function createLlamaSwapModelInfoEnricher(_data: unknown): ModelInfoEnricher {
+export function createLlamaSwapEnricher(_data: unknown): ModelEnricher {
   return {
-    shouldSkipModel(): boolean {
-      return false
-    },
-    getModelName(_modelId: string, rawModel?: Record<string, unknown>): string | undefined {
-      const name = rawModel?.name
-      return typeof name === 'string' && name.trim().length > 0 ? name.trim() : undefined
-    },
-    applyModelInfo(modelConfig: any, _modelId: string, rawModel?: Record<string, unknown>): void {
-      const meta = getRecord(rawModel?.meta)
-      const llamaSwapMetadata = getLlamaSwapMetadata(rawModel)
-      const context = hasUsableNumber(rawModel?.context_length)
-        ? rawModel.context_length
+    enrich(model) {
+      const meta = getRecord(model.meta)
+      const llamaSwapMetadata = getLlamaSwapMetadata(model)
+      const context = hasUsableNumber(model.context_length)
+        ? model.context_length
         : hasUsableNumber(meta?.n_ctx) ? meta.n_ctx : undefined
+      const result: any = {}
+      const name = model.name
+      if (typeof name === 'string' && name.trim().length > 0) result.metadataName = name.trim()
       if (context) {
         const input = hasUsableNumber(llamaSwapMetadata?.max_input_tokens)
           ? llamaSwapMetadata.max_input_tokens
           : undefined
         const output = hasNonNegativeNumber(llamaSwapMetadata?.max_output_tokens)
           ? llamaSwapMetadata.max_output_tokens
-          : 0
-        modelConfig.limit = {
-          context,
-          ...(input ? { input } : {}),
-          output,
-        }
+          : undefined
+        result.limit = createModelLimits(context, output, input)
       }
 
-      const architecture = getRecord(rawModel?.architecture)
+      const architecture = getRecord(model.architecture)
       const inputModalities = getModalities(architecture?.input_modalities)
       const outputModalities = getModalities(architecture?.output_modalities)
       if (inputModalities || outputModalities) {
-        modelConfig.modalities = {
+        result.modalities = {
           ...(inputModalities ? { input: inputModalities } : {}),
           ...(outputModalities ? { output: outputModalities } : {}),
-          ...(!inputModalities && modelConfig.modalities?.input ? { input: modelConfig.modalities.input } : {}),
-          ...(!outputModalities && modelConfig.modalities?.output ? { output: modelConfig.modalities.output } : {}),
         }
       }
 
-      const capabilities = getRecord(rawModel?.capabilities)
-      const supportedParameters = Array.isArray(rawModel?.supported_parameters)
-        ? rawModel.supported_parameters
+      const capabilities = getRecord(model.capabilities)
+      const supportedParameters = Array.isArray(model.supported_parameters)
+        ? model.supported_parameters
         : []
       if (capabilities?.function_calling === true || supportedParameters.includes('tools')) {
-        modelConfig.tool_call = true
+        result.toolCall = true
       }
+      return result
     },
   }
 }

@@ -1,6 +1,7 @@
 import http from 'node:http'
 import https from 'node:https'
 import type { OpenAIModel, OpenAIModelsResponse } from '../types'
+import { isDiscoveredRawModel, type DiscoveredRawModel } from '../core/model-types'
 
 const OPENAI_COMPATIBLE_MODELS_ENDPOINT = "/v1/models"
 export const DEFAULT_REQUEST_TIMEOUT_MS = 3000
@@ -141,9 +142,7 @@ export function canDiscoverModels(provider: any): boolean {
   return isOpenAICompatibleProvider(provider) || hasOpenAICompatibleURL(provider) || hasModelsDiscoveryEndpoint(provider)
 }
 
-export function isValidModel(model: any): model is { id: string; [key: string]: any } {
-  return model &&
-         typeof model === 'object' &&
-         typeof model.id === 'string' &&
-         model.id.length > 0
+/** @deprecated Use isDiscoveredRawModel from core instead */
+export function isValidModel(model: unknown): model is DiscoveredRawModel {
+  return isDiscoveredRawModel(model)
 }

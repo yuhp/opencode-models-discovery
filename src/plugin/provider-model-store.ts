@@ -1,7 +1,8 @@
 import { promises as fs } from 'node:fs'
 import path from 'node:path'
 import { xdgData } from 'xdg-basedir'
-import { isValidModel } from '../utils/openai-compatible-api'
+import { isDiscoveredRawModel } from '../core/model-types'
+import { sanitizeSensitiveFields } from '../core/discovery-cache'
 
 const STATE_VERSION = 2
 const PLUGIN_DATA_DIRECTORY = 'opencode-models-discovery'
@@ -20,6 +21,8 @@ export interface ProviderModelState {
   provider: ProviderModelStoreIdentity
   fetchedAt: string
   models: Record<string, Record<string, unknown> & { id: string }>
+  /** Raw discovery responses used to re-run the shared pipeline on cache hits. */
+  rawModels?: Record<string, Record<string, unknown> & { id: string }>
   overrides?: Record<string, ProviderModelOverride>
 }
 
@@ -46,36 +49,19 @@ function isProviderModelState(value: unknown): value is ProviderModelState {
   if (!isPlainObject(value) || value.version !== STATE_VERSION || !isIdentity(value.provider) ||
     typeof value.fetchedAt !== 'string' || !Number.isFinite(Date.parse(value.fetchedAt)) ||
     !isPlainObject(value.models) || !Object.entries(value.models).every(([modelID, model]) =>
-      modelID.length > 0 && isValidModel(model) && model.id === modelID)) {
+      modelID.length > 0 && isDiscoveredRawModel(model) && model.id === modelID)) {
     return false
   }
 
-  return value.overrides === undefined || isOverrides(value.overrides)
-}
-
-function removeSensitiveFields(value: unknown): unknown {
-  if (Array.isArray(value)) {
-    return value.map(removeSensitiveFields)
-  }
-
-  if (!isPlainObject(value)) {
-    return value
-  }
-
-  const cleaned: Record<string, unknown> = {}
-  for (const [key, child] of Object.entries(value)) {
-    if (/^(api[-_]?key|authorization|token|password|secret|credentials?)$/i.test(key)) {
-      continue
-    }
-    cleaned[key] = removeSensitiveFields(child)
-  }
-  return cleaned
+  return (value.rawModels === undefined || (isPlainObject(value.rawModels) && Object.entries(value.rawModels).every(([modelID, model]) =>
+    modelID.length > 0 && isDiscoveredRawModel(model) && model.id === modelID
+  ))) && (value.overrides === undefined || isOverrides(value.overrides))
 }
 
 function sanitizeModels(models: Record<string, Record<string, unknown> & { id: string }>): Record<string, Record<string, unknown> & { id: string }> {
   return Object.fromEntries(Object.entries(models).map(([modelID, model]) => [
     modelID,
-    removeSensitiveFields(model) as Record<string, unknown> & { id: string },
+    sanitizeSensitiveFields(model) as Record<string, unknown> & { id: string },
   ]))
 }
 
@@ -117,7 +103,8 @@ export class ProviderModelStore {
   async saveModels(
     identity: ProviderModelStoreIdentity,
     models: Record<string, Record<string, unknown> & { id: string }>,
-    previousState?: ProviderModelState
+    previousState?: ProviderModelState,
+    rawModels?: Record<string, Record<string, unknown> & { id: string }>,
   ): Promise<boolean> {
     const statePath = this.getStatePath(identity.id)
     if (!statePath) {
@@ -129,6 +116,7 @@ export class ProviderModelStore {
       provider: identity,
       fetchedAt: new Date().toISOString(),
       models: sanitizeModels(models),
+      ...(rawModels ? { rawModels: sanitizeModels(rawModels) } : {}),
       ...(previousState?.overrides && Object.keys(previousState.overrides).length > 0
         ? { overrides: previousState.overrides }
         : {}),

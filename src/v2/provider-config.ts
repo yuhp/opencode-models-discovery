@@ -18,6 +18,10 @@ export interface ProviderDiscoveryOptions {
   readonly modelInfoFormat?: ModelInfoFormat
   readonly modelInfoEndpoint?: string
   readonly filterNonChat: boolean
+  readonly cache?: {
+    readonly enabled: boolean
+    readonly ttlSeconds: number
+  }
 }
 
 function object(value: unknown): Record<string, unknown> | undefined {
@@ -80,6 +84,15 @@ export function parseProviderDiscoveryOptions(raw: unknown): ProviderDiscoveryOp
 
   // Default filterNonChat to true when LiteLLM or ModelsDev is active, matching V1 behavior
   const filterNonChat = typeof value.filterNonChat === "boolean" ? value.filterNonChat : true
+  const cacheValue = object(value.cache)
+  const cache = cacheValue?.enabled === true
+    ? {
+        enabled: true,
+        ttlSeconds: typeof cacheValue.ttlSeconds === "number" && Number.isFinite(cacheValue.ttlSeconds) && cacheValue.ttlSeconds > 0
+          ? cacheValue.ttlSeconds
+          : 86_400,
+      }
+    : undefined
 
   return {
     enabled: true,
@@ -93,5 +106,6 @@ export function parseProviderDiscoveryOptions(raw: unknown): ProviderDiscoveryOp
     modelInfoFormat,
     modelInfoEndpoint,
     filterNonChat,
+    cache,
   }
 }

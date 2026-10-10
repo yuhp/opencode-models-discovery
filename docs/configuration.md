@@ -26,6 +26,10 @@ OpenCode v2 uses `plugins` and `providers`. The plugin can be declared directly 
           "enabled": true,
           "modelInfoFormat": "models.dev",
           "smartModelName": true,
+          "cache": {
+            "enabled": true,
+            "ttlSeconds": 86400
+          },
           "models": {
             "includeBy": [{ "field": "id", "match": "^llama" }]
           }
@@ -38,7 +42,7 @@ OpenCode v2 uses `plugins` and `providers`. The plugin can be declared directly 
 
 The V2 options are the same discovery options described below, except that their path starts with `providers.<id>.settings.modelsDiscovery`. V2 defaults the discovery endpoint to `/v1/models`, uses a default request timeout of 5000 ms, and requires `enabled: true` for the provider to participate. When discovery is explicitly enabled, the adapter attempts the configured model-list endpoint regardless of the provider package; the endpoint must return an OpenAI-compatible model-list response. For a provider such as DeepSeek that exposes `/models`, set `"endpoint": "/models"`. Local plugin development should use a directory URL such as `file:///absolute/path/to/opencode-models-discovery/dist`; OpenCode v2 does not accept a direct path to a JavaScript entry file.
 
-The V2 adapter does not implement the V1 persisted disk cache or V1 auth-store fallback. It provides the `/models-discovery-refresh` command and the `models_discovery_refresh` and `models_discovery_status` agent tools. After rebuilding a local plugin, restart the OpenCode v2 background service with `opencode service restart`.
+The V2 adapter does not use the V1 persisted disk-cache format or V1 auth-store fallback. V2 caching is disabled by default. When `modelsDiscovery.cache.enabled` is `true`, V2 stores the raw model-list response and enrichment results through the host-provided `ctx.storage` API. `ttlSeconds` defaults to `86400` seconds (24 hours). The `models_discovery_status` tool accepts `rawCache: true` to include cached raw models and enrichments in its report. The V2 adapter also provides the `/models-discovery-refresh` command and the `models_discovery_refresh` and `models_discovery_status` agent tools. After rebuilding a local plugin, restart the OpenCode v2 background service with `opencode service restart`.
 
 ## OpenCode v1 configuration
 
@@ -79,8 +83,8 @@ Each provider can configure discovery behavior through `provider.<name>.options.
 | `provider.<name>.options.modelsDiscovery.enabled` | `boolean` | Force enable or disable discovery for a single provider |
 | `provider.<name>.options.modelsDiscovery.endpoint` | `string` | Provider-specific models endpoint as an origin-relative path beginning with `/`. Defaults to `/v1/models` |
 | `provider.<name>.options.modelsDiscovery.timeoutMs` | positive finite `number` | Per-request timeout for the provider's models and provider-specific metadata endpoints. Defaults to `3000` |
-| `provider.<name>.options.modelsDiscovery.modelInfoEndpoint` | `string` | Override a format-specific metadata endpoint as an origin-relative path or complete URL. Defaults to `/v1/model/info` for `"litellm"` and `/api/v1/models` for `"lmstudio"` |
-| `provider.<name>.options.modelsDiscovery.modelInfoFormat` | `string` | Model info response format. Currently supports `"bifrost"`, `"litellm"`, `"models.dev"`, `"vllm"`, `"lmstudio"`, `"llama-swap"`, and `"omniroute"` |
+| `provider.<name>.options.modelsDiscovery.modelInfoEndpoint` | `string` | Override a format-specific metadata endpoint as an origin-relative path or complete URL. Defaults to `/v1/model/info` for `"litellm"` and `/api/v1/models` for `"lmstudio"`; for `"aiproxy"`, it overrides the models.dev fallback URL |
+| `provider.<name>.options.modelsDiscovery.modelInfoFormat` | `string` | Model info response format. Currently supports `"aiproxy"`, `"bifrost"`, `"litellm"`, `"models.dev"`, `"vllm"`, `"lmstudio"`, `"llama-swap"`, and `"omniroute"` |
 | `provider.<name>.options.modelsDiscovery.filterNonChat` | `boolean` | When model info is available, skip models whose `model_info.mode` is not `chat`. Defaults to `true` |
 | `provider.<name>.options.modelsDiscovery.models.includeRegex` | `string[]` | Shortcut regex allow-list for discovered model ids only |
 | `provider.<name>.options.modelsDiscovery.models.excludeRegex` | `string[]` | Shortcut regex deny-list for discovered model ids only |
@@ -123,6 +127,8 @@ For a provider whose models or provider-specific metadata endpoint needs more th
 ```
 
 This allows up to `15000` milliseconds for each discovery request to `slow-gateway` and raises the config hook wait budget to the same value. Other providers keep their own request timeouts.
+
+For V2, enabled caches are stored through OpenCode's `ctx.storage` rather than as hand-editable files. The cache stores the provider's valid raw discovery models and the enrichment results needed to rebuild the current V2 projection. A fresh cache hit skips provider and metadata requests but re-runs the shared normalization, filtering, classification, enrichment, naming, and V2 mapping pipeline. This keeps cache behavior aligned with current discovery rules, while the host-managed storage boundary means users cannot conveniently edit the cache by hand.
 
 ## Persisted Model Discovery Cache
 
@@ -284,10 +290,11 @@ Community provider examples live in [`docs/config_example/`](config_example/).
 
 The generic OpenAI-compatible `/v1/models` endpoint only guarantees a small model list shape. Extra metadata such as context limits, tool calling, reasoning, image input, or structured output is provider-specific, so metadata enrichment is opt-in.
 
-The plugin currently supports seven model info formats:
+The plugin currently supports eight model info formats:
 
 | Format | Source | Requires `modelInfoEndpoint` | Notes |
 |--------|--------|------------------------------|-------|
+| `"aiproxy"` | AIProxy's discovered `/models` entries plus models.dev | No | Maps inline AIProxy limits, pricing, and declared effort tiers; models.dev supplies general metadata |
 | `"bifrost"` | Fields in Bifrost's `/v1/models` response | No | Reads Bifrost inline limits, modalities, and base pricing when present |
 | `"litellm"` | Provider-specific model info endpoint | No | Uses `/v1/model/info` by default; set `modelInfoEndpoint` to override it |
 | `"models.dev"` | `https://models.dev/models.json` | No | Uses the public models.dev metadata index |
@@ -295,6 +302,60 @@ The plugin currently supports seven model info formats:
 | `"lmstudio"` | LM Studio 0.4.0+ `/api/v1/models` inventory | No | Uses `/api/v1/models` by default; set `modelInfoEndpoint` for another path |
 | `"llama-swap"` | Fields in llama-swap's `/v1/models` response | No | Reads inline context, modalities, and function-calling metadata when present |
 | `"omniroute"` | Fields in OmniRoute's `/v1/models` response | No | Reads OmniRoute inline limits, modalities, and capabilities when present |
+
+### AIProxy Metadata
+
+Use `modelInfoFormat: "aiproxy"` when the configured model-list endpoint returns AIProxy's inline `limits` and `pricing` fields. The plugin makes no second request to AIProxy. It also fetches models.dev for general metadata and display names, then overlays valid AIProxy values. Explicit model configuration remains highest priority.
+
+```json
+{
+  "plugin": ["opencode-models-discovery"],
+  "provider": {
+    "aiproxy": {
+      "npm": "@ai-sdk/openai-compatible",
+      "options": {
+        "baseURL": "https://aiproxy.example/api",
+        "apiKey": "{env:AIPROXY_API_KEY}",
+        "modelsDiscovery": {
+          "enabled": true,
+          "endpoint": "/api/models",
+          "modelInfoFormat": "aiproxy"
+        }
+      }
+    }
+  }
+}
+```
+
+For each discovered model, the plugin reads:
+
+- `limits.max_input_tokens` → `limit.input`
+- `limits.max_output_tokens` → `limit.output`
+- `pricing.input_per_1m_usd` → `cost.input`
+- `pricing.output_per_1m_usd` → `cost.output`
+- `pricing.cache_read_per_1m_usd` → `cost.cache_read`
+
+AIProxy's prices are already USD per million tokens; they are not rescaled. Finite non-negative prices, including zero, are preserved. Missing or malformed fields do not overwrite existing catalog values. `pricing.cache_write_5m_per_1m_usd` is currently ignored because its duration-specific meaning does not map unambiguously to OpenCode's generic cache-write cost.
+
+The plugin does not infer total context by adding `max_input_tokens` and `max_output_tokens`. It updates input/output limits only when a valid context limit is already available. Models with no models.dev match therefore retain the conservative host context default in V2, and V1 leaves an incomplete limit unset.
+
+#### Reasoning effort variants
+
+AIProxy can advertise supported efforts on each model-list entry with `capabilities.reasoning` and `capabilities.effort_tiers`:
+
+```json
+{
+  "id": "gpt-6-luna",
+  "capabilities": {
+    "reasoning": true,
+    "effort_tiers": ["low", "medium", "high", "xhigh", "max"]
+  }
+}
+```
+
+Recognized effort tiers are `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, and `max`; each becomes an OpenCode variant with the same `reasoningEffort` value. Unknown values are ignored. A present `effort_tiers` list is authoritative, including an empty or unrecognized-only list, so the plugin will not invent fallback tiers in that case. If the field is absent, the AIProxy enricher adds no variants; OpenCode V2's existing low/medium/high fallback can still apply when the model is otherwise marked as reasoning. The plugin never infers `xhigh` or `max` from a model name; AIProxy must advertise them for each supported model.
+
+`modelInfoEndpoint`, when set for this format, overrides the models.dev metadata URL (default `https://models.dev/models.json`). It does not override `modelsDiscovery.endpoint`, which remains the AIProxy model-list endpoint.
 
 ### llama-swap Model Info
 
@@ -320,7 +381,7 @@ Use `modelInfoFormat: "llama-swap"` for a [llama-swap](https://github.com/mostly
 }
 ```
 
-For each discovered model, the plugin maps `context_length` to `limit.context`, falling back to `meta.n_ctx`. Because llama-swap does not report a distinct output limit, the plugin writes `limit.output: 0` to preserve OpenCode's output-token fallback. Optional `meta.llamaswap.max_input_tokens` and `meta.llamaswap.max_output_tokens` values override the corresponding limits when present. It maps `architecture.input_modalities` and `architecture.output_modalities` to lower-case OpenCode modalities, and maps `capabilities.function_calling` or a `tools` entry in `supported_parameters` to `tool_call`. When `smartModelName: true` is set, a non-empty llama-swap `name` becomes the display name. Missing or malformed metadata is left unset.
+For each discovered model, the plugin maps `context_length` to `limit.context`, falling back to `meta.n_ctx`. Because llama-swap does not always report a distinct output limit, the plugin resolves a safe default output limit bounded by the context window and capped at OpenCode's default 32,000 output tokens. Optional `meta.llamaswap.max_input_tokens` and `meta.llamaswap.max_output_tokens` values override the corresponding limits when present. It maps `architecture.input_modalities` and `architecture.output_modalities` to lower-case OpenCode modalities, and maps `capabilities.function_calling` or a `tools` entry in `supported_parameters` to `tool_call`. When `smartModelName: true` is set, a non-empty llama-swap `name` becomes the display name. Missing or malformed metadata is left unset.
 
 ### OmniRoute Model Info
 
@@ -346,7 +407,9 @@ Use `modelInfoFormat: "omniroute"` for an [OmniRoute](https://github.com/diegoso
 }
 ```
 
-For each discovered model, the plugin maps `context_length`, `max_input_tokens`, and `max_output_tokens` to `limit.context`, `limit.input`, and `limit.output` when both context and output limits are present. It maps `input_modalities` and `output_modalities` to lower-case OpenCode modalities, translating `SPEECH` to `audio` and ignoring unsupported values. When no valid input modalities are reported, `capabilities.vision: true` enables `text` and `image` input. The plugin also maps OmniRoute's `attachment`, `reasoning`, `tool_calling`, `structured_output`, and `temperature` capability booleans. Missing or malformed metadata is left unset.
+For each discovered model, the plugin maps `context_length`, `max_input_tokens`, and `max_output_tokens` to `limit.context`, `limit.input`, and `limit.output` when context is present. It maps `input_modalities` and `output_modalities` to lower-case OpenCode modalities, translating `SPEECH` to `audio` and ignoring unsupported values. When no valid input modalities are reported, `capabilities.vision: true` enables `text` and `image` input. The plugin also maps OmniRoute's `attachment`, `reasoning`, `tool_calling`, `structured_output`, and `temperature` capability booleans.
+
+When OmniRoute advertises service-tier metadata through `capabilities.service_tiers`, `service_tiers`, or `additional_speed_tiers`, supported tiers become OpenCode variants with request-body overlays. `priority` and `fast` are normalized to a `fast` variant that sends `service_tier: "fast"`; `flex` becomes a `flex` variant. Reasoning-effort variants remain available alongside service-tier variants. Missing or malformed metadata is left unset.
 
 This format is intentionally explicit because these fields are OmniRoute extensions to the generic OpenAI-compatible model-list response. For the most complete OmniRoute integration, including dynamic provider support, use OmniRoute's official `@omniroute/opencode-plugin`.
 
@@ -374,7 +437,9 @@ Use `modelInfoFormat: "bifrost"` for a Bifrost AI Gateway provider. It reads Bif
 }
 ```
 
-For each discovered model, the plugin maps Bifrost's reported `context_length`, `max_input_tokens`, and `max_output_tokens` to `limit.context`, `limit.input`, and `limit.output`. Limits are added only when both the context and output limits are available, as OpenCode requires both. It maps `architecture.input_modalities` and `architecture.output_modalities` to lower-case OpenCode modalities, translating Bifrost's `SPEECH` value to `audio` and ignoring unsupported values. Bifrost's `pricing.prompt` and `pricing.completion` are USD per-token rates; the plugin converts them to OpenCode's USD per-million-token `cost.input` and `cost.output` values. Costs are added only when both rates are available. Other pricing fields, scoped pricing overrides, and tiered pricing are not represented by this format.
+For each discovered model, the plugin maps Bifrost's reported `context_length`, `max_input_tokens`, and `max_output_tokens` to `limit.context`, `limit.input`, and `limit.output` when context is available. It maps `architecture.input_modalities` and `architecture.output_modalities` to lower-case OpenCode modalities, translating Bifrost's `SPEECH` value to `audio` and ignoring unsupported values. Bifrost's `pricing.prompt` and `pricing.completion` are USD per-token rates; the plugin converts them to OpenCode's USD per-million-token `cost.input` and `cost.output` values. Costs are added only when both rates are available.
+
+When Bifrost reports reasoning metadata with `reasoning.supported_efforts`, the plugin maps recognized efforts (`none`, `minimal`, `low`, `medium`, `high`, `xhigh`, and `max`) to OpenCode reasoning variants and marks the model as reasoning-capable. Other pricing fields, scoped pricing overrides, and tiered pricing are not represented by this format.
 
 When `smartModelName: true` is set for the provider, Bifrost's `normalized_name` is used when it is available. Missing or malformed fields are left unset. The normal unpaginated Bifrost `/v1/models` request returns the complete aggregated list; avoid configuring a `page_size` unless you intentionally want a paged subset.
 
@@ -472,7 +537,7 @@ Use `modelInfoFormat: "lmstudio"` with LM Studio 0.4.0+, which officially releas
 
 Only models returned by `/v1/models` are injected. A model is enriched only when its `id` exactly matches an inventory `key`; inventory-only models are not injected. `modelsDiscovery.endpoint` controls discovery, while `modelsDiscovery.modelInfoEndpoint` controls the inventory request.
 
-When available, the plugin sets `limit.context` from the largest loaded instance `config.context_length`, otherwise it uses `max_context_length`. LM Studio does not report a distinct output limit, so the plugin writes `limit.output: 0`: this satisfies OpenCode's requirement that a limit object include both context and output while preserving OpenCode's default or configured output-token fallback. The plugin maps `capabilities.vision` to image input and `capabilities.trained_for_tool_use` to `tool_call`. Its reported reasoning options are the source of truth for variants: `off`, `low`, `medium`, `high`, and `xhigh` become variants, with `off` sent as `reasoningEffort: "none"`; `on` and unknown options are omitted because they are not concrete OpenAI-compatible efforts. Missing or malformed metadata is left unset without preventing discovery.
+When available, the plugin sets `limit.context` from the largest loaded instance `config.context_length`, otherwise it uses `max_context_length`. LM Studio does not report a distinct output limit, so the plugin resolves a safe default output limit bounded by the context window and capped at OpenCode's default 32,000 output tokens. The plugin maps `capabilities.vision` to image input and `capabilities.trained_for_tool_use` to `tool_call`. Its reported reasoning options are the source of truth for variants: `off`, `low`, `medium`, `high`, and `xhigh` become variants, with `off` sent as `reasoningEffort: "none"`; `on` and unknown options are omitted because they are not concrete OpenAI-compatible efforts. Missing or malformed metadata is left unset without preventing discovery.
 
 ### models.dev Metadata
 

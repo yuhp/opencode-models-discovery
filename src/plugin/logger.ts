@@ -1,3 +1,5 @@
+/* eslint-disable no-console */
+
 import type { PluginInput } from '@opencode-ai/plugin'
 
 const SERVICE_NAME = 'opencode-models-discovery'

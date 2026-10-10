@@ -416,7 +416,7 @@ Using OpenCode v2 and a local mock OpenAI-compatible server:
 
 - All V1 tests remain passing.
 - Existing V2 tests and new tests remain passing.
-- Packed-package E2E remains passing.
+- Package-loadability checks remain passing; the former packed-package host E2E was removed because it depended on machine-specific OpenCode paths and live provider endpoints.
 - Plugin setup registers Provider, Integration, Tool, and TUI command behavior once.
 
 ## Acceptance Criteria

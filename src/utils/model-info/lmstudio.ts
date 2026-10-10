@@ -1,5 +1,6 @@
 import type { LMStudioInventoryModel } from '../../types'
-import type { ModelInfoEnricher } from './types'
+import type { ModelEnricher } from '../../core/model-enrichment'
+import { createModelLimits } from '../../core/model-types'
 
 function hasUsableNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value) && value > 0
@@ -37,11 +38,7 @@ function getReasoningVariants(options: string[]): Record<string, { reasoningEffo
   return Object.keys(variants).length > 0 ? variants : undefined
 }
 
-function getModelInfo(models: Map<string, LMStudioInventoryModel>, modelId: string): LMStudioInventoryModel | undefined {
-  return models.get(modelId)
-}
-
-export function createLMStudioModelInfoEnricher(data: unknown): ModelInfoEnricher {
+export function createLMStudioEnricher(data: unknown): ModelEnricher {
   const models = new Map<string, LMStudioInventoryModel>()
   const inventory = data as { models?: unknown[] } | undefined
   if (Array.isArray(inventory?.models)) {
@@ -54,42 +51,44 @@ export function createLMStudioModelInfoEnricher(data: unknown): ModelInfoEnriche
   }
 
   return {
-    shouldSkipModel(): boolean {
-      return false
-    },
-    getModelName(modelId: string): string | undefined {
-      const displayName = getModelInfo(models, modelId)?.display_name
-      return typeof displayName === 'string' && displayName.length > 0 ? displayName : undefined
-    },
-    applyModelInfo(modelConfig: any, modelId: string): void {
-      const model = getModelInfo(models, modelId)
-      if (!model) return
+    enrich(model) {
+      const inventoryModel = models.get(model.id)
+      if (!inventoryModel) return {}
 
-      const contextLimit = getLoadedContextLimit(model) ?? (hasUsableNumber(model.max_context_length) ? model.max_context_length : undefined)
-      if (contextLimit) {
-        // OpenCode requires both fields when a limit object is present. Zero preserves its output-token fallback.
-        modelConfig.limit = { context: contextLimit, output: 0 }
+      const result: {
+        metadataName?: string
+        limit?: { context: number; output: number }
+        modalities?: { input: string[]; output: string[] }
+        toolCall?: boolean
+        reasoning?: boolean
+        variants?: Record<string, { reasoningEffort: string }>
+      } = {}
+
+      const displayName = inventoryModel.display_name
+      if (typeof displayName === 'string' && displayName.length > 0) result.metadataName = displayName
+
+      const contextLimit = getLoadedContextLimit(inventoryModel) ?? (hasUsableNumber(inventoryModel.max_context_length) ? inventoryModel.max_context_length : undefined)
+      const limits = createModelLimits(contextLimit)
+      if (limits) {
+        result.limit = limits
       }
 
-      const capabilities = model.capabilities && typeof model.capabilities === 'object'
-        ? model.capabilities as Record<string, unknown>
+      const capabilities = inventoryModel.capabilities && typeof inventoryModel.capabilities === 'object'
+        ? inventoryModel.capabilities as Record<string, unknown>
         : undefined
       if (capabilities?.vision === true) {
-        const input = Array.isArray(modelConfig.modalities?.input) ? modelConfig.modalities.input : []
-        const output = Array.isArray(modelConfig.modalities?.output) ? modelConfig.modalities.output : []
-        modelConfig.modalities = {
-          input: [...new Set([...input, 'image'])],
-          ...(output.length > 0 ? { output } : {}),
-        }
+        result.modalities = { input: ['text', 'image'], output: ['text'] }
       }
-      if (capabilities?.trained_for_tool_use === true) modelConfig.tool_call = true
+      if (capabilities?.trained_for_tool_use === true) result.toolCall = true
 
-      const reasoningOptions = getReasoningOptions(model)
+      const reasoningOptions = getReasoningOptions(inventoryModel)
       if (reasoningOptions.length > 0) {
-        modelConfig.reasoning = true
+        result.reasoning = true
         const variants = getReasoningVariants(reasoningOptions)
-        if (variants) modelConfig.variants = variants
+        if (variants) result.variants = variants
       }
+
+      return result
     },
   }
 }

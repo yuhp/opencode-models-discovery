@@ -2,17 +2,18 @@ import { promises as fs } from 'node:fs'
 import path from 'node:path'
 import { xdgData } from 'xdg-basedir'
 import { ToastNotifier } from '../ui/toast-notifier'
-import { categorizeModel, formatModelName, extractModelOwner } from '../utils'
-import { disambiguateModelNames } from '../utils/disambiguate-model-names'
-import { normalizeProviderOriginForCache, discoverModelsFromProvider, discoverModelInfoFromProvider, canDiscoverModels, isValidModel, DEFAULT_REQUEST_TIMEOUT_MS } from '../utils/openai-compatible-api'
-import { createModelInfoEnricher, isSupportedModelInfoFormat, type ModelInfoEnricher } from '../utils/model-info'
-import { DEFAULT_CACHE_TTL_SECONDS, getDefaultDiscoveryConfigFromEnv, getProviderModelFieldFilters, getProviderModelRegexFilter, shouldDiscoverModel, shouldDiscoverModelByFields, shouldDiscoverProviderWithOverride, ModelInfoFormat } from '../types/plugin-config'
-import { DEFAULT_MODELS_DEV_URL, fetchModelsDevData } from '../utils/models-dev-fetcher'
+import { normalizeProviderOriginForCache, discoverModelsFromProvider, canDiscoverModels, DEFAULT_REQUEST_TIMEOUT_MS } from '../utils/openai-compatible-api'
+import { isDiscoveredRawModel } from '../core/model-types'
+import { type ModelEnricher } from '../utils/model-info'
+import { DEFAULT_CACHE_TTL_SECONDS, getDefaultDiscoveryConfigFromEnv, getProviderModelFieldFilters, getProviderModelRegexFilter, shouldDiscoverProviderWithOverride } from '../types/plugin-config'
 import { isInventoryFresh, mergeModelOverride, ProviderModelStore, type ProviderModelState } from './provider-model-store'
 import type { PluginLogger } from './logger'
+import type { ModelEnrichmentResult } from '../core/model-enrichment'
 import type { PluginInput } from '@opencode-ai/plugin'
-import type { OpenAIModel } from '../types'
 import type { PluginConfig } from '../types/plugin-config'
+import { discoverModelDrafts } from '../core/discovery-pipeline'
+import { mapToV1Model } from '../core/model-mapper'
+import { resolveModelInfoEnricher } from '../core/enricher-resolver'
 
 interface DiscoveredProvider {
   name: string
@@ -37,8 +38,6 @@ interface OpenCodeAuth {
 type HostClient = 'opencode' | 'mimocode'
 
 const RESOLVED_PROVIDERS_TIMEOUT_MS = 250
-const DEFAULT_LITELLM_MODEL_INFO_ENDPOINT = '/v1/model/info'
-const DEFAULT_LMSTUDIO_MODELS_ENDPOINT = '/api/v1/models'
 const defaultProviderModelStore = new ProviderModelStore()
 
 export const providerModelStoreTestUtils = {
@@ -51,6 +50,34 @@ export const providerModelStoreTestUtils = {
 }
 let currentProviderModelStore = defaultProviderModelStore
 const injectedModelsByConfig = new WeakMap<object, Map<string, Map<string, unknown>>>()
+
+function createCachedModelEnricher(models: Record<string, Record<string, unknown> & { id: string }>): ModelEnricher {
+  return {
+    enrich(model): ModelEnrichmentResult {
+      const cached = models[model.id]
+      if (!cached) return {}
+
+      const limit = cached.limit
+      const modalities = cached.modalities
+      const capabilities = cached.capabilities
+      return {
+        ...(capabilities && typeof capabilities === 'object' ? { capabilities: capabilities as Record<string, unknown> } : {}),
+        ...(limit && typeof limit === 'object' && typeof (limit as Record<string, unknown>).context === 'number' && typeof (limit as Record<string, unknown>).output === 'number'
+          ? { limit: limit as ModelEnrichmentResult['limit'] }
+          : {}),
+        ...(modalities && typeof modalities === 'object' ? { modalities: modalities as ModelEnrichmentResult['modalities'] } : {}),
+        ...(typeof cached.reasoning === 'boolean' ? { reasoning: cached.reasoning } : {}),
+        ...(typeof cached.attachment === 'boolean' ? { attachment: cached.attachment } : {}),
+        ...(typeof cached.tool_call === 'boolean' ? { toolCall: cached.tool_call } : {}),
+        ...(typeof cached.structured_output === 'boolean' ? { structuredOutput: cached.structured_output } : {}),
+        ...(typeof cached.temperature === 'boolean' ? { temperature: cached.temperature } : {}),
+        ...(cached.cost !== undefined ? { cost: cached.cost } : {}),
+        ...(cached.variants !== undefined ? { variants: cached.variants } : {}),
+        ...(cached.compatibility && typeof cached.compatibility === 'object' ? { compatibility: cached.compatibility as Record<string, unknown> } : {}),
+      }
+    },
+  }
+}
 
 function getInjectedModels(config: object, providerID: string): Map<string, unknown> {
   return injectedModelsByConfig.get(config)?.get(providerID) ?? new Map()
@@ -250,14 +277,21 @@ export async function enhanceConfig(
       }
       let persistedState: ProviderModelState | undefined
       let usingPersistedModels = false
+      let reprocessPersistedModels = false
       let apiKey: string | undefined
 
-      let models: OpenAIModel[] = []
+      let models: unknown[] = []
       let discoveredModels: Record<string, any> = {}
+      let cachedRawModels: Record<string, Record<string, unknown> & { id: string }> = {}
       if (cacheEnabled) {
         persistedState = await currentProviderModelStore.read(cacheIdentity)
         if (persistedState && isInventoryFresh(persistedState, ttlSeconds)) {
           discoveredModels = persistedState.models
+          if (persistedState.rawModels) {
+            models = Object.values(persistedState.rawModels)
+            discoveredModels = {}
+            reprocessPersistedModels = true
+          }
           usingPersistedModels = true
         } else {
           apiKey = await getProviderApiKey(providerName, p, client, resolvedProvidersLoader, logger)
@@ -274,7 +308,7 @@ export async function enhanceConfig(
             continue
           }
 
-          models = discovery.models.filter(isValidModel)
+          models = discovery.models.filter(isDiscoveredRawModel)
         }
       } else {
         apiKey = await getProviderApiKey(providerName, p, client, resolvedProvidersLoader, logger)
@@ -287,52 +321,28 @@ export async function enhanceConfig(
           })
           continue
         }
-        models = discovery.models.filter(isValidModel)
+        models = discovery.models.filter(isDiscoveredRawModel)
       }
 
-      let modelInfoEnricher: ModelInfoEnricher | undefined
-      if (!usingPersistedModels && modelInfoFormat && !isSupportedModelInfoFormat(modelInfoFormat)) {
-        logger.warn('Unsupported provider model info format', {
-          provider: providerName,
+      let modelInfoEnricher: ModelEnricher | undefined
+      if (!usingPersistedModels) {
+        modelInfoEnricher = await resolveModelInfoEnricher({
+          baseURL,
+          apiKey,
+          providerName,
+          logger: {
+            warn: (message, context) => logger.warn(message, context),
+            info: (message, context) => logger.info(message, context),
+          },
+        }, {
           format: modelInfoFormat,
+          endpoint: providerDiscoveryConfig.modelInfoEndpoint,
+          filterNonChat,
+          timeoutMs,
         })
-      } else if (!usingPersistedModels && modelInfoFormat === ModelInfoFormat.ModelsDev) {
-        const modelInfoEndpoint = providerDiscoveryConfig.modelInfoEndpoint ?? DEFAULT_MODELS_DEV_URL
-        const modelsDevCache = await fetchModelsDevData(modelInfoEndpoint)
-        modelInfoEnricher = createModelInfoEnricher(modelInfoFormat, modelsDevCache, { filterNonChat })
-        logger.info('Loaded models.dev data', {
-          provider: providerName,
-          endpoint: modelInfoEndpoint,
-          count: modelsDevCache.size,
-        })
-      } else if (!usingPersistedModels && (modelInfoFormat === ModelInfoFormat.Bifrost || modelInfoFormat === ModelInfoFormat.LlamaSwap || modelInfoFormat === ModelInfoFormat.OmniRoute || modelInfoFormat === ModelInfoFormat.VLLM)) {
-        modelInfoEnricher = createModelInfoEnricher(modelInfoFormat, null)
-      } else if (!usingPersistedModels && modelInfoFormat === ModelInfoFormat.LMStudio) {
-        const modelInfoEndpoint = providerDiscoveryConfig.modelInfoEndpoint ?? DEFAULT_LMSTUDIO_MODELS_ENDPOINT
-        const modelInfoDiscovery = await discoverModelInfoFromProvider(baseURL, apiKey, modelInfoEndpoint, timeoutMs)
-        if (modelInfoDiscovery.ok) {
-          modelInfoEnricher = createModelInfoEnricher(modelInfoFormat, modelInfoDiscovery.data)
-        } else {
-          logger.warn('Provider model info discovery failed', {
-            provider: providerName,
-            baseURL,
-            endpoint: modelInfoEndpoint,
-            format: modelInfoFormat,
-          })
-        }
-      } else if (!usingPersistedModels && modelInfoFormat === ModelInfoFormat.LiteLLM) {
-        const modelInfoEndpoint = providerDiscoveryConfig.modelInfoEndpoint ?? DEFAULT_LITELLM_MODEL_INFO_ENDPOINT
-        const modelInfoDiscovery = await discoverModelInfoFromProvider(baseURL, apiKey, modelInfoEndpoint, timeoutMs)
-        if (modelInfoDiscovery.ok) {
-          modelInfoEnricher = createModelInfoEnricher(modelInfoFormat, modelInfoDiscovery.data, { filterNonChat })
-        } else {
-          logger.warn('Provider model info discovery failed', {
-            provider: providerName,
-            baseURL,
-            endpoint: modelInfoEndpoint,
-            format: modelInfoFormat,
-          })
-        }
+      }
+      if (reprocessPersistedModels) {
+        modelInfoEnricher = createCachedModelEnricher(persistedState?.models ?? {})
       }
 
       const existingModels = getExplicitModels(config, providerName, p.models || {})
@@ -342,53 +352,25 @@ export async function enhanceConfig(
       const providerModelFieldFilters = getProviderModelFieldFilters(providerDiscoveryConfig, logger.child({ category: 'filtering' }))
       const smartModelNameEnabled = providerDiscoveryConfig.smartModelName === true
 
-      if (!usingPersistedModels) {
-        for (const model of models) {
-          const modelKey = model.id
-          if (!shouldDiscoverModelByFields(model, providerModelFieldFilters)) {
-            continue
-          }
-
-          if (hasProviderModelRegexFilter && !shouldDiscoverModel(model.id, providerModelRegexFilter)) {
-            continue
-          }
-
-          const modelType = categorizeModel(model.id)
-          if (modelType === 'embedding') {
-            continue
-          }
-
-          if (modelInfoEnricher?.shouldSkipModel(model.id)) {
-            continue
-          }
-
-          const owner = extractModelOwner(model.id)
-          const modelConfig: any = {
-            id: model.id,
-            name: smartModelNameEnabled ? modelInfoEnricher?.getModelName?.(model.id, model) ?? formatModelName(model) : model.id,
-          }
-
-          if (owner) {
-            modelConfig.organizationOwner = owner
-          }
-
-          if (modelType === 'chat') {
-            modelConfig.modalities = {
-              input: ["text"],
-              output: ["text"]
-            }
-          }
-
-          modelInfoEnricher?.applyModelInfo(modelConfig, model.id, model)
-          discoveredModels[modelKey] = modelConfig
+      if (!usingPersistedModels || reprocessPersistedModels) {
+        const drafts = discoverModelDrafts(models, {
+          filter: {
+            includeBy: providerModelFieldFilters.includeBy,
+            excludeBy: providerModelFieldFilters.excludeBy,
+            includeRegex: hasProviderModelRegexFilter ? providerModelRegexFilter.includeRegex : [],
+            excludeRegex: hasProviderModelRegexFilter ? providerModelRegexFilter.excludeRegex : [],
+          },
+          smartModelName: smartModelNameEnabled,
+          enricher: modelInfoEnricher,
+          enrichmentContext: { filterNonChat },
+        })
+        for (const draft of drafts) {
+          discoveredModels[draft.id] = mapToV1Model(draft)
+          cachedRawModels[draft.id] = draft.raw
         }
       }
 
-      if (smartModelNameEnabled) {
-        disambiguateModelNames(Object.values(discoveredModels))
-      }
-
-      if (cacheEnabled && !usingPersistedModels && !await currentProviderModelStore.saveModels(cacheIdentity, discoveredModels, persistedState)) {
+      if (cacheEnabled && !usingPersistedModels && !await currentProviderModelStore.saveModels(cacheIdentity, discoveredModels, persistedState, cachedRawModels)) {
         logger.debug('Could not persist discovered provider models', { provider: providerName })
       }
 

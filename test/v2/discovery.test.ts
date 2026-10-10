@@ -12,6 +12,44 @@ const options = new Map([["local", parseProviderDiscoveryOptions({
 })!]])
 
 describe("V2 provider discovery", () => {
+  it("persists raw models in storage and reprocesses them on a fresh cache hit", async () => {
+    const cache = new Map<string, unknown>()
+    const storage = {
+      get: vi.fn(async (key: string) => cache.get(key)),
+      set: vi.fn(async (key: string, value: unknown) => { cache.set(key, value) }),
+    }
+    const cachedOptions = new Map([[
+      "local",
+      parseProviderDiscoveryOptions({ enabled: true, smartModelName: true, cache: { enabled: true }, models: { excludeRegex: ["vision"] } })!,
+    ]])
+    const fetcher = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ data: [{ id: "qwen/qwen3" }, { id: "qwen-vision" }] }),
+    })
+    const provider = {
+      id: "local",
+      package: "@opencode-ai/ai/providers/openai-compatible",
+      settings: { baseURL: "http://127.0.0.1:1234/v1" },
+    }
+
+    const first = await discoverInventory([provider], cachedOptions, fetcher, storage)
+    const second = await discoverInventory([provider], cachedOptions, fetcher, storage)
+
+    expect(first.get("local")?.get("qwen/qwen3")?.name).toBe("Qwen3")
+    expect(first.get("local")?.has("qwen-vision")).toBe(false)
+    expect(second).toEqual(first)
+    expect(fetcher).toHaveBeenCalledTimes(1)
+    expect(storage.set).toHaveBeenCalledTimes(1)
+
+    const changedOptions = new Map([[
+      "local",
+      parseProviderDiscoveryOptions({ enabled: true, smartModelName: true, cache: { enabled: true } })!,
+    ]])
+    const changed = await discoverInventory([provider], changedOptions, fetcher, storage)
+    expect(changed.get("local")?.has("qwen-vision")).toBe(true)
+    expect(fetcher).toHaveBeenCalledTimes(1)
+  })
+
   it("discovers, filters, and maps OpenAI-compatible models", async () => {
     const fetcher = vi.fn().mockResolvedValue({
       ok: true,

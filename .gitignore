@@ -1,5 +1,6 @@
 node_modules/
 dist/
+.worktrees/
 *.log
 .DS_Store
 *.tsbuildinfo
@@ -7,5 +8,5 @@ dist/
 opencode-debug.log
 .cache/
 coverage/
-opencode.json
+opencode.json*
 docs/articles/

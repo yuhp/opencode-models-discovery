@@ -1,96 +1,51 @@
 import { describe, expect, it } from 'vitest'
-import { ModelInfoFormat } from '../src/types/plugin-config'
-import { createModelInfoEnricher } from '../src/utils/model-info'
+import { createLlamaSwapEnricher } from '../src/utils/model-info/llamaswap'
 
-describe('llama-swap model info enricher', () => {
-  it('maps inline context, modalities, display name, and function calling', () => {
-    const enricher = createModelInfoEnricher(ModelInfoFormat.LlamaSwap, null)
-    expect(enricher).toBeDefined()
-
-    const config: any = {
+describe('native llama-swap enricher', () => {
+  it('maps context, modalities, display name, and function calling', () => {
+    const result = createLlamaSwapEnricher(null).enrich({
       id: 'Gemma-4-31B-It',
-      modalities: { input: ['text'], output: ['text'] },
-    }
-    const rawModel: Record<string, unknown> = {
-      id: config.id,
       name: 'Gemma 4 31B IT',
       context_length: 9216,
-      architecture: {
-        input_modalities: ['text', 'image'],
-        output_modalities: ['text'],
-      },
+      architecture: { input_modalities: ['text', 'image'], output_modalities: ['text'] },
       capabilities: { function_calling: true, vision: true },
       supported_parameters: ['tools', 'tool_choice'],
-      meta: {
-        n_ctx: 9216,
-        llamaswap: { type: 'model' },
-      },
-    }
+      meta: { n_ctx: 9216, llamaswap: { type: 'model' } },
+    }, { filterNonChat: true })
 
-    expect(enricher!.getModelName?.(config.id, rawModel)).toBe('Gemma 4 31B IT')
-    enricher!.applyModelInfo(config, config.id, rawModel)
-
-    expect(config).toMatchObject({
-      limit: { context: 9216, output: 0 },
+    expect(result).toEqual({
+      metadataName: 'Gemma 4 31B IT',
+      limit: { context: 9216, output: 9216 },
       modalities: { input: ['text', 'image'], output: ['text'] },
-      tool_call: true,
+      toolCall: true,
     })
   })
 
-  it('falls back to meta.n_ctx and honors optional configured input and output limits', () => {
-    const enricher = createModelInfoEnricher(ModelInfoFormat.LlamaSwap, null)
-    const config: any = { id: 'local-model' }
+  it('falls back to meta.n_ctx and honors optional limits', () => {
+    const result = createLlamaSwapEnricher(null).enrich({
+      id: 'local-model',
+      meta: { n_ctx: 34816, llamaswap: { max_input_tokens: 32768, max_output_tokens: 2048 } },
+    }, { filterNonChat: true })
 
-    enricher!.applyModelInfo(config, config.id, {
-      id: config.id,
-      meta: {
-        n_ctx: 34816,
-        llamaswap: {
-          max_input_tokens: 32768,
-          max_output_tokens: 2048,
-        },
-      },
-    })
-
-    expect(config.limit).toEqual({ context: 34816, input: 32768, output: 2048 })
+    expect(result.limit).toEqual({ context: 34816, input: 32768, output: 2048 })
   })
 
   it('uses supported_parameters as a tool-calling fallback', () => {
-    const enricher = createModelInfoEnricher(ModelInfoFormat.LlamaSwap, null)
-    const config: any = { id: 'tool-model' }
-
-    enricher!.applyModelInfo(config, config.id, {
-      id: config.id,
-      supported_parameters: ['tools'],
-    })
-
-    expect(config.tool_call).toBe(true)
+    const result = createLlamaSwapEnricher(null).enrich({ id: 'tool-model', supported_parameters: ['tools'] }, { filterNonChat: true })
+    expect(result.toolCall).toBe(true)
   })
 
-  it('leaves malformed metadata unset and preserves default modalities', () => {
-    const enricher = createModelInfoEnricher(ModelInfoFormat.LlamaSwap, null)
-    const config: any = {
+  it('leaves malformed metadata unset', () => {
+    const result = createLlamaSwapEnricher(null).enrich({
       id: 'invalid-model',
-      modalities: { input: ['text'], output: ['text'] },
-    }
-
-    enricher!.applyModelInfo(config, config.id, {
-      id: config.id,
       name: '   ',
       context_length: '32768',
-      architecture: {
-        input_modalities: ['unsupported', 1],
-        output_modalities: [],
-      },
+      architecture: { input_modalities: ['unsupported', 1], output_modalities: [] },
       capabilities: 'invalid',
       supported_parameters: 'tools',
       meta: { n_ctx: -1 },
-    })
+    }, { filterNonChat: true })
 
-    expect(enricher!.getModelName?.(config.id, { name: '   ' })).toBeUndefined()
-    expect(config).toEqual({
-      id: 'invalid-model',
-      modalities: { input: ['text'], output: ['text'] },
-    })
+    expect(result).toEqual({})
   })
 })

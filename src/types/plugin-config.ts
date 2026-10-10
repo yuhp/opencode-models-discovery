@@ -33,6 +33,7 @@ export enum ModelInfoFormat {
   Bifrost = 'bifrost',
   LiteLLM = 'litellm',
   ModelsDev = 'models.dev',
+  AIProxy = 'aiproxy',
   VLLM = 'vllm',
   LMStudio = 'lmstudio',
   LlamaSwap = 'llama-swap',

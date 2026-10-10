@@ -14,7 +14,12 @@ export interface DiscoveredV2Model {
     readonly output: number
     readonly input?: number
   }
-  readonly variants?: Array<{ readonly id: string; readonly settings: Record<string, unknown> }>
+  readonly variants?: Array<{
+    readonly id: string
+    readonly settings: Record<string, unknown>
+    readonly body?: Record<string, unknown>
+    readonly headers?: Record<string, string>
+  }>
   readonly compatibility?: Record<string, unknown>
   readonly reasoning?: boolean
   readonly attachment?: boolean
@@ -36,6 +41,7 @@ export interface ProviderController {
   readonly transform: (editor: Parameters<Plugin.Context["provider"]["transform"]>[0] extends (editor: infer Draft) => void ? Draft : never) => void
   readonly replaceInventory: (next: Inventory) => Promise<void>
   readonly status: () => { providers: number; models: number }
+  readonly getInventory: () => Inventory
 }
 
 function copyInventory(inventory: Inventory): Inventory {
@@ -93,6 +99,9 @@ export function createProviderController(
         providers: inventory.size,
         models: [...inventory.values()].reduce((total, models) => total + models.size, 0),
       }
+    },
+    getInventory() {
+      return copyInventory(inventory)
     },
   }
 }

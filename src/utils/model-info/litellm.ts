@@ -1,5 +1,6 @@
 import type { LiteLLMModelInfo, LiteLLMModelInfoEntry } from '../../types'
-import type { ModelInfoEnricher, ModelInfoEnricherOptions } from './types'
+import type { ModelEnricher, ModelEnrichmentResult } from '../../core/model-enrichment'
+import type { NormalizedModelLimit } from '../../core/model-types'
 
 function hasUsableNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value) && value > 0
@@ -131,19 +132,29 @@ function buildCost(info: LiteLLMModelInfo): Record<string, unknown> | undefined 
   }
 }
 
-function applyLiteLLMModelInfo(modelConfig: any, entry: LiteLLMModelInfoEntry | undefined): void {
+function getLiteLLMModelInfo(entry: LiteLLMModelInfoEntry | undefined): ModelEnrichmentResult {
   const info = entry?.model_info
-  if (!info) return
+  if (!info) return {}
+
+  const result: {
+    modalities?: { input: string[]; output: string[] }
+    limit?: NormalizedModelLimit
+    reasoning?: boolean
+    variants?: Record<string, any>
+    cost?: Record<string, unknown>
+    toolCall?: boolean
+    temperature?: boolean
+  } = {}
 
   const modalities = buildModalities(info)
   if (modalities) {
-    modelConfig.modalities = modalities
+    result.modalities = modalities
   }
 
   const contextLimit = hasUsableNumber(info.max_input_tokens) ? info.max_input_tokens : info.max_tokens
   const outputLimit = hasUsableNumber(info.max_output_tokens) ? info.max_output_tokens : info.max_tokens
   if (hasUsableNumber(contextLimit) && hasUsableNumber(outputLimit)) {
-    modelConfig.limit = {
+    result.limit = {
       context: contextLimit,
       input: hasUsableNumber(info.max_input_tokens) ? info.max_input_tokens : undefined,
       output: outputLimit,
@@ -151,48 +162,49 @@ function applyLiteLLMModelInfo(modelConfig: any, entry: LiteLLMModelInfoEntry | 
   }
 
   if (info.supports_reasoning === true) {
-    modelConfig.reasoning = true
+    result.reasoning = true
   }
 
   const variants = createReasoningVariants(info)
   if (variants) {
-    modelConfig.variants = variants
+    result.variants = variants
   }
 
   const cost = buildCost(info)
   if (cost) {
-    modelConfig.cost = cost
+    result.cost = cost
   }
 
   if (typeof info.supports_function_calling === 'boolean') {
-    modelConfig.tool_call = info.supports_function_calling
+    result.toolCall = info.supports_function_calling
   }
 
   // An empty list means "params undeclared", not "no params supported" — leave temperature alone.
   if (Array.isArray(info.supported_openai_params) && info.supported_openai_params.length > 0) {
-    modelConfig.temperature = info.supported_openai_params.includes('temperature')
+    result.temperature = info.supported_openai_params.includes('temperature')
   }
+
+  return result
 }
 
 function getModelInfo(modelInfoById: Map<string, LiteLLMModelInfoEntry>, modelId: string): LiteLLMModelInfoEntry | undefined {
   return modelInfoById.get(modelId) ?? modelInfoById.get(modelId.toLowerCase())
 }
 
-export function createLiteLLMModelInfoEnricher(
+export function createLiteLLMEnricher(
   data: unknown,
-  options?: ModelInfoEnricherOptions
-): ModelInfoEnricher {
+): ModelEnricher {
   const response = data as { data?: LiteLLMModelInfoEntry[] } | undefined
   const modelInfoById = buildModelInfoMap(Array.isArray(response?.data) ? response.data : [])
 
   return {
-    shouldSkipModel(modelId: string): boolean {
-      if (!options?.filterNonChat) return false
-      const mode = getModelInfo(modelInfoById, modelId)?.model_info?.mode
-      return typeof mode === 'string' && mode.length > 0 && mode !== 'chat'
-    },
-    applyModelInfo(modelConfig: any, modelId: string): void {
-      applyLiteLLMModelInfo(modelConfig, getModelInfo(modelInfoById, modelId))
+    enrich(model, context) {
+      const entry = getModelInfo(modelInfoById, model.id)
+      const mode = entry?.model_info?.mode
+      if (context.filterNonChat && typeof mode === 'string' && mode.length > 0 && mode !== 'chat') {
+        return { skip: true }
+      }
+      return getLiteLLMModelInfo(entry)
     },
   }
 }

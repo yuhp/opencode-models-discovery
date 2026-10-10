@@ -2,9 +2,11 @@ import { Plugin } from "@opencode/plugin"
 import { createProviderController, type ConfiguredProvider } from "./catalog.js"
 import { discoverInventory, type CatalogProvider } from "./discovery.js"
 import { parseProviderDiscoveryOptions, type ProviderDiscoveryOptions } from "./provider-config.js"
-import { registerDiscoveryTools } from "./tools.js"
+import { registerDiscoveryTools, type DiscoveryStatusInput, type DiscoveryStatusProviderReport, formatStatusReport } from "./tools.js"
 import { registerRefreshCommand } from "./commands.js"
 import type { RefreshResult } from "./tools.js"
+import { createV2StorageCache } from "./storage-cache.js"
+import { discoveryCacheKey, isDiscoveryCacheFresh } from "../core/discovery-cache.js"
 
 const integrationPrefix = "opencode.models-discovery"
 
@@ -129,7 +131,7 @@ export async function setupV2(ctx: Plugin.Context): Promise<() => void> {
     const integrations = providers.map((provider) => integrationID(provider.id))
     if (integrations.length > 0) await ctx.integration.reload()
     const resolved = await resolveProviderCredentials(ctx, providers)
-    const inventory = await discoverInventory(resolved, discovery)
+    const inventory = await discoverInventory(resolved, discovery, fetch, ctx.storage ? createV2StorageCache(ctx.storage) : undefined)
     await controller.replaceInventory(inventory)
     return controller.status()
   }
@@ -147,8 +149,61 @@ export async function setupV2(ctx: Plugin.Context): Promise<() => void> {
     return refreshInventoryInternal()
   })
 
+  const inspectStatus = async (options?: DiscoveryStatusInput): Promise<string> => {
+    const inventory = controller.getInventory()
+    const reports: DiscoveryStatusProviderReport[] = []
+    const storageBackend = ctx.storage ? createV2StorageCache(ctx.storage) : undefined
+
+    for (const provider of providers) {
+      const providerDiscoveryOptions = discovery.get(provider.id)
+      const modelsMap = inventory.get(provider.id)
+      const models = modelsMap ? [...modelsMap.values()] : []
+      const cacheConfig = providerDiscoveryOptions?.cache
+
+      let storageCacheInfo: DiscoveryStatusProviderReport["storageCache"] | undefined
+      if (storageBackend) {
+        const cacheKey = discoveryCacheKey("opencode.models-discovery.v2", provider.id)
+        try {
+          const raw = await storageBackend.get(cacheKey)
+          const entry = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : undefined
+          if (entry && entry.version === 1) {
+            const fetchedAt = typeof entry.fetchedAt === "string" ? entry.fetchedAt : undefined
+            const ttl = cacheConfig?.ttlSeconds ?? 86400
+            const fresh = fetchedAt ? isDiscoveryCacheFresh(fetchedAt, ttl) : false
+            const rawModels = Array.isArray(entry.rawModels) ? (entry.rawModels as readonly Record<string, unknown>[]) : []
+            const enrichments = entry.enrichments && typeof entry.enrichments === "object" ? (entry.enrichments as Record<string, unknown>) : {}
+
+            storageCacheInfo = {
+              exists: true,
+              fresh,
+              fetchedAt,
+              rawModelCount: rawModels.length,
+              rawModels: options?.rawCache ? rawModels : undefined,
+              enrichments: options?.rawCache ? enrichments : undefined,
+            }
+          } else {
+            storageCacheInfo = { exists: false, fresh: false }
+          }
+        } catch {
+          storageCacheInfo = { exists: false, fresh: false }
+        }
+      }
+
+      reports.push({
+        id: provider.id,
+        name: provider.name,
+        enabled: providerDiscoveryOptions?.enabled ?? false,
+        cacheConfig,
+        storageCache: storageCacheInfo,
+        models,
+      })
+    }
+
+    return formatStatusReport(reports, options)
+  }
+
   await ensureTransformsRegistered()
-  await registerDiscoveryTools(ctx, refreshFromCurrentConfig, controller.status)
+  await registerDiscoveryTools(ctx, refreshFromCurrentConfig, inspectStatus)
   await registerRefreshCommand(ctx, refreshFromCurrentConfig)
   await refreshFromCurrentConfig()
 

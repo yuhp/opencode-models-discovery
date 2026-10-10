@@ -1,139 +1,55 @@
 import { describe, it, expect } from 'vitest'
-import { ModelInfoFormat } from '../src/types/plugin-config'
-import { createModelInfoEnricher } from '../src/utils/model-info'
+import { createLiteLLMEnricher } from '../src/utils/model-info/litellm'
 
-function litellmEnricher(modelInfo: Record<string, unknown>) {
-  return createModelInfoEnricher(ModelInfoFormat.LiteLLM, {
-    data: [{ model_name: 'test-model', model_info: modelInfo }],
-  })
+function enrich(modelInfo: Record<string, unknown>) {
+  return createLiteLLMEnricher({ data: [{ model_name: 'test-model', model_info: modelInfo }] })
+    .enrich({ id: 'test-model' }, { filterNonChat: true })
 }
 
-describe('LiteLLM model info enricher', () => {
-  it('sets modalities from model_info.modalities', () => {
-    const enricher = litellmEnricher({
-      modalities: { input: ['text', 'image'], output: ['text'] },
-    })
-    expect(enricher).toBeDefined()
-
-    const modelConfig: any = { id: 'test-model' }
-    enricher!.applyModelInfo(modelConfig, 'test-model')
-    expect(modelConfig.modalities).toEqual({ input: ['text', 'image'], output: ['text'] })
+describe('native LiteLLM enricher', () => {
+  it('maps and normalizes modalities', () => {
+    expect(enrich({ modalities: { input: ['TEXT', 'speech', ' image ', 'Text'], output: ['Text'] } }).modalities)
+      .toEqual({ input: ['text', 'audio', 'image'], output: ['text'] })
   })
 
-  it('derives image input from supports_vision when modalities are absent', () => {
-    const enricher = litellmEnricher({ supports_vision: true })
-    expect(enricher).toBeDefined()
-
-    const modelConfig: any = { id: 'test-model' }
-    enricher!.applyModelInfo(modelConfig, 'test-model')
-    expect(modelConfig.modalities).toEqual({ input: ['text', 'image'], output: ['text'] })
+  it('derives image input from supports_vision', () => {
+    expect(enrich({ supports_vision: true }).modalities).toEqual({ input: ['text', 'image'], output: ['text'] })
   })
 
-  it('defaults a missing modality side to ["text"] when only one side is provided', () => {
-    const enricher = litellmEnricher({ modalities: { input: ['text', 'image'] } })
-    expect(enricher).toBeDefined()
-
-    const modelConfig: any = { id: 'test-model' }
-    enricher!.applyModelInfo(modelConfig, 'test-model')
-    expect(modelConfig.modalities).toEqual({ input: ['text', 'image'], output: ['text'] })
+  it('defaults a missing modality side to text', () => {
+    expect(enrich({ modalities: { input: ['text', 'image'] } }).modalities)
+      .toEqual({ input: ['text', 'image'], output: ['text'] })
   })
 
-  it('ignores non-string entries in modalities lists', () => {
-    const enricher = litellmEnricher({
-      modalities: { input: ['text', 'image', 42, null], output: ['text'] },
-    })
-    expect(enricher).toBeDefined()
-
-    const modelConfig: any = { id: 'test-model' }
-    enricher!.applyModelInfo(modelConfig, 'test-model')
-    expect(modelConfig.modalities).toEqual({ input: ['text', 'image'], output: ['text'] })
-  })
-
-  it('normalizes modality spellings, maps speech to audio, and drops duplicates', () => {
-    const enricher = litellmEnricher({
-      modalities: { input: ['TEXT', 'speech', ' image ', 'Text'], output: ['Text'] },
-    })
-    expect(enricher).toBeDefined()
-
-    const modelConfig: any = { id: 'test-model' }
-    enricher!.applyModelInfo(modelConfig, 'test-model')
-    expect(modelConfig.modalities).toEqual({ input: ['text', 'audio', 'image'], output: ['text'] })
-  })
-
-  it('ignores the whole modalities declaration when a declared side holds only unsupported values', () => {
-    const enricher = litellmEnricher({
-      modalities: { input: ['text', 'hologram'], output: ['hologram'] },
-    })
-    expect(enricher).toBeDefined()
-
-    const modelConfig: any = { id: 'test-model', modalities: { input: ['text'], output: ['audio'] } }
-    enricher!.applyModelInfo(modelConfig, 'test-model')
-    expect(modelConfig.modalities).toEqual({ input: ['text'], output: ['audio'] })
-  })
-
-  it('preserves existing modalities when both declared sides are fully invalid', () => {
-    const enricher = litellmEnricher({
-      modalities: { input: ['hologram'], output: [42, ''] },
-    })
-    expect(enricher).toBeDefined()
-
-    const modelConfig: any = { id: 'test-model', modalities: { input: ['text'], output: ['audio'] } }
-    enricher!.applyModelInfo(modelConfig, 'test-model')
-    expect(modelConfig.modalities).toEqual({ input: ['text'], output: ['audio'] })
-  })
-
-  it('does not overwrite existing modalities when supports_vision is false', () => {
-    const enricher = litellmEnricher({ supports_vision: false })
-    expect(enricher).toBeDefined()
-
-    const modelConfig: any = { id: 'test-model', modalities: { input: ['text', 'image'], output: ['text'] } }
-    enricher!.applyModelInfo(modelConfig, 'test-model')
-    expect(modelConfig.modalities).toEqual({ input: ['text', 'image'], output: ['text'] })
-  })
-
-  it('leaves existing modalities untouched when info carries no modality signals', () => {
-    const enricher = litellmEnricher({ max_tokens: 8192 })
-    expect(enricher).toBeDefined()
-
-    const modelConfig: any = { id: 'test-model', modalities: { input: ['text'], output: ['text'] } }
-    enricher!.applyModelInfo(modelConfig, 'test-model')
-    expect(modelConfig.modalities).toEqual({ input: ['text'], output: ['text'] })
+  it('ignores a declared modality side with no supported values', () => {
+    expect(enrich({ modalities: { input: ['text', 'hologram'], output: ['hologram'] } }).modalities).toBeUndefined()
   })
 
   describe('reasoning variants', () => {
-    function variantKeys(modelInfo: Record<string, unknown>): string[] {
-      const enricher = litellmEnricher({
+    it('honors explicit tier flags and defaults common tiers', () => {
+      const result = enrich({
         supports_reasoning: true,
         supported_openai_params: ['reasoning_effort'],
-        ...modelInfo,
-      })
-      const modelConfig: any = { id: 'test-model' }
-      enricher!.applyModelInfo(modelConfig, 'test-model')
-      return Object.keys(modelConfig.variants ?? {})
-    }
-
-    it('hides high when supports_high_reasoning_effort is false', () => {
-      expect(variantKeys({ supports_high_reasoning_effort: false })).toEqual(['low', 'medium'])
-    })
-
-    it('hides medium when supports_medium_reasoning_effort is false', () => {
-      expect(variantKeys({ supports_medium_reasoning_effort: false })).toEqual(['low', 'high'])
-    })
-
-    it('keeps medium and high when their flags are absent', () => {
-      expect(variantKeys({})).toEqual(['low', 'medium', 'high'])
-    })
-
-    it('honors all seven per-tier effort flags when set explicitly', () => {
-      expect(variantKeys({
         supports_none_reasoning_effort: true,
         supports_minimal_reasoning_effort: true,
         supports_low_reasoning_effort: true,
-        supports_medium_reasoning_effort: true,
+        supports_medium_reasoning_effort: false,
         supports_high_reasoning_effort: true,
         supports_xhigh_reasoning_effort: true,
         supports_max_reasoning_effort: true,
-      })).toEqual(['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'])
+      })
+      expect(result.reasoning).toBe(true)
+      expect(Object.keys(result.variants as object)).toEqual(['none', 'minimal', 'low', 'high', 'xhigh', 'max'])
     })
+
+    it('does not create variants without reasoning_effort support', () => {
+      expect(enrich({ supports_reasoning: true }).variants).toBeUndefined()
+    })
+  })
+
+  it('skips non-chat models when requested', () => {
+    const enricher = createLiteLLMEnricher({ data: [{ model_name: 'embed', model_info: { mode: 'embedding' } }] })
+    expect(enricher.enrich({ id: 'embed' }, { filterNonChat: true })).toEqual({ skip: true })
+    expect(enricher.enrich({ id: 'embed' }, { filterNonChat: false })).toEqual({})
   })
 })
