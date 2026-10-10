@@ -42,7 +42,7 @@ Install the package from npm, then add a provider to your OpenCode v2 `opencode.
 {
   "$schema": "https://opencode.ai/config.json",
   "plugins": [
-    "opencode-models-discovery@1.8.0"
+    "opencode-models-discovery@1.9.0"
   ],
   "providers": {
     "gateway": {
