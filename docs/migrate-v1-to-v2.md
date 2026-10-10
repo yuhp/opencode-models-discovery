@@ -100,11 +100,22 @@ The V1 package commonly uses:
 8. Check the discovery endpoint. V2 defaults to `/v1/models`; use `"endpoint": "/models"` for providers such as DeepSeek that expose a different path.
 9. Restart OpenCode v2. If using the background service, run `opencode service restart` after changing a local plugin build or its configuration.
 
+V2 caching is optional and independent from the V1 disk cache. If desired, add the following under the V2 provider's `settings.modelsDiscovery`:
+
+```json
+"cache": {
+  "enabled": true,
+  "ttlSeconds": 86400
+}
+```
+
+This stores raw discovery models and enrichment results through the host-provided storage API. V1 cache files are not imported, and V2 cache-associated model overrides are not currently supported.
+
 ## Options that do not migrate directly
 
 The following V1 behavior does not migrate directly to the OpenCode v2 adapter:
 
-- `modelsDiscovery.cache` persisted disk discovery state
+- V1 `modelsDiscovery.cache` persisted disk discovery state and its XDG file format
 - cache-associated per-model overrides
 - `/models-discovery:config` management of cached inventory and overrides
 - V1 `auth.json` and `OPENCODE_AUTH_CONTENT` credential fallback

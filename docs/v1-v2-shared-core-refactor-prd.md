@@ -177,7 +177,7 @@ interface DiscoveredModelDraft {
   organizationOwner?: string
   raw: DiscoveredRawModel
   capabilities?: Record<string, unknown>
-  limit?: Record<string, unknown>
+  limit?: ModelLimitDraft
   cost?: unknown
   variants?: unknown
   compatibility?: Record<string, unknown>
@@ -345,22 +345,21 @@ The heuristic has been removed. Reasoning capability is now strictly determined 
 
 When reasoning capability is explicitly present, the V2 mapper safely applies `compatibility.reasoningField = 'reasoning_content'` and default reasoning effort variants (`low`, `medium`, `high`) without guessing.
 
-## Phase 5: Cache and Projection Parity
+## Phase 5: Cache and Projection Parity (completed)
 
-The next optimization phase should address the gaps above without changing public configuration paths, provider IDs, model IDs, or host lifecycle contracts.
+Phase 5 addressed the identified gaps without changing public configuration paths, provider IDs, model IDs, or host lifecycle contracts:
 
-- Reapply the shared discovery pipeline to cached V1 model data, or add a compatibility extraction layer that allows current naming and filtering rules to be applied safely.
-- Replace the legacy V1 model-validity predicate with shared normalization and validation semantics.
-- Define and test the neutral limit contract for absent, zero, and positive values.
-- Preserve explicit neutral draft values in the V2 mapper instead of silently replacing them with host defaults.
-- Centralize owner extraction and display-label normalization in the shared core.
-- Extract V1 draft-to-model mapping into a dedicated adapter mapper.
-- Share host-independent model-info enricher resolution while keeping credentials, logging, network policy, and lifecycle operations in each adapter.
-- Add full V1/V2 adapter projection parity tests using equivalent raw provider responses.
-- Add cache regression tests covering changed filters, smart naming, enrichment settings, and collision disambiguation.
-- Eliminate heuristic model ID guessing for capabilities across all adapters to ensure deterministic, metadata-backed projection.
+- The shared discovery pipeline is reapplied to cached V1 raw model data.
+- Shared normalization and validation are the V1 model-validity contract.
+- The neutral limit contract covers absent, zero, and positive values.
+- The V2 mapper preserves explicit neutral draft values and applies shared defaults only during normalization.
+- Owner extraction and display-label normalization are centralized in the shared core.
+- V1 and V2 draft-to-model mapping is implemented in dedicated core mappers.
+- Model-info enricher resolution is shared while credentials, logging, network policy, and lifecycle remain adapter-owned.
+- V1/V2 projection parity and cache regression tests are in place.
+- Model ID reasoning heuristics have been removed in favor of authoritative metadata.
 
-Phase 5 must continue to preserve the existing cache schema unless a separate migration decision is made. Cache redesign, V2 persistence, and host-specific lifecycle changes remain separate concerns.
+Phase 5 preserves the existing V1 cache schema. V2 uses a separate host-managed cache; V1/V2 cache migration and V2 cache-associated model overrides remain outside this refactor.
 
 ## Testing Strategy
 
@@ -409,7 +408,6 @@ npm run lint
 npm run typecheck
 npm run test:run
 npm run compile
-npm run test:e2e
 ```
 
 ## Acceptance Criteria
@@ -448,4 +446,4 @@ The refactor should be delivered in independently reviewable phases. Do not comb
 - Should the neutral draft include all current V1/V2 metadata fields, or should enrichment remain adapter-specific until Phase 2?
 - Should owner labels preserve provider casing from the raw model ID, or use a shared display normalization rule?
 - Should the shared pipeline support provider-specific model classification hooks, or retain the current generic classification behavior?
-- When V2 gains persistence, should it reuse the V1 cache schema or introduce a separate inventory store?
+- Should V1 and V2 caches remain separate permanently, or should a future offline-startup requirement justify an explicit migration/import mechanism?

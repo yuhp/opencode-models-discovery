@@ -1,4 +1,11 @@
-# OpenCode v2 Provider Spike
+# OpenCode v2 Provider Spike (historical)
+
+This document records the original OpenCode v2 API investigation. The early
+provider probe described below has been retired after the production V2
+implementation moved to `src/v2/` and the shared core moved to `src/core/`.
+Use the current V2 unit tests and package-loadability tests for routine
+validation. The historical runtime details and pinned versions below are
+preserved as evidence from the original spike.
 
 Verified with the pinned `@opencode/plugin@2.0.14` and `@opencode/cli@2.0.14`
 packages. The v2 implementation now lives under `src/v2/` and is packaged
@@ -106,19 +113,13 @@ revealed the exact internal resolver mechanics in `ConfigPluginSource.scan` and 
 - The public `ctx.provider.list()` method returns `Provider.Info[]`, not
   `ProviderRecord[]`.
 
-## No-Seed Provider Design
+## Historical No-Seed Provider Design
 
-Run the isolated harness from the repository root:
-
-```sh
-npm --prefix test-v2/provider-probe test
-```
-
-The runner creates temporary project, HOME, XDG config/data/cache/state
-directories, removes inherited `OPENCODE*` environment variables without
-printing their values, starts a mock server and the local CLI, authenticates
-location-scoped API requests, enforces a bounded timeout, and cleans up both
-child processes. It does not use a `--config` flag or `OPENCODE_DB=:memory:`.
+The original no-seed provider harness created temporary project and XDG
+directories, started a mock server and local CLI, authenticated
+location-scoped API requests, and verified provider/model visibility through
+the runtime API. It was retired after the production implementation moved to
+the current `ctx.provider.list()` and `providers.<id>.settings` contracts.
 
 The production v2 plugin reads top-level providers from `ctx.provider.list()`.
 Each provider's `settings.modelsDiscovery` controls discovery, while the
@@ -127,7 +128,7 @@ same top-level provider declaration. The plugin does not read
 `ctx.options.providers` or create a second provider declaration from plugin
 options.
 
-The probe's passing result records:
+The retired probe's passing result recorded:
 
 ```json
 {
@@ -143,13 +144,13 @@ The probe's passing result records:
 }
 ```
 
-This proves the 2.0.14 plugin loader, provider transform lifecycle, actual
+This historical result proved the 2.0.14 plugin loader, provider transform lifecycle, actual
 `/v1/models` HTTP discovery, and runtime model visibility through `/api/model`
 after the provider source is registered by the plugin.
 
 ## v2 Config Boundary
 
-The production probe uses the canonical V2 top-level provider schema:
+The historical probe used the canonical V2 top-level provider schema:
 
 ```json
 {
@@ -166,22 +167,22 @@ The production probe uses the canonical V2 top-level provider schema:
 }
 ```
 
-The standalone probe confirms that the public provider transform can add a
+The standalone probe confirmed that the public provider transform could add a
 provider with `models: []`, fetch `/v1/models`, and expose the resulting model.
 The v2 adapter does not maintain a duplicate provider definition in plugin
 options.
 
 ## Current v2 Scope
 
-The probe does not alter the OpenCode v1 `src/` adapter. Run the current v2
-checks from the repository root:
+The probe did not alter the OpenCode v1 `src/` adapter. Current routine checks
+run from the repository root:
 
 ```sh
 npm run typecheck
 npm run test:run
 ```
 
-## Dual-Host Runtime Verification
+## Historical Dual-Host Runtime Verification
 
 A real packed tarball (`opencode-models-discovery-1.5.5.tgz`) containing `dist/index.js` and `dist/server.js` was verified against clean, isolated test projects on both OpenCode generations:
 

@@ -135,17 +135,22 @@ Keep V2 code isolated initially. Do not refactor stable V1 modules merely to cre
 
 ```text
 src/                         V1 implementation, preserved during V2 work
+src/core/
+  model-mapper.ts            discovered model to V2 model information mapper
 src/v2/
   index.ts                   V2 Plugin.define entrypoint
   catalog.ts                 setup, inventory state, transform and reload orchestration
   provider-config.ts         V2 provider/options discovery configuration parsing
   discovery.ts               V2 provider descriptor to host-independent discovery input
-  model-mapper.ts            discovered model to V2 catalog draft mapper
   tools.ts                   status and refresh tools
+  storage-cache.ts           host-managed V2 cache adapter
 test/v2/
   catalog.test.ts
   model-mapper.test.ts
-  integration/
+  plugin.test.ts
+  discovery.test.ts
+  enrichment.test.ts
+  tools.test.ts
 ```
 
 Initially reuse the following V1 code where it is host independent:
@@ -166,7 +171,7 @@ The v2 adapter owns an in-memory inventory keyed by provider and model ID. The O
 type Inventory = Map<string, Map<string, DiscoveredV2Model>>
 ```
 
-The refresh operation constructs a replacement inventory before assigning it. Network and parsing failures are non-fatal; the provider transform retains already registered models and explicitly configured models remain available. When the background service restarts, the in-memory inventory is rebuilt through normal discovery.
+The refresh operation constructs a replacement inventory before assigning it. Network and parsing failures are non-fatal; the provider transform retains already registered models and explicitly configured models remain available. When the background service restarts, the inventory is rebuilt from a fresh host-managed cache when V2 caching is enabled and available; otherwise normal discovery runs.
 
 ### Catalog Composition And Precedence
 
@@ -320,17 +325,24 @@ Release guidance:
 - Release OpenCode v2 support as beta within the combined `opencode-models-discovery` package.
 - Keep the OpenCode v1 adapter and configuration contract working.
 - Pin or narrowly constrain the validated `@opencode/plugin` version.
-- Test the packed and installed package, not only a workspace-local import.
+- Verify the compiled package entrypoints with the package-loadability tests; host-runtime checks are maintained separately from the regular unit test command.
 
-### Deferred: Persistent Discovery State
+### V2 Cache And Deferred V1 Compatibility
 
-The following V1 capabilities are intentionally deferred for v2 beta:
+V2 provider-scoped caching is implemented separately from the V1 disk-cache format:
 
-- provider-scoped disk cache and TTL handling;
+- `modelsDiscovery.cache.enabled` opts a provider into host-managed storage;
+- cached entries contain raw discovery models and enrichment results;
+- fresh entries are reprocessed through the shared discovery pipeline;
+- `models_discovery_status` can expose cached data with `rawCache: true`.
+
+The following V1-specific capabilities remain unsupported in V2:
+
+- importing or sharing the V1 XDG disk-cache format;
 - cache-associated per-model overrides;
 - `/models-discovery:config` management of cached inventory and overrides.
 
-These features are less urgent in v2 because the background service reuses its in-memory inventory across sessions. If persistence is added later, it should be designed for v2 service restart recovery and offline startup rather than copied automatically from the V1 implementation.
+V1/V2 cache migration is not planned unless a future offline-startup or cross-host migration requirement justifies a separate design.
 
 ## Test Plan
 
@@ -360,7 +372,7 @@ Run OpenCode v2 against a local mock OpenAI-compatible HTTP server:
 5. Change the mock inventory, invoke the refresh tool, and confirm the catalog updates without restart.
 6. Assert configured API key/env auth is forwarded to discovery but never emitted by logs or status tools.
 7. Verify an unavailable provider does not prevent models from another provider appearing.
-8. Run the same tests using the packed/installed plugin artifact.
+8. Verify compiled package entrypoints with the package-loadability tests. A dedicated packed-package host E2E is not part of the regular validation suite because the former combined test depended on machine-specific OpenCode paths and live provider endpoints.
 
 Manual checks:
 
@@ -373,14 +385,14 @@ Manual checks:
 
 | Item | Risk | Required resolution |
 | --- | --- | --- |
-| Catalog model creation | Provider editor behavior can change with the v2 API. | Keep the runtime probe and packed-package E2E test in CI. |
+| Catalog model creation | Provider editor behavior can change with the v2 API. | Keep the V2 mock-context catalog tests and repeat a host-runtime probe manually when upgrading the pinned host packages. |
 | Catalog draft/provider shapes | Beta types and draft shape can change. | Compile against a pinned plugin version and record it. |
 | Explicit model precedence | Transform ordering may affect whether user details win. | Verify with catalog integration tests; adjust composition approach based on observed public contract. |
 | Discovery config placement | `modelsDiscovery` is stored in top-level provider settings and read through the V2 provider registry. | Keep provider identity, connection settings, credentials, explicit models, and discovery controls in one provider declaration. |
 | `/connect` credentials | V2 storage is service-owned and v1 file fallbacks are invalid. | Use only credentials exposed through the public v2 integration API. |
 | Dynamic commands/toasts | Public V2 APIs do not expose V1 equivalents. | Use tools and logs; distribute optional command templates separately only if needed. |
 | OpenCode v2 beta churn | The v2 API may change before stable release. | Isolate source, pin versions, and run integration tests on upgrade. |
-| Package compatibility | V1 and V2 plugin APIs are different, although recent V1 hosts support a combined default export. | Keep separate adapters, require V1 >= 1.18.29 for the combined form, and run both runtime probes before publishing. |
+| Package compatibility | V1 and V2 plugin APIs are different, although recent V1 hosts support a combined default export. | Keep separate adapters, require V1 >= 1.18.29 for the combined form, verify package entrypoints, and perform host-runtime checks when upgrading pinned host packages. |
 
 ## Definition Of Done For Initial V2 Beta
 
