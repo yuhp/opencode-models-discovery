@@ -26,6 +26,10 @@ OpenCode v2 uses `plugins` and `providers`. The plugin can be declared directly 
           "enabled": true,
           "modelInfoFormat": "models.dev",
           "smartModelName": true,
+          "cache": {
+            "enabled": true,
+            "ttlSeconds": 86400
+          },
           "models": {
             "includeBy": [{ "field": "id", "match": "^llama" }]
           }
@@ -38,7 +42,7 @@ OpenCode v2 uses `plugins` and `providers`. The plugin can be declared directly 
 
 The V2 options are the same discovery options described below, except that their path starts with `providers.<id>.settings.modelsDiscovery`. V2 defaults the discovery endpoint to `/v1/models`, uses a default request timeout of 5000 ms, and requires `enabled: true` for the provider to participate. When discovery is explicitly enabled, the adapter attempts the configured model-list endpoint regardless of the provider package; the endpoint must return an OpenAI-compatible model-list response. For a provider such as DeepSeek that exposes `/models`, set `"endpoint": "/models"`. Local plugin development should use a directory URL such as `file:///absolute/path/to/opencode-models-discovery/dist`; OpenCode v2 does not accept a direct path to a JavaScript entry file.
 
-The V2 adapter does not use the V1 persisted disk cache or V1 auth-store fallback. When enabled, V2 stores its discovery cache through the host-provided `ctx.storage` API. It provides the `/models-discovery-refresh` command and the `models_discovery_refresh` and `models_discovery_status` agent tools. After rebuilding a local plugin, restart the OpenCode v2 background service with `opencode service restart`.
+The V2 adapter does not use the V1 persisted disk-cache format or V1 auth-store fallback. V2 caching is disabled by default. When `modelsDiscovery.cache.enabled` is `true`, V2 stores the raw model-list response and enrichment results through the host-provided `ctx.storage` API. `ttlSeconds` defaults to `86400` seconds (24 hours). The `models_discovery_status` tool accepts `rawCache: true` to include cached raw models and enrichments in its report. The V2 adapter also provides the `/models-discovery-refresh` command and the `models_discovery_refresh` and `models_discovery_status` agent tools. After rebuilding a local plugin, restart the OpenCode v2 background service with `opencode service restart`.
 
 ## OpenCode v1 configuration
 

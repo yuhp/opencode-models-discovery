@@ -102,7 +102,7 @@ The V1 package commonly uses:
 
 ## Options that do not migrate directly
 
-The following V1 behavior is not currently available in the OpenCode v2 adapter:
+The following V1 behavior does not migrate directly to the OpenCode v2 adapter:
 
 - `modelsDiscovery.cache` persisted disk discovery state
 - cache-associated per-model overrides
@@ -111,7 +111,7 @@ The following V1 behavior is not currently available in the OpenCode v2 adapter:
 - `/models-discovery:migrate`
 - V1 startup config-hook behavior
 
-OpenCode v2 uses its provider registry and keeps discovered models in the background service's in-memory inventory. The same service can reuse the inventory across sessions. When the service restarts, the plugin runs normal discovery again. Disk persistence is therefore not required for the initial v2 beta; it may be added later for offline startup or restart recovery. The v2 agent tools `models_discovery_refresh` and `models_discovery_status` are available to the agent, and `/models-discovery-refresh` is available as a direct TUI command.
+OpenCode v2 uses its provider registry and keeps discovered models in the background service's inventory. When enabled, V2 also persists raw discovery responses and enrichment results through the host-provided storage API, separately from the V1 disk-cache format. V2 caching is disabled by default and can be inspected with `models_discovery_status` and `rawCache: true`. The v2 agent tools `models_discovery_refresh` and `models_discovery_status` are available to the agent, and `/models-discovery-refresh` is available as a direct TUI command.
 
 ## Credentials
 

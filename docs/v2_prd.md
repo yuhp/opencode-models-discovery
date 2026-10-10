@@ -35,7 +35,7 @@ OpenCode v2 can translate some existing v1-shaped `opencode.json(c)` files in me
 - Automatically writing command templates or configuration into a project or global OpenCode directory.
 - Publishing OpenCode v2 support as stable before beta validation is complete.
 
-The v2 beta intentionally does not port the OpenCode v1 persisted discovery state as a priority feature. The v2 background service keeps the discovered inventory in memory and reuses it across sessions handled by that service. A service restart causes discovery to run again. Disk persistence and cache-associated per-model overrides may be considered later for offline startup or restart recovery, but they are outside the initial beta scope.
+The v2 beta does not port the OpenCode v1 persisted discovery state or its per-model override format. V2 instead supports an opt-in provider-scoped cache backed by the host-provided storage API. It stores raw discovery responses and enrichment results, reuses fresh entries across discovery runs, and exposes them through `models_discovery_status` when `rawCache: true` is requested. A service restart can reuse this host-managed cache when it is enabled; cache-associated per-model overrides remain outside the initial V2 scope.
 
 ## Relevant V2 Contract
 
@@ -392,5 +392,5 @@ Manual checks:
 - Refresh, filters, provider isolation, reasoning variants, and the selected enrichment formats have automated coverage.
 - The package is installable and verified outside the repository worktree.
 - Documentation states the exact V2 config shape, version compatibility, known auth limits, and unsupported V1-only features.
-- Documentation explains that persistent discovery state and cache-associated per-model overrides are deferred because v2 reuses the background service inventory.
+- Documentation explains that V2 uses a separate host-managed cache, while cache-associated per-model overrides remain deferred.
 - V1 `dev`/`main` behavior and release path remain unchanged until an explicit major-version release decision.
