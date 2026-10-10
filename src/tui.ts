@@ -37,30 +37,53 @@ export default defineTuiPlugin({
       priority: 10,
       commands: [
         {
-          id: "models-discovery.status",
-          title: "Models Discovery: Status",
-          description: "Inspect resolved providers, models, limits, capabilities, and cache state",
+          id: "models-discovery.console",
+          title: "Models Discovery: Console",
+          description: "Browse models and manage discovery caches",
           slash: {
-            name: "models-discovery-status",
+            name: "models-discovery-console",
             arguments: true,
           },
           palette: true,
-          run: async (input?: string) => {
-            const raw = typeof input === "string" ? input.trim() : ""
-            const providerID = raw
-              .replace(/^--provider(?:-id)?[= ]/i, "")
-              .replace(/^provider(?:-id)?[= ]/i, "")
-              .trim()
+            run: async (input?: string) => {
+              const raw = typeof input === "string" ? input.trim() : ""
+            const providerMatch = raw.match(/(?:^|\s)(?:--provider(?:-id)?|provider(?:-id)?)(?:=|\s+)([^\s]+)/i)
+            const providerID = providerMatch?.[1]
+            const browseMode = /^browse(?:\s|$)/i.test(raw)
+            const statusMode = /^status(?:\s|$)/i.test(raw)
             const location = getLocation()
 
             try {
+              if (!providerID && !statusMode && !browseMode) {
+                const action = await context.ui.dialog.select({
+                  title: "Models Discovery Console",
+                  placeholder: "Choose an operation",
+                  options: [
+                    {
+                      title: "Browse Models",
+                      value: "browse",
+                      description: "Browse providers, models, and resolved model details",
+                    },
+                    {
+                      title: "Cache Operations",
+                      value: "cache",
+                      description: "Inspect, refresh, or clear discovery caches",
+                    },
+                  ],
+                })
+                if (action === undefined) return
+                if (action === "cache") {
+                  await context.keymap.dispatch("models-discovery.cache", "")
+                  return
+                }
+              }
               const result = (await rpc.status(
                 { details: true, ...(providerID ? { providerID } : {}) },
                 { location },
               )) as RpcStatusOutput
               if (result.providers.length === 0) {
                 await context.ui.dialog.alert({
-                  title: "Models Discovery Status",
+                  title: "Models Discovery Console",
                   message: result.report,
                 })
                 return
@@ -143,13 +166,8 @@ export default defineTuiPlugin({
         },
         {
           id: "models-discovery.cache",
-          title: "Models Discovery: Cache Operations",
+          title: "Models Discovery: Cache Operations (internal)",
           description: "Inspect or clear discovery cache entries",
-          slash: {
-            name: "models-discovery-cache",
-            arguments: true,
-          },
-          palette: true,
           run: async (input?: string) => {
             const raw = typeof input === "string" ? input.trim().toLowerCase() : ""
             const location = getLocation()

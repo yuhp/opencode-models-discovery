@@ -43,6 +43,7 @@ describe("V2 TUI Plugin", () => {
       keymapLayerFactory = factory
     })
 
+    const dispatch = vi.fn()
     const ctx = {
       location: { directory: "/test/dir" },
       data: { location: { default: () => ({ directory: "/test/dir" }) } },
@@ -56,7 +57,7 @@ describe("V2 TUI Plugin", () => {
           prompt: dialogPrompt,
         },
       },
-      keymap: { layer: keymapLayer },
+      keymap: { layer: keymapLayer, dispatch },
     }
 
     return {
@@ -68,11 +69,12 @@ describe("V2 TUI Plugin", () => {
       dialogSelect,
       dialogPrompt,
       status,
+      dispatch,
       getKeymapLayer: () => keymapLayerFactory?.(),
     }
   }
 
-  it("registers global keymap layer with status, refresh, and cache commands", async () => {
+  it("registers global keymap layer with console and refresh commands", async () => {
     const { ctx, getKeymapLayer } = createMockTuiContext()
     await tuiPlugin.setup(ctx as never)
 
@@ -81,23 +83,30 @@ describe("V2 TUI Plugin", () => {
     expect(layer?.mode).toBe("global")
     expect(layer?.commands).toHaveLength(3)
 
-    const [statusCmd, refreshCmd, cacheCmd] = layer?.commands as Array<{
+    const [consoleCmd, refreshCmd, cacheCmd] = layer?.commands as Array<{
       id: string
       title: string
       slash?: { name: string; aliases?: string[]; arguments?: boolean }
       palette?: boolean
     }>
 
-    expect(statusCmd).toMatchObject({
-      id: "models-discovery.status",
-      title: "Models Discovery: Status",
+    expect(consoleCmd).toMatchObject({
+      id: "models-discovery.console",
+      title: "Models Discovery: Console",
       slash: {
-        name: "models-discovery-status",
+        name: "models-discovery-console",
         arguments: true,
       },
       palette: true,
     })
-    expect(statusCmd.slash?.aliases).toBeUndefined()
+    expect(consoleCmd.slash?.aliases).toBeUndefined()
+
+    expect(cacheCmd).toMatchObject({
+      id: "models-discovery.cache",
+      title: "Models Discovery: Cache Operations (internal)",
+    })
+    expect(cacheCmd.slash).toBeUndefined()
+    expect(cacheCmd.palette).toBeUndefined()
 
     expect(refreshCmd).toMatchObject({
       id: "models-discovery.refresh",
@@ -110,28 +119,18 @@ describe("V2 TUI Plugin", () => {
     })
     expect(refreshCmd.slash?.aliases).toBeUndefined()
 
-    expect(cacheCmd).toMatchObject({
-      id: "models-discovery.cache",
-      title: "Models Discovery: Cache Operations",
-      slash: {
-        name: "models-discovery-cache",
-        arguments: true,
-      },
-      palette: true,
-    })
-    expect(cacheCmd.slash?.aliases).toBeUndefined()
   })
 
   it("browses providers, models and details then returns to each list", async () => {
     const { ctx, status, dialogSelect, dialogAlert, getKeymapLayer } = createMockTuiContext()
-    dialogSelect.mockResolvedValueOnce("hyy").mockResolvedValueOnce(0).mockResolvedValueOnce(-1)
+    dialogSelect.mockResolvedValueOnce("browse").mockResolvedValueOnce("hyy").mockResolvedValueOnce(0).mockResolvedValueOnce(-1)
     await tuiPlugin.setup(ctx as never)
 
     const commands = getKeymapLayer()?.commands as Array<{
       id: string
       run: (input?: string) => Promise<void>
     }>
-    const statusCmd = commands.find((command) => command.id === "models-discovery.status")
+    const statusCmd = commands.find((command) => command.id === "models-discovery.console")
 
     await statusCmd?.run()
 
@@ -143,14 +142,14 @@ describe("V2 TUI Plugin", () => {
       title: "hyy / model-a",
       message: "Context: 1000\nTools: yes",
     })
-    expect(dialogSelect).toHaveBeenNthCalledWith(1, expect.objectContaining({
+    expect(dialogSelect).toHaveBeenNthCalledWith(2, expect.objectContaining({
       options: [{ title: "hyy | HYY | 16 models", value: "hyy" }],
     }))
-    expect(dialogSelect).toHaveBeenNthCalledWith(2, expect.objectContaining({
+    expect(dialogSelect).toHaveBeenNthCalledWith(3, expect.objectContaining({
       options: [{ title: "← Back to providers", value: -1 }, { title: "model-a | Model A", value: 0 }],
     }))
-    expect(dialogSelect.mock.calls[2][0]).toEqual(dialogSelect.mock.calls[1][0])
-    expect(dialogSelect.mock.calls[3][0]).toEqual(dialogSelect.mock.calls[0][0])
+    expect(dialogSelect.mock.calls[3][0]).toEqual(dialogSelect.mock.calls[2][0])
+    expect(dialogSelect.mock.calls[4][0]).toEqual(dialogSelect.mock.calls[1][0])
   })
 
   it("passes an optional provider filter to the status RPC", async () => {
@@ -161,9 +160,9 @@ describe("V2 TUI Plugin", () => {
       id: string
       run: (input?: string) => Promise<void>
     }>
-    const statusCmd = commands.find((command) => command.id === "models-discovery.status")
+    const statusCmd = commands.find((command) => command.id === "models-discovery.console")
 
-    await statusCmd?.run("--provider hyy")
+    await statusCmd?.run("status --provider hyy")
 
     expect(status).toHaveBeenCalledWith(
       { details: true, providerID: "hyy" },
@@ -173,13 +172,13 @@ describe("V2 TUI Plugin", () => {
     expect(dialogAlert).not.toHaveBeenCalled()
   })
 
-  it.each([{ providers: [] }, { providers: [{ id: "hyy", name: "HYY", models: [] }] }])("handles empty status lists", async ({ providers }) => {
+  it.each([{ providers: [] }, { providers: [{ id: "hyy", name: "HYY", modelCount: 0, models: [] }] }])("handles empty status lists", async ({ providers }) => {
     const { ctx, status, dialogSelect, dialogAlert, getKeymapLayer } = createMockTuiContext()
     status.mockResolvedValueOnce({ report: "No models found.", providers })
     if (providers.length) dialogSelect.mockResolvedValueOnce("hyy")
     await tuiPlugin.setup(ctx as never)
     const commands = getKeymapLayer()?.commands as Array<{ id: string; run: () => Promise<void> }>
-    await commands.find((command) => command.id === "models-discovery.status")!.run()
+    await commands.find((command) => command.id === "models-discovery.console")!.run("browse")
     expect(dialogAlert).toHaveBeenCalledTimes(1)
     expect(dialogAlert.mock.calls[0][0].message).toContain(providers.length ? "No discovered models" : "No models found")
   })
@@ -193,9 +192,9 @@ describe("V2 TUI Plugin", () => {
       id: string
       run: (input?: string) => Promise<void>
     }>
-    const statusCmd = commands.find((command) => command.id === "models-discovery.status")
+    const statusCmd = commands.find((command) => command.id === "models-discovery.console")
 
-    await statusCmd?.run()
+    await statusCmd?.run("browse")
 
     expect(toastShow).toHaveBeenCalledWith({
       title: "Models Discovery",

@@ -8,7 +8,7 @@ Approved Proposal & In Progress. Phase 1 & Phase 2 completed:
 - Phase 3: Interactive TUI cache inspection, force refresh, provider cache clearing, and cache-isolation safeguards.
 
 Phase 4 is split into two parts:
-- Phase 4A: Promote `models_discovery_status` from an Agent Tool to the native TUI slash command `/models-discovery-status`, with interactive inspection of resolved provider and model metadata.
+- Phase 4A: Promote `models_discovery_status` from an Agent Tool into the native TUI `/models-discovery-console`, with interactive inspection of resolved provider and model metadata alongside cache operations.
 - Phase 4B: Per-model discovery overrides and customization are deferred until a demonstrated need for local metadata correction or model-level disabling exists.
 
 The phase groups user-facing model discovery operations and credential resolution into one
@@ -72,8 +72,7 @@ already provides:
 │  ┌──────────────────────────────────────────────────────────────────┐  │
 │  │ Commands & Dialogs (via context.keymap & context.ui.dialog)      │  │
 │  │  - /models-discovery-refresh                                     │  │
-│  │  - /models-discovery-cache (Inspect / Clear / Force)             │  │
-│  │  - /models-discovery-status (Inspect Providers / Models)         │  │
+│  │  - /models-discovery-console (Browse / Cache Operations)         │  │
 │  │ Feedback                                                         │  │
 │  │  - context.ui.toast.show()                                       │  │
 │  └─────────────────────────────────┬────────────────────────────────┘  │
@@ -251,30 +250,27 @@ All TUI commands register through `context.keymap.layer(...)` with both `slash` 
    - Failure: `Model discovery failed: authentication failed for 1 provider.` (`variant: "error"`)
 4. **No message is injected into the session**; the agent loop is unaffected.
 
-### 2. Cache Operations (`/models-discovery-cache`)
+### 2. Discovery Console (`/models-discovery-console`)
 
-Uses `context.ui.dialog.select` and `context.ui.dialog.confirm` to build a clean terminal menu:
+The status browser and cache operations are combined into one native TUI console. The standalone refresh command remains available as a quick action through `/models-discovery-refresh`.
 
-1. Main Action Selection:
-   - `[📊 Inspect Cache Status]`: Shows provider cache states (fresh/expired/TTL/model count) in an alert or dialog.
-   - `[🔄 Force Refresh (Bypass Cache)]`: Calls `client.refresh({ force: true })` and shows toast.
-   - `[🗑️ Clear Provider Cache]`: Prompts user with a provider list (`dialog.select`), asks for confirmation (`dialog.confirm`), calls `client.cacheClear({ providerID })`, and shows toast.
-   - `[💥 Clear All Discovery Caches]`: Confirms and clears all provider discovery caches.
-
-### 3. Discovery Status (`/models-discovery-status`)
-
-The existing `models_discovery_status` Agent Tool becomes available through a native TUI command. The command reuses the server-side status controller and displays the resolved, post-processing model inventory without exposing credentials.
-
-1. User enters `/models-discovery-status` in the prompt or selects it from the palette.
-2. TUI calls the status RPC with the active location.
-3. TUI presents a three-level browsing flow:
+1. User enters `/models-discovery-console` in the prompt or selects it from the palette.
+2. The console presents two top-level actions:
+   - `[🔎 Browse Models]`: browse the resolved discovery inventory;
+   - `[🗄️ Cache Operations]`: inspect, refresh, or clear discovery caches.
+3. Browse Models presents a three-level browsing flow:
    - **Provider list**: shows Provider ID, display name, and the total number of resolved models;
    - **Model list**: after selecting a Provider, shows each model ID and display name;
    - **Model details**: after selecting a model, shows its resolved identity, API model ID, context/output/input limits, modalities, tools, reasoning, attachments, and variants.
 4. The model list provides a return action to go back to the Provider list; closing a dialog exits the flow.
-5. The command accepts an optional Provider filter, for example `/models-discovery-status --provider hyy`.
-6. The presentation uses structured sections and one property per line rather than embedding the Markdown status report in the detail view.
-7. No model configuration is changed by this command.
+5. The console accepts an optional Provider filter, for example `/models-discovery-console status --provider hyy`.
+6. Cache Operations uses `context.ui.dialog.select` and `context.ui.dialog.confirm` to provide:
+   - `[📊 Inspect Cache Status]`;
+   - `[🔄 Force Refresh (Bypass Cache)]`;
+   - `[🗑️ Clear Provider Cache]`;
+   - `[💥 Clear All Discovery Caches]`.
+7. The presentation uses structured sections and one property per line rather than embedding the Markdown status report in the detail view.
+8. No model configuration is changed by the browsing or cache inspection flows.
 
 ### 4. Model Override Management (`/models-discovery-override`) — Deferred
 
@@ -365,12 +361,12 @@ If a model is temporarily omitted from upstream discovery, its override is marke
 
 ### Phase 3: Interactive TUI Cache Operations
 - Implement server-side `cacheInspect` and `cacheClear` RPC handlers.
-- Implement `/models-discovery-cache` using `dialog.select` and `dialog.confirm`.
+- Implement `/models-discovery-console` with model browsing and cache operations using `dialog.select` and `dialog.confirm`.
 - Add tests verifying cache inspection status reporting and cache clear isolation.
 
 ### Phase 4A: Native TUI Discovery Status
 - Define or expose a status RPC contract based on the existing `models_discovery_status` Agent Tool output.
-- Implement `/models-discovery-status` using the active TUI location and native dialog/alert presentation.
+- Implement `/models-discovery-console` using the active TUI location and native dialog/alert presentation.
 - Display resolved provider and model metadata, cache state, capabilities, limits, and safe failure details.
 - Support readable filtering or selection for provider/model details where needed.
 - Add tests covering status serialization, metadata presentation, filtering, and secret redaction.
@@ -394,7 +390,7 @@ Phase 4B is intentionally deferred. It should be scheduled only after real usage
 - RPC method handler input validation and output serialization.
 - `V2CredentialResolver` handles `key`, `oauth`, `env`, missing connection, and resolution failure.
 - API keys are absent from status reports, cache records, and error structures.
-- Status RPC and `/models-discovery-status` presentation expose resolved provider/model metadata without secrets.
+- Status RPC and `/models-discovery-console` presentation expose resolved provider/model metadata without secrets.
 - Cache clear accurately deletes cache entries without impacting override entries.
 
 The following tests belong to deferred Phase 4B and are not required for Phase 4A:
@@ -408,13 +404,12 @@ Using mock host context:
 2. Verify TUI command dispatch invokes the Server RPC handler.
 3. Verify toast is displayed with correct message format.
 4. Verify dialog selection transitions through multi-step menus cleanly.
-5. Verify `/models-discovery-status` renders the resolved inventory for the active location.
+5. Verify `/models-discovery-console` renders the resolved inventory for the active location.
 
 ## Definition of Done
 
 - `/models-discovery-refresh` runs via native TUI Keymap command and reports via Toast without synthetic session messages.
-- `/models-discovery-cache` provides interactive cache inspection and clearing.
-- `/models-discovery-status` provides native TUI inspection of resolved provider and model metadata.
+- `/models-discovery-console` provides native TUI model browsing, cache inspection, and cache clearing.
 - OpenCode v2 Integration credentials can be consumed automatically by model discovery requests.
 - All unit, typecheck, lint, and entrypoint loadability tests pass.
 - Documentation accurately describes all new capabilities while noting V2 beta status.
