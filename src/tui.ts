@@ -4,6 +4,7 @@ import {
   type RpcCacheClearOutput,
   type RpcCacheInspectOutput,
   type RpcRefreshOutput,
+  type RpcStatusOutput,
 } from "./v2/rpc.js"
 
 export type TuiCleanup = () => Promise<void> | void
@@ -35,6 +36,49 @@ export default defineTuiPlugin({
       mode: "global",
       priority: 10,
       commands: [
+        {
+          id: "models-discovery.status",
+          title: "Models Discovery: Status",
+          description: "Inspect resolved providers, models, limits, capabilities, and cache state",
+          slash: {
+            name: "models-discovery-status",
+            arguments: true,
+          },
+          palette: true,
+          run: async (input?: string) => {
+            const raw = typeof input === "string" ? input.trim() : ""
+            const providerID = raw
+              .replace(/^--provider(?:-id)?[= ]/i, "")
+              .replace(/^provider(?:-id)?[= ]/i, "")
+              .trim()
+            const location = getLocation()
+
+            try {
+              const result = (await rpc.status(
+                { details: true, ...(providerID ? { providerID } : {}) },
+                { location },
+              )) as RpcStatusOutput
+              if (context.ui?.dialog?.alert) {
+                await context.ui.dialog.alert({
+                  title: providerID ? `Models Discovery: ${providerID}` : "Models Discovery Status",
+                  message: result.report,
+                })
+              } else {
+                context.ui.toast.show({
+                  title: "Models Discovery Status",
+                  message: result.report,
+                  variant: "info",
+                })
+              }
+            } catch (error) {
+              context.ui.toast.show({
+                title: "Models Discovery",
+                message: `Status lookup failed: ${formatError(error)}`,
+                variant: "error",
+              })
+            }
+          },
+        },
         {
           id: "models-discovery.refresh",
           title: "Models Discovery: Refresh",

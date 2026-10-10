@@ -220,6 +220,12 @@ export async function setupV2(ctx: Plugin.Context): Promise<() => void> {
 
   if (ctx.rpc && typeof ctx.rpc.register === "function") {
     await ctx.rpc.register(DiscoveryRpcDefinition, {
+      status: async (rawInput) => {
+        const input = rawInput as DiscoveryStatusInput | undefined
+        await syncConfiguredProviders()
+        const report = await inspectStatus(input)
+        return { report }
+      },
       refresh: async (rawInput) => {
         const input = rawInput as { readonly force?: boolean } | undefined
         const result = await refreshFromCurrentConfig(input?.force === true)

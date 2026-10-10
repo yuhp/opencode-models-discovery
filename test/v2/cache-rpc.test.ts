@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest"
 import plugin from "../../src/v2/index.js"
 import { discoveryCacheKey } from "../../src/core/discovery-cache.js"
-import { DiscoveryRpcDefinition, type RpcCacheClearOutput, type RpcCacheInspectOutput } from "../../src/v2/rpc.js"
+import { DiscoveryRpcDefinition, type RpcCacheClearOutput, type RpcCacheInspectOutput, type RpcStatusOutput } from "../../src/v2/rpc.js"
 
 describe("V2 Cache Operations RPC", () => {
   function createTestSetup(providersList: Array<Record<string, unknown>> = []) {
@@ -238,5 +238,62 @@ describe("V2 Cache Operations RPC", () => {
         fetcher.mockRestore()
       }
     })
+  })
+})
+
+describe("V2 Status RPC", () => {
+  it("returns the resolved status report without exposing credentials", async () => {
+    const rpcHandlers: Record<string, (...args: unknown[]) => Promise<unknown>> = {}
+    const ctx = {
+      app: { version: "2.0.14" },
+      options: {},
+      provider: {
+        transform: vi.fn(),
+        reload: vi.fn().mockResolvedValue(undefined),
+        list: vi.fn().mockResolvedValue({ data: [{
+          id: "provider-a",
+          name: "Provider A",
+          package: "@opencode-ai/ai/providers/openai-compatible",
+          settings: {
+            baseURL: "http://127.0.0.1:1234/v1",
+            modelsDiscovery: { enabled: true },
+          },
+        }] }),
+      },
+      integration: {
+        transform: vi.fn(),
+        reload: vi.fn().mockResolvedValue(undefined),
+        connection: { active: vi.fn().mockResolvedValue(undefined), resolve: vi.fn() },
+      },
+      event: {
+        subscribe: vi.fn().mockReturnValue({
+          async *[Symbol.asyncIterator]() {},
+        }),
+      },
+      tool: { transform: vi.fn() },
+      rpc: {
+        register: vi.fn().mockImplementation(async (def, handlers) => {
+          if (def === DiscoveryRpcDefinition) Object.assign(rpcHandlers, handlers)
+        }),
+      },
+    }
+
+    const fetcher = vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      json: async () => ({ data: [{ id: "model-a" }] }),
+    } as Response)
+
+    try {
+      await plugin.setup(ctx as never)
+      const status = rpcHandlers.status as (input?: unknown) => Promise<RpcStatusOutput>
+      const result = await status({ details: true })
+
+      expect(result.report).toContain("Provider: `provider-a` (Provider A)")
+      expect(result.report).toContain("model-a")
+      expect(result.report).not.toContain("apiKey")
+      expect(result.report).not.toContain("Authorization")
+    } finally {
+      fetcher.mockRestore()
+    }
   })
 })

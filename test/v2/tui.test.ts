@@ -4,6 +4,9 @@ import { DiscoveryRpcDefinition } from "../../src/v2/rpc.js"
 
 describe("V2 TUI Plugin", () => {
   function createMockTuiContext(rpcOverrides: Record<string, unknown> = {}) {
+    const status = vi.fn().mockResolvedValue({
+      report: "Current discovery inventory has 10 models from 2 providers.\n\nProvider details",
+    })
     const refresh = vi.fn().mockResolvedValue({ providers: 2, models: 10 })
     const cacheInspect = vi.fn().mockResolvedValue({
       entries: [
@@ -18,6 +21,7 @@ describe("V2 TUI Plugin", () => {
     })
     const cacheClear = vi.fn().mockResolvedValue({ cleared: 1 })
     const rpcClient = {
+      status,
       refresh,
       cacheInspect,
       cacheClear,
@@ -62,25 +66,37 @@ describe("V2 TUI Plugin", () => {
       dialogConfirm,
       dialogSelect,
       dialogPrompt,
+      status,
       getKeymapLayer: () => keymapLayerFactory?.(),
     }
   }
 
-  it("registers global keymap layer with refresh and cache commands", async () => {
+  it("registers global keymap layer with status, refresh, and cache commands", async () => {
     const { ctx, getKeymapLayer } = createMockTuiContext()
     await tuiPlugin.setup(ctx as never)
 
     const layer = getKeymapLayer()
     expect(layer).toBeDefined()
     expect(layer?.mode).toBe("global")
-    expect(layer?.commands).toHaveLength(2)
+    expect(layer?.commands).toHaveLength(3)
 
-    const [refreshCmd, cacheCmd] = layer?.commands as Array<{
+    const [statusCmd, refreshCmd, cacheCmd] = layer?.commands as Array<{
       id: string
       title: string
       slash?: { name: string; aliases?: string[]; arguments?: boolean }
       palette?: boolean
     }>
+
+    expect(statusCmd).toMatchObject({
+      id: "models-discovery.status",
+      title: "Models Discovery: Status",
+      slash: {
+        name: "models-discovery-status",
+        arguments: true,
+      },
+      palette: true,
+    })
+    expect(statusCmd.slash?.aliases).toBeUndefined()
 
     expect(refreshCmd).toMatchObject({
       id: "models-discovery.refresh",
@@ -105,15 +121,81 @@ describe("V2 TUI Plugin", () => {
     expect(cacheCmd.slash?.aliases).toBeUndefined()
   })
 
+  it("executes status via RPC and displays the resolved report", async () => {
+    const { ctx, status, dialogAlert, getKeymapLayer } = createMockTuiContext()
+    await tuiPlugin.setup(ctx as never)
+
+    const commands = getKeymapLayer()?.commands as Array<{
+      id: string
+      run: (input?: string) => Promise<void>
+    }>
+    const statusCmd = commands.find((command) => command.id === "models-discovery.status")
+
+    await statusCmd?.run()
+
+    expect(status).toHaveBeenCalledWith(
+      { details: true },
+      { location: { directory: "/test/dir" } },
+    )
+    expect(dialogAlert).toHaveBeenCalledWith({
+      title: "Models Discovery Status",
+      message: "Current discovery inventory has 10 models from 2 providers.\n\nProvider details",
+    })
+  })
+
+  it("passes an optional provider filter to the status RPC", async () => {
+    const { ctx, status, dialogAlert, getKeymapLayer } = createMockTuiContext()
+    await tuiPlugin.setup(ctx as never)
+
+    const commands = getKeymapLayer()?.commands as Array<{
+      id: string
+      run: (input?: string) => Promise<void>
+    }>
+    const statusCmd = commands.find((command) => command.id === "models-discovery.status")
+
+    await statusCmd?.run("--provider hyy")
+
+    expect(status).toHaveBeenCalledWith(
+      { details: true, providerID: "hyy" },
+      { location: { directory: "/test/dir" } },
+    )
+    expect(dialogAlert).toHaveBeenCalledWith({
+      title: "Models Discovery: hyy",
+      message: expect.any(String),
+    })
+  })
+
+  it("shows an error toast when status RPC fails", async () => {
+    const { ctx, status, toastShow, getKeymapLayer } = createMockTuiContext()
+    status.mockRejectedValueOnce({ message: "RPC unavailable" })
+    await tuiPlugin.setup(ctx as never)
+
+    const commands = getKeymapLayer()?.commands as Array<{
+      id: string
+      run: (input?: string) => Promise<void>
+    }>
+    const statusCmd = commands.find((command) => command.id === "models-discovery.status")
+
+    await statusCmd?.run()
+
+    expect(toastShow).toHaveBeenCalledWith({
+      title: "Models Discovery",
+      message: "Status lookup failed: RPC unavailable",
+      variant: "error",
+    })
+  })
+
   it("executes refresh via RPC and displays success toast", async () => {
     const { ctx, rpcClient, toastShow, getKeymapLayer } = createMockTuiContext()
     await tuiPlugin.setup(ctx as never)
 
-    const [refreshCmd] = getKeymapLayer()?.commands as Array<{
+    const commands = getKeymapLayer()?.commands as Array<{
+      id: string
       run: (input?: string) => Promise<void>
     }>
+    const refreshCmd = commands.find((command) => command.id === "models-discovery.refresh")
 
-    await refreshCmd.run()
+    await refreshCmd?.run()
 
     expect(rpcClient.refresh).toHaveBeenCalledWith({ force: false }, { location: { directory: "/test/dir" } })
     expect(toastShow).toHaveBeenCalledWith({
@@ -127,11 +209,13 @@ describe("V2 TUI Plugin", () => {
     const { ctx, rpcClient, toastShow, getKeymapLayer } = createMockTuiContext()
     await tuiPlugin.setup(ctx as never)
 
-    const [refreshCmd] = getKeymapLayer()?.commands as Array<{
+    const commands = getKeymapLayer()?.commands as Array<{
+      id: string
       run: (input?: string) => Promise<void>
     }>
+    const refreshCmd = commands.find((command) => command.id === "models-discovery.refresh")
 
-    await refreshCmd.run("--force")
+    await refreshCmd?.run("--force")
 
     expect(rpcClient.refresh).toHaveBeenCalledWith({ force: true }, { location: { directory: "/test/dir" } })
     expect(toastShow).toHaveBeenCalledWith({
@@ -140,7 +224,7 @@ describe("V2 TUI Plugin", () => {
       variant: "success",
     })
 
-    await refreshCmd.run("force")
+    await refreshCmd?.run("force")
     expect(rpcClient.refresh).toHaveBeenCalledWith({ force: true }, { location: { directory: "/test/dir" } })
   })
 
@@ -150,11 +234,13 @@ describe("V2 TUI Plugin", () => {
 
     await tuiPlugin.setup(ctx as never)
 
-    const [refreshCmd] = getKeymapLayer()?.commands as Array<{
+    const commands = getKeymapLayer()?.commands as Array<{
+      id: string
       run: () => Promise<void>
     }>
+    const refreshCmd = commands.find((command) => command.id === "models-discovery.refresh")
 
-    await refreshCmd.run()
+    await refreshCmd?.run()
 
     expect(toastShow).toHaveBeenCalledWith({
       title: "Models Discovery",
@@ -172,11 +258,13 @@ describe("V2 TUI Plugin", () => {
 
     await tuiPlugin.setup(ctx as never)
 
-    const [refreshCmd] = getKeymapLayer()?.commands as Array<{
+    const commands = getKeymapLayer()?.commands as Array<{
+      id: string
       run: () => Promise<void>
     }>
+    const refreshCmd = commands.find((command) => command.id === "models-discovery.refresh")
 
-    await refreshCmd.run()
+    await refreshCmd?.run()
 
     expect(toastShow).toHaveBeenCalledWith({
       title: "Models Discovery",

@@ -9,6 +9,16 @@ export interface RpcRefreshOutput {
   readonly models: number
 }
 
+export interface RpcStatusInput {
+  readonly providerID?: string
+  readonly details?: boolean
+  readonly rawCache?: boolean
+}
+
+export interface RpcStatusOutput {
+  readonly report: string
+}
+
 export interface RpcCacheEntry {
   readonly providerID: string
   readonly status: "fresh" | "expired" | "empty" | "corrupt"
@@ -72,6 +82,23 @@ export interface RpcOverrideDeleteOutput {
 export const DiscoveryRpcDefinition = Rpc.define({
   id: "opencode.models-discovery",
   methods: {
+    status: {
+      input: {
+        type: "object",
+        properties: {
+          providerID: { type: "string" },
+          details: { type: "boolean" },
+          rawCache: { type: "boolean" },
+        },
+      },
+      output: {
+        type: "object",
+        properties: {
+          report: { type: "string" },
+        },
+        required: ["report"],
+      },
+    },
     refresh: {
       input: {
         type: "object",
