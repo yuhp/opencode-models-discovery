@@ -14,6 +14,10 @@
     "./server": {
       "types": "./src/server.ts",
       "default": "./dist/server.js"
+    },
+    "./tui": {
+      "types": "./src/tui.ts",
+      "default": "./dist/tui.js"
     }
   },
   "files": [
@@ -28,10 +32,11 @@
     "test:watch": "vitest watch",
     "lint": "eslint src",
     "lint:fix": "eslint src --fix",
-    "compile": "npm run compile:runtime && npm run compile:root && npm run compile:server",
+    "compile": "npm run compile:runtime && npm run compile:root && npm run compile:server && npm run compile:tui",
     "compile:runtime": "esbuild src/runtime.ts --bundle --format=esm --platform=node --packages=external --target=node18 --sourcemap --keep-names --outfile=dist/runtime.js",
     "compile:root": "esbuild src/index.ts --format=esm --platform=node --packages=external --target=node18 --sourcemap --keep-names --outfile=dist/index.js",
     "compile:server": "esbuild src/server.ts --format=esm --platform=node --packages=external --target=node18 --sourcemap --keep-names --outfile=dist/server.js",
+    "compile:tui": "esbuild src/tui.ts --bundle --format=esm --platform=node --packages=external --target=node18 --sourcemap --keep-names --outfile=dist/tui.js",
     "build": "npm run typecheck && npm run test:run && npm run compile",
     "validate": "npm run lint && npm run typecheck && npm run test:run",
     "validate:config": "bun scripts/validate-config.ts",

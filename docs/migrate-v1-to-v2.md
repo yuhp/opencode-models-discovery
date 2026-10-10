@@ -132,7 +132,7 @@ Do not copy real API keys into a public configuration example. Prefer an environ
 "apiKey": "${GATEWAY_API_KEY}"
 ```
 
-Alternatively, omit `apiKey` when the provider host supplies credentials through its own supported mechanism. OpenCode v2 currently does not use the V1 plugin's auth-store fallback.
+Alternatively, omit `apiKey` entirely and use OpenCode v2's native `/connect` command. When you connect a provider via `/connect`, the plugin resolves credentials dynamically through OpenCode v2's integration API and injects runtime authentication headers. OpenCode v2 uses this native integration architecture instead of reading V1 `auth.json` files from disk. See [Connect and Auth Documentation](connect-and-auth.md) for full details.
 
 ## Running both host generations
 

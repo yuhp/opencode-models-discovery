@@ -118,4 +118,67 @@ describe("V2 provider controller", () => {
 
     expect(set).toHaveBeenCalledWith("local", [{ id: "same-id", modelID: "explicit-alias" }])
   })
+
+  it("binds missing integrationID and authorization headers to existing provider in editor", async () => {
+    const update = vi.fn((_id, fn) => {
+      const draft = { headers: {} as Record<string, string> }
+      fn(draft)
+      expect(draft).toMatchObject({
+        integrationID: "integration.local",
+        headers: { authorization: "Bearer sk-test-resolved" },
+      })
+    })
+
+    const controller = createProviderController(
+      { provider: { reload: vi.fn() } } as never,
+      [{ ...provider(), apiKey: "sk-test-resolved" }],
+      (id) => `integration.${id}`,
+    )
+    const editor = {
+      get: vi.fn().mockReturnValue({
+        provider: { id: "local" }, // missing integrationID
+        models: new Map(),
+      }),
+      add: vi.fn(),
+      update,
+      models: { set: vi.fn() },
+    }
+
+    controller.transform(editor as never)
+    expect(update).toHaveBeenCalledTimes(1)
+  })
+
+  it("removes injected authorization header when credentials are removed", async () => {
+    let updatedDraft: Record<string, unknown> | undefined
+    const update = vi.fn((_id, fn) => {
+      const draft = {
+        headers: { authorization: "Bearer old-key", "custom-header": "keep" } as Record<string, string>,
+      }
+      fn(draft)
+      updatedDraft = draft
+    })
+
+    const controller = createProviderController(
+      { provider: { reload: vi.fn() } } as never,
+      [{ ...provider(), apiKey: undefined }],
+      (id) => `integration.${id}`,
+    )
+    const editor = {
+      get: vi.fn().mockReturnValue({
+        provider: {
+          id: "local",
+          integrationID: "integration.local",
+          headers: { authorization: "Bearer old-key", "custom-header": "keep" },
+        },
+        models: new Map(),
+      }),
+      add: vi.fn(),
+      update,
+      models: { set: vi.fn() },
+    }
+
+    controller.transform(editor as never)
+    expect(update).toHaveBeenCalledTimes(1)
+    expect(updatedDraft?.headers).toEqual({ "custom-header": "keep" })
+  })
 })
