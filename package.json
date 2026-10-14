@@ -67,7 +67,7 @@
     "url": "git+https://github.com/yuhp/opencode-models-discovery.git"
   },
   "dependencies": {
-    "@opencode/plugin": "2.0.14",
+    "@opencode/plugin": "2.0.26",
     "xdg-basedir": "^5.1.0"
   },
   "peerDependencies": {
