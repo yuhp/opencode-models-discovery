@@ -5,7 +5,7 @@
 [![release](https://github.com/yuhp/opencode-models-discovery/actions/workflows/release.yml/badge.svg)](https://github.com/yuhp/opencode-models-discovery/actions/workflows/release.yml)
 [![license](https://img.shields.io/github/license/yuhp/opencode-models-discovery)](https://github.com/yuhp/opencode-models-discovery/blob/main/LICENSE)
 [![OpenCode v1](https://img.shields.io/badge/OpenCode%20v1-%3E%3D1.18.29-blueviolet)](https://opencode.ai)
-[![OpenCode v2](https://img.shields.io/badge/OpenCode%20v2-%3E%3D2.0.14-blueviolet)](https://opencode.ai)
+[![OpenCode v2](https://img.shields.io/badge/OpenCode%20v2-%3E%3D2.0.26-blueviolet)](https://opencode.ai)
 
 > A universal OpenCode plugin for dynamic model discovery across any OpenAI-compatible provider.
 

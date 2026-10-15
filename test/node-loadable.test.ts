@@ -118,10 +118,10 @@ describe('Node host compatibility (OpenCode Desktop)', () => {
       '--ignore-scripts',
       '--no-package-lock',
       '--omit=dev',
-      '@opencode/plugin@2.0.14',
+      '@opencode/plugin@2.0.26',
     ], { stdio: 'pipe', env: cleanNpmEnv() })
     cpSync(path.join(dependencyRoot, 'node_modules'), path.join(stagedRoot, 'node_modules'), { recursive: true })
-  }, 60_000)
+  }, 180_000)
 
   afterAll(() => {
     if (workDir) rmSync(workDir, { recursive: true, force: true })
