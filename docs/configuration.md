@@ -629,9 +629,9 @@ Use `modelInfoFormat: "ollama"` with Ollama's OpenAI-compatible endpoint. Ollama
 }
 ```
 
-Only models returned by `/v1/models` are injected, and each one receives its own `/api/show` request in parallel. A model is enriched only when its `id` exactly matches the `model` value Ollama echoes; a failed or malformed per-model response degrades to no enrichment for that model without preventing discovery.
+Only models returned by `/v1/models` are injected, and each one receives its own `/api/show` request in parallel. Each model is enriched from the `/api/show` response stored under the exact id the plugin requested; a failed or malformed per-model response degrades to no enrichment for that model without preventing discovery.
 
-The context limit is resolved in strict order: `model_info.<details.family>.context_length`, then any other `model_info` key ending in `.context_length`, then a top-level `context_length`, and finally a `num_ctx` value parsed from the `parameters` string (last resort, because `num_ctx` is usually the lower runtime default rather than the model's true maximum). The output limit is bounded by the context window and capped at OpenCode's default 32,000 output tokens. Ollama `capabilities` map as follows: `vision` or `images` add image input, `audio` adds audio input, `thinking` sets `reasoning`, and `tools`, `function_calling`, or `tool_calling` set `tool_call`. Unknown capabilities and missing fields are ignored without inventing metadata.
+The context limit is resolved in strict order: `model_info.<details.family>.context_length`, then any other `model_info` key ending in `.context_length`, then a top-level `context_length`, and finally a `num_ctx` value parsed from the `parameters` string (last resort, because `num_ctx` is usually the lower runtime default rather than the model's true maximum). The output limit is bounded by the context window and capped at OpenCode's default 32,000 output tokens. Ollama `capabilities` map as follows: `vision` or `images` add image input, `audio` adds audio input, `thinking` sets `reasoning`, and `tools`, `function_calling`, or `tool_calling` set `tool_call`. Unknown capabilities and missing fields are ignored without inventing metadata. `filterNonChat` has no effect for this format; Ollama's show response exposes no chat-mode field.
 
 ### models.dev Metadata
 
