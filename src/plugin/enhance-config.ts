@@ -339,6 +339,7 @@ export async function enhanceConfig(
           endpoint: providerDiscoveryConfig.modelInfoEndpoint,
           filterNonChat,
           timeoutMs,
+          modelIds: models.filter(isDiscoveredRawModel).map((model) => model.id),
         })
       }
       if (reprocessPersistedModels) {

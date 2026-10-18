@@ -193,3 +193,31 @@ This project is not affiliated with, endorsed by, or sponsored by [models.dev](h
 When a safe model id segment match exists, models.dev metadata can add model limits and capabilities such as `tool_call`, `reasoning`, `attachment`, `structured_output`, `temperature`, and `modalities`.
 
 This means providers using `@ai-sdk/anthropic` with OpenAI-compatible backends are supported when the `baseURL` contains `/v1/`, when a provider-specific discovery endpoint is configured, or when provider-level discovery is explicitly forced on. It also means providers like DeepSeek can be discovered from a non-`/v1` baseURL as long as the models endpoint is configured explicitly.
+
+### Ollama Metadata Enrichment
+
+Ollama exposes an OpenAI-compatible `GET /v1/models` endpoint that returns only the minimal model list shape — no context limits and no capabilities. Ollama's native API provides both through `POST /api/show` with a `{"model": "<id>"}` body, so the plugin supports an explicit Ollama metadata format:
+
+```json
+{
+  "plugin": ["opencode-models-discovery"],
+  "provider": {
+    "ollama": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "Ollama",
+      "options": {
+        "baseURL": "http://localhost:11434/v1",
+        "modelsDiscovery": {
+          "enabled": true,
+          "modelInfoFormat": "ollama"
+        }
+      },
+      "models": {}
+    }
+  }
+}
+```
+
+This setting is explicit because the plugin issues one additional `POST /api/show` request per discovered model after the `/v1/models` fetch. Without `modelInfoFormat: "ollama"`, the plugin does not contact `/api/show`.
+
+For each discovered model, the plugin resolves the context limit from a valid `num_ctx` in the show body's `parameters` string first (the Modelfile's explicit context pin; missing or non-positive values are ignored), falling back to `model_info.<family>.context_length`, then any other `*.context_length` key, then a top-level `context_length`; and maps Ollama `capabilities` to modalities, `reasoning`, and `tool_call`. A per-model failure degrades to no enrichment for that model only; discovery continues for the rest.

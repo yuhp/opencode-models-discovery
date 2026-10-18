@@ -38,6 +38,7 @@ export enum ModelInfoFormat {
   LMStudio = 'lmstudio',
   LlamaSwap = 'llama-swap',
   OmniRoute = 'omniroute',
+  Ollama = 'ollama',
 }
 
 export const DEFAULT_CACHE_TTL_SECONDS = 86400

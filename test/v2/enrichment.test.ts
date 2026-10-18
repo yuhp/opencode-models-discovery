@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest"
+import { readFileSync } from "node:fs"
 import { discoverInventory } from "../../src/v2/discovery.js"
 import { parseProviderDiscoveryOptions } from "../../src/v2/provider-config.js"
 import { ModelInfoFormat } from "../../src/types/plugin-config.js"
@@ -209,5 +210,80 @@ describe("V2 provider discovery with metadata enrichment", () => {
       vi.unstubAllGlobals()
       modelsDevTestUtils.resetCache()
     }
+  })
+
+  it("sequentializes the Ollama model fetch before per-model /api/show enrichment", async () => {
+    const showGemmaBody: unknown = JSON.parse(
+      readFileSync(new URL("../fixtures/ollama/show-gemma.json", import.meta.url), "utf8"),
+    )
+    const options = new Map([
+      ["local", parseProviderDiscoveryOptions({
+        enabled: true,
+        smartModelName: true,
+        modelInfoFormat: ModelInfoFormat.Ollama,
+      })!],
+    ])
+
+    const fetcher = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
+      if (String(url).includes("/api/show")) {
+        const body = JSON.parse(String(init?.body)) as { model: string }
+        if (body.model === "gemma4:latest") {
+          return { ok: true, json: async () => showGemmaBody } as Response
+        }
+        return {
+          ok: true,
+          json: async () => ({ model_info: { "mistral3.context_length": 8192 }, capabilities: ["tools"] }),
+        } as Response
+      }
+      return {
+        ok: true,
+        json: async () => ({ data: [{ id: "gemma4:latest" }, { id: "mistral:latest" }] }),
+      } as Response
+    })
+
+    const inventory = await discoverInventory([{
+      id: "local",
+      package: "@opencode-ai/ai/providers/openai-compatible",
+      settings: { baseURL: "http://127.0.0.1:11434/v1" },
+    }], options, fetcher as unknown as typeof fetch)
+
+    const models = inventory.get("local")!
+    expect(models.get("gemma4:latest")?.limit.context).toBe(131_072)
+    expect(models.get("mistral:latest")?.limit.context).toBe(8_192)
+    expect(models.get("gemma4:latest")?.capabilities.tools).toBe(true)
+    expect(models.get("gemma4:latest")?.capabilities.input).toContain("image")
+    expect(models.get("gemma4:latest")?.capabilities.input).toContain("audio")
+    expect(fetcher.mock.calls.filter(([url]) => String(url).includes("/api/show"))).toHaveLength(2)
+  })
+
+  it("degrades to no enrichment when every Ollama /api/show request fails", async () => {
+    const options = new Map([
+      ["local", parseProviderDiscoveryOptions({
+        enabled: true,
+        smartModelName: true,
+        modelInfoFormat: ModelInfoFormat.Ollama,
+      })!],
+    ])
+
+    const fetcher = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
+      if (String(url).includes("/api/show")) {
+        return { ok: false, status: 404 } as Response
+      }
+      void init
+      return {
+        ok: true,
+        json: async () => ({ data: [{ id: "gemma4:latest" }, { id: "mistral:latest" }] }),
+      } as Response
+    })
+
+    const inventory = await discoverInventory([{
+      id: "local",
+      package: "@opencode-ai/ai/providers/openai-compatible",
+      settings: { baseURL: "http://127.0.0.1:11434/v1" },
+    }], options, fetcher as unknown as typeof fetch)
+
+    const models = inventory.get("local")!
+    expect(models.size).toBe(2)
+    expect(models.get("gemma4:latest")?.limit).toEqual({ context: 200_000, output: 32_000 })
   })
 })

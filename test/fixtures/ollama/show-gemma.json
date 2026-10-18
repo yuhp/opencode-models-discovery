@@ -1,0 +1,25 @@
+{
+  "details": {
+    "parent_model": "",
+    "format": "gguf",
+    "family": "gemma4",
+    "families": [
+      "gemma4"
+    ],
+    "parameter_size": "4.65B",
+    "quantization_level": "Q4_K_M"
+  },
+  "model_info": {
+    "gemma4.context_length": 131072,
+    "gemma4.block_count": 35,
+    "general.architecture": "gemma4",
+    "qwen35.context_length": 262144
+  },
+  "capabilities": [
+    "tools",
+    "completion",
+    "vision",
+    "audio"
+  ],
+  "parameters": "stop                           \"<bos>\"\nstop                           \"<|turn>\"\nstop                           \"<turn|>\"\nstop                           \"<|turn>user\""
+}

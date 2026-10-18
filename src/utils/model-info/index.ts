@@ -1,6 +1,7 @@
 import { createBifrostEnricher } from './bifrost'
 import { createLiteLLMEnricher } from './litellm'
 import { createLMStudioEnricher } from './lmstudio'
+import { createOllamaEnricher } from './ollama'
 import { createLlamaSwapEnricher } from './llamaswap'
 import { createModelsDevEnricher } from './models-dev'
 import { createOmniRouteEnricher } from './omniroute'
@@ -20,6 +21,7 @@ const MODEL_ENRICHERS: Partial<Record<ModelInfoFormat, ModelEnricherFactory>> = 
   [ModelInfoFormat.LMStudio]: (data) => createLMStudioEnricher(data),
   [ModelInfoFormat.LiteLLM]: (data) => createLiteLLMEnricher(data),
   [ModelInfoFormat.AIProxy]: (data) => createAIProxyEnricher(data),
+  [ModelInfoFormat.Ollama]: (data) => createOllamaEnricher(data),
 }
 
 /** Creates the neutral contract used by the shared discovery pipeline. */

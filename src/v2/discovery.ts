@@ -3,9 +3,11 @@ import { type ConfiguredProvider, type DiscoveredV2Model, type Inventory } from 
 import { type ProviderDiscoveryOptions } from "./provider-config.js"
 import { mapToDiscoveredV2Model } from "../core/model-mapper.js"
 import { discoverModelDrafts } from "../core/discovery-pipeline.js"
+import { isDiscoveredRawModel } from "../core/model-types.js"
 import type { ModelEnrichmentResult, ModelEnricher } from "../core/model-enrichment.js"
 import { createDiscoveryCacheEntry, discoveryCacheKey, readDiscoveryCache, writeDiscoveryCache, type DiscoveryCacheBackend, type DiscoveryCacheEntry } from "../core/discovery-cache.js"
 import { resolveModelInfoEnricher } from "../core/enricher-resolver.js"
+import { ModelInfoFormat } from "../types/plugin-config.js"
 
 export interface DiscoveryLogger {
   warn(message: string, context?: Record<string, unknown>): void
@@ -42,6 +44,11 @@ function cachedEnricher(enrichments: Record<string, ModelEnrichmentResult>): Mod
       return enrichments[model.id] ?? {}
     },
   }
+}
+
+function parseModelsPayload(payload: unknown): readonly unknown[] | undefined {
+  const data = payload && typeof payload === "object" ? (payload as { data?: unknown }).data : undefined
+  return Array.isArray(data) ? data : undefined
 }
 
 export async function discoverInventory(
@@ -95,6 +102,49 @@ export async function discoverInventory(
       if (cached) {
         rawModels = cached.rawModels
         enricher = cachedEnricher(cached.enrichments)
+      } else if (config.modelInfoFormat === ModelInfoFormat.Ollama) {
+        const modelsResponse = await fetcher(url, {
+          headers,
+          signal: AbortSignal.timeout(config.timeoutMs),
+        })
+        if (!modelsResponse.ok) {
+          logger.warn(`Model discovery request failed for provider "${provider.id}"`, {
+            provider: provider.id,
+            url,
+            status: modelsResponse.status,
+            statusText: modelsResponse.statusText,
+          })
+          return
+        }
+
+        const payload = await modelsResponse.json() as { data?: unknown }
+        const models = parseModelsPayload(payload)
+        if (!models) {
+          logger.warn(`Model discovery returned invalid payload for provider "${provider.id}": expected array in "data" property`, {
+            provider: provider.id,
+            url,
+            payloadType: typeof payload,
+            keys: payload && typeof payload === "object" && !Array.isArray(payload) ? Object.keys(payload) : undefined,
+          })
+          return
+        }
+        rawModels = models
+        enricher = await resolveModelInfoEnricher({
+          baseURL,
+          apiKey: resolvedApiKey,
+          providerName: provider.id,
+          fetcher,
+          logger: {
+            warn: (message, context) => logger.warn(message, context),
+            info: (message, context) => logger.info?.(message, context),
+          },
+        }, {
+          format: config.modelInfoFormat,
+          endpoint: config.modelInfoEndpoint,
+          filterNonChat: config.filterNonChat,
+          timeoutMs: config.timeoutMs,
+          modelIds: models.filter(isDiscoveredRawModel).map((model) => model.id),
+        })
       } else {
         const [modelsResponse, resolvedEnricher] = await Promise.all([
           fetcher(url, {
@@ -129,7 +179,8 @@ export async function discoverInventory(
         }
 
         const payload = await modelsResponse.json() as { data?: unknown }
-        if (!Array.isArray(payload?.data)) {
+        const models = parseModelsPayload(payload)
+        if (!models) {
           logger.warn(`Model discovery returned invalid payload for provider "${provider.id}": expected array in "data" property`, {
             provider: provider.id,
             url,
@@ -138,7 +189,7 @@ export async function discoverInventory(
           })
           return
         }
-        rawModels = payload.data
+        rawModels = models
         enricher = resolvedEnricher
       }
 
