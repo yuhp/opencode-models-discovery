@@ -72,6 +72,26 @@ describe('native Ollama enricher', () => {
     expect(result.limit).toBeUndefined()
   })
 
+  it('rejects degenerate num_ctx values in the parameters string', () => {
+    const zero = createOllamaEnricher(new Map([['m', { parameters: 'num_ctx 0' }]]))
+      .enrich({ id: 'm' }, { filterNonChat: true })
+    const negative = createOllamaEnricher(new Map([['m', { parameters: 'num_ctx -4' }]]))
+      .enrich({ id: 'm' }, { filterNonChat: true })
+
+    expect(zero.limit).toBeUndefined()
+    expect(negative.limit).toBeUndefined()
+  })
+
+  it('rescans other family keys when the details.family key is unusable', () => {
+    const result = createOllamaEnricher(new Map([['m', {
+      details: { family: 'gemma4' },
+      model_info: { 'gemma4.context_length': 0, 'qwen35.context_length': 8192 },
+    }]]))
+      .enrich({ id: 'm' }, { filterNonChat: true })
+
+    expect(result.limit?.context).toBe(8192)
+  })
+
   it('maps capabilities to modalities and toolCall from the fixture', () => {
     const result = createOllamaEnricher(new Map([['gemma4', showGemmaBody]]))
       .enrich({ id: 'gemma4' }, { filterNonChat: true })

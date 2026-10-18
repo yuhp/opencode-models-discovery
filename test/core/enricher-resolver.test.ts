@@ -130,6 +130,35 @@ describe('shared enricher resolver: Ollama format', () => {
     }))
   })
 
+  it('degrades a per-model ok response with malformed JSON without crashing discovery', async () => {
+    const warn = vi.fn()
+    const fetcher = vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body)) as { model: string }
+      if (body.model === 'bad') {
+        return {
+          ok: true,
+          json: async () => {
+            throw new SyntaxError('Unexpected token in JSON')
+          },
+        }
+      }
+      return { ok: true, json: async () => showBody(4096) }
+    })
+
+    const enricher = await resolveModelInfoEnricher(
+      { baseURL: 'http://127.0.0.1:11434/v1', fetcher, logger: { warn } },
+      { format: ModelInfoFormat.Ollama, modelIds: ['good', 'bad'] },
+    )
+
+    expect(enricher).toBeDefined()
+    expect(enricher?.enrich({ id: 'bad' }, { filterNonChat: true })).toEqual({})
+    expect(enricher?.enrich({ id: 'good' }, { filterNonChat: true }).limit).toEqual({ context: 4096, output: 4096 })
+    expect(warn).toHaveBeenCalledWith('Provider model info discovery failed', expect.objectContaining({
+      modelId: 'bad',
+      error: 'Unexpected token in JSON',
+    }))
+  })
+
   it('returns undefined when all per-model POSTs fail', async () => {
     const warn = vi.fn()
     const fetcher = vi.fn().mockResolvedValue({ ok: false, status: 404 })
