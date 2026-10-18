@@ -4,6 +4,7 @@ import { fetchModelsDevData, DEFAULT_MODELS_DEV_URL } from '../utils/models-dev-
 
 export const DEFAULT_LITELLM_ENDPOINT = '/v1/model/info'
 export const DEFAULT_LMSTUDIO_ENDPOINT = '/api/v1/models'
+export const DEFAULT_OLLAMA_ENDPOINT = '/api/show'
 export const DEFAULT_ENRICHER_TIMEOUT_MS = 5000
 
 export interface ModelInfoResolutionOptions {
@@ -11,6 +12,7 @@ export interface ModelInfoResolutionOptions {
   readonly endpoint?: string
   readonly filterNonChat?: boolean
   readonly timeoutMs?: number
+  readonly modelIds?: readonly string[]
 }
 
 export interface ModelInfoResolverLogger {
@@ -76,6 +78,65 @@ export async function resolveModelInfoEnricher(
     format === ModelInfoFormat.OmniRoute
   ) {
     return createModelEnricher(format, null)
+  }
+
+  if (format === ModelInfoFormat.Ollama) {
+    const modelIds = options.modelIds ?? []
+    if (modelIds.length === 0) {
+      context.logger?.warn('Ollama model info format requires model IDs', {
+        provider: context.providerName,
+      })
+      return undefined
+    }
+
+    const targetEndpoint = options.endpoint ?? DEFAULT_OLLAMA_ENDPOINT
+    const showUrl = buildModelInfoURL(context.baseURL, targetEndpoint)
+    const fetcher = context.fetcher ?? globalThis.fetch
+    const timeoutMs = options.timeoutMs ?? DEFAULT_ENRICHER_TIMEOUT_MS
+
+    const headers = new Headers({ accept: 'application/json', 'content-type': 'application/json' })
+    if (context.apiKey) {
+      headers.set('authorization', `Bearer ${context.apiKey}`)
+    }
+
+    const results = await Promise.all(modelIds.map(async (modelId): Promise<readonly [string, unknown] | undefined> => {
+      try {
+        const res = await fetcher(showUrl, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ model: modelId }),
+          signal: AbortSignal.timeout(timeoutMs),
+        })
+        if (!res.ok) {
+          context.logger?.warn('Provider model info discovery failed', {
+            provider: context.providerName,
+            endpoint: targetEndpoint,
+            format,
+            modelId,
+            status: res.status,
+          })
+          return undefined
+        }
+        return [modelId, await res.json()] as const
+      } catch (error) {
+        context.logger?.warn('Provider model info discovery failed', {
+          provider: context.providerName,
+          endpoint: targetEndpoint,
+          format,
+          modelId,
+          error: error instanceof Error ? error.message : String(error),
+        })
+        return undefined
+      }
+    }))
+
+    const shows = new Map<string, unknown>()
+    for (const entry of results) {
+      if (entry) shows.set(entry[0], entry[1])
+    }
+    if (shows.size === 0) return undefined
+
+    return createModelEnricher(format, shows, { filterNonChat })
   }
 
   if (format === ModelInfoFormat.LiteLLM || format === ModelInfoFormat.LMStudio) {
