@@ -126,6 +126,7 @@ Supported plugin options under provider.<id>.options.modelsDiscovery:
 - modelInfoFormat="lmstudio": discover callable models through the normal /v1/models endpoint, then enrich exact model-id matches from LM Studio's /api/v1/models inventory
 - modelInfoFormat="llama-swap": read llama-swap's inline /v1/models context, modalities, and function-calling metadata without another request
 - modelInfoFormat="omniroute": read OmniRoute's documented inline /v1/models limits, modalities, and capabilities without another request
+- modelInfoFormat="ollama": enrich exact model-id matches from Ollama's POST /api/show endpoint; modelInfoEndpoint optionally overrides the path
 - filterNonChat: when LiteLLM model info is available, skip non-chat models by default
 - cache.enabled: opt in to a provider-scoped persisted discovery cache of filtered and enriched model configurations; defaults to false
 - cache.ttlSeconds: non-negative finite cache lifetime in seconds; defaults to 86400
@@ -153,6 +154,7 @@ Recommended defaults:
 - use modelInfoFormat="lmstudio" for LM Studio REST metadata enrichment; set modelInfoEndpoint only when LM Studio uses another inventory path
 - use modelInfoFormat="llama-swap" only for llama-swap /v1/models responses; it is an explicit inline-metadata format and does not make another request
 - use modelInfoFormat="omniroute" only for OmniRoute's documented /v1/models response; it is an explicit inline-metadata format and does not make another request
+- use modelInfoFormat="ollama" for Ollama-native metadata enrichment; set modelInfoEndpoint only when Ollama uses another path
 - configure caching only when the user requests it; it is disabled by default
 - the persisted discovery cache belongs to this plugin and is not a replacement for opencode.json
 

@@ -116,8 +116,8 @@ Each provider can configure discovery behavior through `provider.<name>.options.
 | `provider.<name>.options.modelsDiscovery.enabled` | `boolean` | Force enable or disable discovery for a single provider |
 | `provider.<name>.options.modelsDiscovery.endpoint` | `string` | Provider-specific models endpoint as an origin-relative path beginning with `/`. Defaults to `/v1/models` |
 | `provider.<name>.options.modelsDiscovery.timeoutMs` | positive finite `number` | Per-request timeout for the provider's models and provider-specific metadata endpoints. Defaults to `3000` |
-| `provider.<name>.options.modelsDiscovery.modelInfoEndpoint` | `string` | Override a format-specific metadata endpoint as an origin-relative path or complete URL. Defaults to `/v1/model/info` for `"litellm"` and `/api/v1/models` for `"lmstudio"`; for `"aiproxy"`, it overrides the models.dev fallback URL |
-| `provider.<name>.options.modelsDiscovery.modelInfoFormat` | `string` | Model info response format. Currently supports `"aiproxy"`, `"bifrost"`, `"litellm"`, `"models.dev"`, `"vllm"`, `"lmstudio"`, `"llama-swap"`, and `"omniroute"` |
+| `provider.<name>.options.modelsDiscovery.modelInfoEndpoint` | `string` | Override a format-specific metadata endpoint as an origin-relative path or complete URL. Defaults to `/v1/model/info` for `"litellm"`, `/api/v1/models` for `"lmstudio"`, and `/api/show` for `"ollama"`; for `"aiproxy"`, it overrides the models.dev fallback URL |
+| `provider.<name>.options.modelsDiscovery.modelInfoFormat` | `string` | Model info response format. Currently supports `"aiproxy"`, `"bifrost"`, `"litellm"`, `"models.dev"`, `"vllm"`, `"lmstudio"`, `"llama-swap"`, `"omniroute"`, and `"ollama"` |
 | `provider.<name>.options.modelsDiscovery.filterNonChat` | `boolean` | When model info is available, skip models whose `model_info.mode` is not `chat`. Defaults to `true` |
 | `provider.<name>.options.modelsDiscovery.models.includeRegex` | `string[]` | Shortcut regex allow-list for discovered model ids only |
 | `provider.<name>.options.modelsDiscovery.models.excludeRegex` | `string[]` | Shortcut regex deny-list for discovered model ids only |
@@ -355,7 +355,7 @@ Community provider examples live in [`docs/config_example/`](config_example/).
 
 The generic OpenAI-compatible `/v1/models` endpoint only guarantees a small model list shape. Extra metadata such as context limits, tool calling, reasoning, image input, or structured output is provider-specific, so metadata enrichment is opt-in.
 
-The plugin currently supports eight model info formats:
+The plugin currently supports nine model info formats:
 
 | Format | Source | Requires `modelInfoEndpoint` | Notes |
 |--------|--------|------------------------------|-------|
@@ -367,6 +367,7 @@ The plugin currently supports eight model info formats:
 | `"lmstudio"` | LM Studio 0.4.0+ `/api/v1/models` inventory | No | Uses `/api/v1/models` by default; set `modelInfoEndpoint` for another path |
 | `"llama-swap"` | Fields in llama-swap's `/v1/models` response | No | Reads inline context, modalities, and function-calling metadata when present |
 | `"omniroute"` | Fields in OmniRoute's `/v1/models` response | No | Reads OmniRoute inline limits, modalities, and capabilities when present |
+| `"ollama"` | Ollama native `POST /api/show` | No | Uses `/api/show` by default; set `modelInfoEndpoint` to override |
 
 ### AIProxy Metadata
 
@@ -603,6 +604,34 @@ Use `modelInfoFormat: "lmstudio"` with LM Studio 0.4.0+, which officially releas
 Only models returned by `/v1/models` are injected. A model is enriched only when its `id` exactly matches an inventory `key`; inventory-only models are not injected. `modelsDiscovery.endpoint` controls discovery, while `modelsDiscovery.modelInfoEndpoint` controls the inventory request.
 
 When available, the plugin sets `limit.context` from the largest loaded instance `config.context_length`, otherwise it uses `max_context_length`. LM Studio does not report a distinct output limit, so the plugin resolves a safe default output limit bounded by the context window and capped at OpenCode's default 32,000 output tokens. The plugin maps `capabilities.vision` to image input and `capabilities.trained_for_tool_use` to `tool_call`. Its reported reasoning options are the source of truth for variants: `off`, `low`, `medium`, `high`, and `xhigh` become variants, with `off` sent as `reasoningEffort: "none"`; `on` and unknown options are omitted because they are not concrete OpenAI-compatible efforts. Missing or malformed metadata is left unset without preventing discovery.
+
+### Ollama Model Show
+
+Use `modelInfoFormat: "ollama"` with Ollama's OpenAI-compatible endpoint. Ollama's `GET /v1/models` response carries only the minimal model list shape, so the plugin enriches each discovered model with a native `POST /api/show` request (`{"model": "<id>"}`) after discovery. Set `modelInfoEndpoint` only when Ollama uses another show path.
+
+```json
+{
+  "plugin": ["opencode-models-discovery"],
+  "provider": {
+    "ollama": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "Ollama",
+      "options": {
+        "baseURL": "http://localhost:11434/v1",
+        "modelsDiscovery": {
+          "enabled": true,
+          "modelInfoFormat": "ollama"
+        }
+      },
+      "models": {}
+    }
+  }
+}
+```
+
+Only models returned by `/v1/models` are injected, and each one receives its own `/api/show` request in parallel. A model is enriched only when its `id` exactly matches the `model` value Ollama echoes; a failed or malformed per-model response degrades to no enrichment for that model without preventing discovery.
+
+The context limit is resolved in strict order: `model_info.<details.family>.context_length`, then any other `model_info` key ending in `.context_length`, then a top-level `context_length`, and finally a `num_ctx` value parsed from the `parameters` string (last resort, because `num_ctx` is usually the lower runtime default rather than the model's true maximum). The output limit is bounded by the context window and capped at OpenCode's default 32,000 output tokens. Ollama `capabilities` map as follows: `vision` or `images` add image input, `audio` adds audio input, `thinking` sets `reasoning`, and `tools`, `function_calling`, or `tool_calling` set `tool_call`. Unknown capabilities and missing fields are ignored without inventing metadata.
 
 ### models.dev Metadata
 
