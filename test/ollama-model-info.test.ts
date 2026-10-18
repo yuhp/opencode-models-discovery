@@ -32,7 +32,7 @@ describe('native Ollama enricher', () => {
     expect(result.limit?.context).toBe(8192)
   })
 
-  it('falls back to num_ctx in the parameters string when no context_length exists', () => {
+  it('resolves num_ctx from the parameters string when no context_length source exists', () => {
     const result = createOllamaEnricher(new Map([['m', { parameters: 'num_ctx 4096 num_predict -1 stop x' }]]))
       .enrich({ id: 'm' }, { filterNonChat: true })
 
@@ -47,6 +47,30 @@ describe('native Ollama enricher', () => {
 
     expect(unquoted.limit?.context).toBe(8192)
     expect(quoted.limit?.context).toBe(16384)
+  })
+
+  it('prefers a valid num_ctx over model_info and top-level context_length sources', () => {
+    const body = {
+      details: { family: 'gemma4' },
+      model_info: { 'gemma4.context_length': 131072, 'qwen35.context_length': 262144 },
+      context_length: 512,
+      parameters: 'num_ctx 64000',
+    }
+    const result = createOllamaEnricher(new Map([['gemma4', body]]))
+      .enrich({ id: 'gemma4' }, { filterNonChat: true })
+
+    expect(result.limit?.context).toBe(64000)
+  })
+
+  it('falls back to the family-keyed context_length when num_ctx is not usable', () => {
+    const result = createOllamaEnricher(new Map([['m', {
+      details: { family: 'gemma4' },
+      model_info: { 'gemma4.context_length': 131072 },
+      parameters: 'num_ctx 0',
+    }]]))
+      .enrich({ id: 'm' }, { filterNonChat: true })
+
+    expect(result.limit?.context).toBe(131072)
   })
 
   it('sets no limit when all context sources are missing', () => {

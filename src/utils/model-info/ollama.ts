@@ -17,6 +17,13 @@ function getRecordString(record: Record<string, unknown>, key: string): string |
 }
 
 function resolveOllamaContextLength(show: Record<string, unknown>): number | undefined {
+  const parameters = getRecordString(show, 'parameters')
+  if (parameters) {
+    const match = /"?num_ctx"?[:=\s]+(\d+)/.exec(parameters)
+    const parsed = match ? Number(match[1]) : undefined
+    if (hasUsableNumber(parsed)) return parsed
+  }
+
   const details = asRecord(show.details)
   const family = details ? getRecordString(details, 'family') : undefined
   const modelInfo = asRecord(show.model_info)
@@ -31,12 +38,6 @@ function resolveOllamaContextLength(show: Record<string, unknown>): number | und
   }
 
   if (hasUsableNumber(show.context_length)) return show.context_length
-
-  const parameters = getRecordString(show, 'parameters')
-  if (parameters) {
-    const match = /"?num_ctx"?[:=\s]+(\d+)/.exec(parameters)
-    if (match) return Number(match[1])
-  }
 
   return undefined
 }
