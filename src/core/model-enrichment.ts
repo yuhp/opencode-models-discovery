@@ -24,7 +24,37 @@ export interface ModelEnrichmentResult {
 }
 
 export interface ModelEnricher {
+  /**
+   * Optional deferred hydration step. Called at most once per discovery run,
+   * after the provider model list is known and before any enrich() call.
+   *
+   * Implementations may perform network requests to fetch per-model metadata.
+   * Individual failures must degrade to "no enrichment" for that model and
+   * must not reject; enrichment is always best-effort.
+   */
+  prepare?(modelIds: readonly string[]): Promise<void>
+
   enrich(model: DiscoveredRawModel, context: ModelEnrichmentContext): ModelEnrichmentResult
+}
+
+/**
+ * Runs the optional deferred hydration step of an enricher.
+ *
+ * Adapters call this after the provider model list is available and before
+ * building discovery drafts, so enrichers that need per-model detail requests
+ * can keep enrich() synchronous. Preparation is best-effort: a failure must
+ * never abort discovery.
+ */
+export async function prepareModelEnricher(
+  enricher: ModelEnricher | undefined,
+  modelIds: readonly string[],
+): Promise<void> {
+  if (!enricher?.prepare) return
+  try {
+    await enricher.prepare(modelIds)
+  } catch {
+    // Deferred enrichment is best-effort; discovery must continue.
+  }
 }
 
 export interface EnrichedModelDraft {

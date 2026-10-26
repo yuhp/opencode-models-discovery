@@ -3,7 +3,8 @@ import { type ConfiguredProvider, type DiscoveredV2Model, type Inventory } from 
 import { type ProviderDiscoveryOptions } from "./provider-config.js"
 import { mapToDiscoveredV2Model } from "../core/model-mapper.js"
 import { discoverModelDrafts } from "../core/discovery-pipeline.js"
-import type { ModelEnrichmentResult, ModelEnricher } from "../core/model-enrichment.js"
+import { isDiscoveredRawModel } from "../core/model-types.js"
+import { prepareModelEnricher, type ModelEnrichmentResult, type ModelEnricher } from "../core/model-enrichment.js"
 import { createDiscoveryCacheEntry, discoveryCacheKey, readDiscoveryCache, writeDiscoveryCache, type DiscoveryCacheBackend, type DiscoveryCacheEntry } from "../core/discovery-cache.js"
 import { resolveModelInfoEnricher } from "../core/enricher-resolver.js"
 
@@ -140,6 +141,13 @@ export async function discoverInventory(
         }
         rawModels = payload.data
         enricher = resolvedEnricher
+      }
+
+      if (!cached) {
+        await prepareModelEnricher(
+          enricher,
+          rawModels.filter(isDiscoveredRawModel).map((model) => model.id),
+        )
       }
 
         const enrichments: Record<string, ModelEnrichmentResult> = {}

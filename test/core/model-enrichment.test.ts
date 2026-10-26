@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest'
-import { enrichModelDraft } from '../../src/core/model-enrichment'
+import { describe, expect, it, vi } from 'vitest'
+import { enrichModelDraft, prepareModelEnricher } from '../../src/core/model-enrichment'
 
 describe('shared model enrichment contract', () => {
   it('applies native enricher output into a neutral draft', () => {
@@ -38,5 +38,33 @@ describe('shared model enrichment contract', () => {
 
     expect(result.skipped).toBe(true)
     expect(applied).toBe(true)
+  })
+
+  it('runs deferred preparation before enrichment', async () => {
+    const prepare = vi.fn(async () => {})
+    const enricher = {
+      prepare,
+      enrich: (model: { id: string }) => ({ limit: { context: model.id.length } }),
+    }
+
+    await prepareModelEnricher(enricher, ['alpha', 'beta'])
+
+    expect(prepare).toHaveBeenCalledOnce()
+    expect(prepare).toHaveBeenCalledWith(['alpha', 'beta'])
+    const result = enrichModelDraft({ id: 'alpha', name: 'alpha', raw: { id: 'alpha' } }, enricher)
+    expect(result.draft.limit).toEqual({ context: 5 })
+  })
+
+  it('treats deferred preparation failures as best-effort', async () => {
+    const prepare = vi.fn(async () => {
+      throw new Error('metadata unavailable')
+    })
+
+    await expect(prepareModelEnricher({ prepare, enrich: () => ({}) }, ['alpha'])).resolves.toBeUndefined()
+  })
+
+  it('skips preparation for enrichers without a deferred phase', async () => {
+    await expect(prepareModelEnricher({ enrich: () => ({}) }, ['alpha'])).resolves.toBeUndefined()
+    await expect(prepareModelEnricher(undefined, ['alpha'])).resolves.toBeUndefined()
   })
 })

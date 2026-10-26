@@ -8,7 +8,7 @@ import { type ModelEnricher } from '../utils/model-info'
 import { DEFAULT_CACHE_TTL_SECONDS, getDefaultDiscoveryConfigFromEnv, getProviderModelFieldFilters, getProviderModelRegexFilter, shouldDiscoverProviderWithOverride } from '../types/plugin-config'
 import { isInventoryFresh, mergeModelOverride, ProviderModelStore, type ProviderModelState } from './provider-model-store'
 import type { PluginLogger } from './logger'
-import type { ModelEnrichmentResult } from '../core/model-enrichment'
+import { prepareModelEnricher, type ModelEnrichmentResult } from '../core/model-enrichment'
 import type { PluginInput } from '@opencode-ai/plugin'
 import type { PluginConfig } from '../types/plugin-config'
 import { discoverModelDrafts } from '../core/discovery-pipeline'
@@ -343,6 +343,12 @@ export async function enhanceConfig(
       }
       if (reprocessPersistedModels) {
         modelInfoEnricher = createCachedModelEnricher(persistedState?.models ?? {})
+      }
+      if (!usingPersistedModels) {
+        await prepareModelEnricher(
+          modelInfoEnricher,
+          models.filter(isDiscoveredRawModel).map((model) => model.id),
+        )
       }
 
       const existingModels = getExplicitModels(config, providerName, p.models || {})
