@@ -65,7 +65,7 @@ As a result:
      "providers": {
        "my-provider": {
          "name": "My Provider",
-         "package": "@opencode-ai/ai/providers/openai-compatible",
+         "package": "@opencode/ai/providers/openai-compatible",
          "settings": {
            "baseURL": "http://127.0.0.1:8000/v1",
            "modelsDiscovery": {
@@ -92,7 +92,7 @@ As a result:
      "providers": {
        "my-provider": {
          "name": "My Provider",
-         "package": "@opencode-ai/ai/providers/openai-compatible",
+         "package": "@opencode/ai/providers/openai-compatible",
          "settings": {
            "baseURL": "http://127.0.0.1:8000/v1",
            "modelsDiscovery": {

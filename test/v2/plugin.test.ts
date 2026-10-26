@@ -36,7 +36,7 @@ function context(overrides: Record<string, unknown> = {}) {
       list: vi.fn().mockResolvedValue({ data: [{
         id: "local",
         name: "Local",
-        package: "@opencode-ai/ai/providers/openai-compatible",
+        package: "@opencode/ai/providers/openai-compatible",
         settings: {
           baseURL: "http://127.0.0.1:1234/v1",
           modelsDiscovery: {
@@ -112,7 +112,7 @@ describe("V2 plugin entrypoint", () => {
       options: {
         providers: {
           legacy: {
-            package: "@opencode-ai/ai/providers/openai-compatible",
+            package: "@opencode/ai/providers/openai-compatible",
             settings: { baseURL: "http://127.0.0.1:1234/v1", modelsDiscovery: { enabled: true } },
           },
         },
@@ -204,7 +204,7 @@ describe("V2 plugin entrypoint", () => {
         list: vi.fn().mockImplementation(async () => ({ data: [{
           id: "local",
           name: "Local",
-          package: "@opencode-ai/ai/providers/openai-compatible",
+          package: "@opencode/ai/providers/openai-compatible",
           settings: {
             baseURL: currentBaseURL,
             modelsDiscovery: { enabled: true },
@@ -405,7 +405,7 @@ describe("V2 plugin entrypoint", () => {
         list: vi.fn().mockImplementation(async () => ({ data: configured ? [{
           id: "local",
           name: "Local",
-          package: "@opencode-ai/ai/providers/openai-compatible",
+          package: "@opencode/ai/providers/openai-compatible",
           settings: { baseURL: "http://127.0.0.1:1234/v1", modelsDiscovery: { enabled: true } },
         }] : [] })),
       },

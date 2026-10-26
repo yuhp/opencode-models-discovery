@@ -37,7 +37,7 @@ describe("V2 local OpenAI-compatible integration", () => {
     try {
       const provider = {
         id: "local",
-        package: "@opencode-ai/ai/providers/openai-compatible",
+        package: "@opencode/ai/providers/openai-compatible",
         apiKey: "example-integration-key",
         settings: { baseURL: mock.baseURL },
       }
@@ -74,7 +74,7 @@ describe("V2 local OpenAI-compatible integration", () => {
     }
     const provider = {
       id: "local",
-      package: "@opencode-ai/ai/providers/openai-compatible",
+      package: "@opencode/ai/providers/openai-compatible",
       settings: { baseURL: mock.baseURL },
     }
     const discovery = new Map([["local", parseProviderDiscoveryOptions({ enabled: true, cache: { enabled: true } })!]])

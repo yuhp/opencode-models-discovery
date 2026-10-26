@@ -21,7 +21,7 @@ OpenCode v2 is the stable, primary integration. The package contains separate ad
 The V2 provider package for OpenAI-compatible discovery is normally:
 
 ```json
-"package": "@opencode-ai/ai/providers/openai-compatible"
+"package": "@opencode/ai/providers/openai-compatible"
 ```
 
 The V1 package commonly uses:
@@ -68,7 +68,7 @@ The V1 package commonly uses:
   ],
   "providers": {
     "gateway": {
-      "package": "@opencode-ai/ai/providers/openai-compatible",
+      "package": "@opencode/ai/providers/openai-compatible",
       "name": "My Gateway",
       "settings": {
         "baseURL": "https://gateway.example.com/v1",

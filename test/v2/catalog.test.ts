@@ -14,7 +14,7 @@ function inventory(modelID = "spike-model"): Inventory {
 function provider(id = "local") {
   return {
     id,
-    package: "@opencode-ai/ai/providers/openai-compatible",
+    package: "@opencode/ai/providers/openai-compatible",
     settings: { baseURL: "http://127.0.0.1:1234/v1" },
   }
 }

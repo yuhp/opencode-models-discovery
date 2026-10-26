@@ -12,7 +12,7 @@ describe("V2 Cache Operations RPC", () => {
       {
         id: "provider-a",
         name: "Provider A",
-        package: "@opencode-ai/ai/providers/openai-compatible",
+        package: "@opencode/ai/providers/openai-compatible",
         settings: {
           baseURL: "http://127.0.0.1:1234/v1",
           modelsDiscovery: {
@@ -24,7 +24,7 @@ describe("V2 Cache Operations RPC", () => {
       {
         id: "provider-b",
         name: "Provider B",
-        package: "@opencode-ai/ai/providers/openai-compatible",
+        package: "@opencode/ai/providers/openai-compatible",
         settings: {
           baseURL: "http://127.0.0.1:5678/v1",
           modelsDiscovery: {
@@ -283,7 +283,7 @@ describe("V2 Cache Operations RPC", () => {
         {
           id: "provider-a",
           name: "Provider A",
-          package: "@opencode-ai/ai/providers/openai-compatible",
+          package: "@opencode/ai/providers/openai-compatible",
           settings: {
             baseURL: "http://127.0.0.1:1234/v1",
             modelsDiscovery: { enabled: true },
@@ -328,7 +328,7 @@ describe("V2 Cache Operations RPC", () => {
         {
           id: "provider-a",
           name: "Provider A",
-          package: "@opencode-ai/ai/providers/openai-compatible",
+          package: "@opencode/ai/providers/openai-compatible",
           settings: { baseURL: "http://127.0.0.1:1234/v1", modelsDiscovery: { enabled: true, cache: { enabled: true } } },
         },
       ])
@@ -343,7 +343,7 @@ describe("V2 Cache Operations RPC", () => {
           {
             id: "provider-a",
             name: "Provider A",
-            package: "@opencode-ai/ai/providers/openai-compatible",
+            package: "@opencode/ai/providers/openai-compatible",
             settings: { baseURL: "http://127.0.0.1:1234/v1", modelsDiscovery: { enabled: true, cache: { enabled: true } } },
           },
         ])
@@ -372,7 +372,7 @@ describe("V2 Cache Operations RPC", () => {
         {
           id: "provider-a",
           name: "Provider A",
-          package: "@opencode-ai/ai/providers/openai-compatible",
+          package: "@opencode/ai/providers/openai-compatible",
           settings: { baseURL: "http://127.0.0.1:1234/v1", modelsDiscovery: { enabled: true } },
         },
       ])
@@ -405,7 +405,7 @@ describe("V2 Status RPC", () => {
         list: vi.fn().mockResolvedValue({ data: [{
           id: "provider-a",
           name: "Provider A",
-          package: "@opencode-ai/ai/providers/openai-compatible",
+          package: "@opencode/ai/providers/openai-compatible",
           settings: {
             baseURL: "http://127.0.0.1:1234/v1",
             modelsDiscovery: { enabled: true },

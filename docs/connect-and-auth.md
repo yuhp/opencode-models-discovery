@@ -23,7 +23,7 @@ OpenCode v2 features a first-class Integration subsystem (`ctx.integration`) and
   "providers": {
     "deepseek-custom": {
       "name": "DeepSeek Custom",
-      "package": "@opencode-ai/ai/providers/openai-compatible",
+      "package": "@opencode/ai/providers/openai-compatible",
       "settings": {
         "baseURL": "https://api.deepseek.com",
         "modelsDiscovery": {
@@ -60,7 +60,7 @@ Notice that `settings.apiKey` is completely omitted.
 3. **Dual-Layer Provider Authentication Binding**:
    - When OpenCode v2's host runner executes a chat completion for a discovered model, it requires upstream credentials.
    - The plugin's provider controller (`src/v2/catalog.ts`) binds `draft.integrationID` on the editor and injects memory-only `Authorization: Bearer <key>` headers into `draft.headers`.
-   - This ensures downstream provider packages (such as `@opencode-ai/ai/providers/openai-compatible`) always transmit the required authorization headers.
+   - This ensures downstream provider packages (such as `@opencode/ai/providers/openai-compatible`) always transmit the required authorization headers.
 
 4. **Credential Revocation & Cleanup**:
    - When credentials are deleted or disconnected in `/connect`, the event stream fires and the resolver observes the missing credential.

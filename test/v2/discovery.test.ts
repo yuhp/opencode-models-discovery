@@ -28,7 +28,7 @@ describe("V2 provider discovery", () => {
     })
     const provider = {
       id: "local",
-      package: "@opencode-ai/ai/providers/openai-compatible",
+      package: "@opencode/ai/providers/openai-compatible",
       settings: { baseURL: "http://127.0.0.1:1234/v1" },
     }
 
@@ -65,7 +65,7 @@ describe("V2 provider discovery", () => {
 
     const inventory = await discoverInventory([{
       id: "local",
-      package: "@opencode-ai/ai/providers/openai-compatible",
+      package: "@opencode/ai/providers/openai-compatible",
       settings: { baseURL: "http://127.0.0.1:1234/v1", apiKey: "example-test-key" },
     }], options, fetcher)
 
@@ -93,7 +93,7 @@ describe("V2 provider discovery", () => {
 
     const inventory = await discoverInventory([{
       id: "local",
-      package: "@opencode-ai/ai/providers/openai-compatible",
+      package: "@opencode/ai/providers/openai-compatible",
       settings: { baseURL: "http://127.0.0.1:1234/v1" },
     }], new Map([[
       "local",
@@ -110,7 +110,7 @@ describe("V2 provider discovery", () => {
 
     await discoverInventory([{
       id: "local",
-      package: "@opencode-ai/ai/providers/openai-compatible",
+      package: "@opencode/ai/providers/openai-compatible",
       apiKey: "example-managed-key",
       settings: { baseURL: "http://127.0.0.1:1234/v1", apiKey: "example-configured-key" },
     }], options, fetcher)
@@ -166,7 +166,7 @@ describe("V2 provider discovery", () => {
     })
 
     const inventory = await discoverInventory([
-      { id: "my-provider", package: "@opencode-ai/ai/providers/openai-compatible", settings: { baseURL: "https://example.com/api" } },
+      { id: "my-provider", package: "@opencode/ai/providers/openai-compatible", settings: { baseURL: "https://example.com/api" } },
     ], new Map([
       ["my-provider", parseProviderDiscoveryOptions({ enabled: true, endpoint: "/models" })!],
     ]), fetcher, undefined, { logger })
@@ -191,7 +191,7 @@ describe("V2 provider discovery", () => {
     })
 
     const inventory = await discoverInventory([
-      { id: "my-provider", package: "@opencode-ai/ai/providers/openai-compatible", settings: { baseURL: "https://example.com/api" } },
+      { id: "my-provider", package: "@opencode/ai/providers/openai-compatible", settings: { baseURL: "https://example.com/api" } },
     ], new Map([
       ["my-provider", parseProviderDiscoveryOptions({ enabled: true, endpoint: "/models" })!],
     ]), fetcher, undefined, { logger })
@@ -211,7 +211,7 @@ describe("V2 provider discovery", () => {
     const fetcher = vi.fn().mockRejectedValue(new Error("fetch failed: connection refused"))
 
     const inventory = await discoverInventory([
-      { id: "my-provider", package: "@opencode-ai/ai/providers/openai-compatible", settings: { baseURL: "https://example.com/api" } },
+      { id: "my-provider", package: "@opencode/ai/providers/openai-compatible", settings: { baseURL: "https://example.com/api" } },
     ], new Map([
       ["my-provider", parseProviderDiscoveryOptions({ enabled: true })!],
     ]), fetcher, undefined, { logger })

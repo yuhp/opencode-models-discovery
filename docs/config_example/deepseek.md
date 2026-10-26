@@ -16,7 +16,7 @@ This project is not affiliated with, endorsed by, or sponsored by DeepSeek.
   ],
   "providers": {
     "deepseek": {
-      "package": "@opencode-ai/ai/providers/openai-compatible",
+      "package": "@opencode/ai/providers/openai-compatible",
       "settings": {
         "baseURL": "https://api.deepseek.com/",
         // Optional: omit if managing credentials interactively via OpenCode '/connect'

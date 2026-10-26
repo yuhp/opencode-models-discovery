@@ -31,7 +31,7 @@ describe("V2 provider discovery with metadata enrichment", () => {
 
     const inventory = await discoverInventory([{
       id: "local",
-      package: "@opencode-ai/ai/providers/openai-compatible",
+      package: "@opencode/ai/providers/openai-compatible",
       settings: { baseURL: "http://127.0.0.1:1234/v1" },
     }], options, fetcher as unknown as typeof fetch)
 
@@ -78,7 +78,7 @@ describe("V2 provider discovery with metadata enrichment", () => {
 
     const inventory = await discoverInventory([{
       id: "local",
-      package: "@opencode-ai/ai/providers/openai-compatible",
+      package: "@opencode/ai/providers/openai-compatible",
       settings: { baseURL: "http://127.0.0.1:1234/v1" },
     }], options, fetcher as unknown as typeof fetch)
 

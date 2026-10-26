@@ -38,7 +38,7 @@ describe("DiscoveryRpcDefinition", () => {
           {
             id: "test-prov",
             name: "Test Provider",
-            package: "@opencode-ai/ai/providers/openai-compatible",
+            package: "@opencode/ai/providers/openai-compatible",
             settings: {
               baseURL: "http://localhost:11434",
               modelsDiscovery: { enabled: true, cache: { enabled: true, ttlSeconds: 3600 } },

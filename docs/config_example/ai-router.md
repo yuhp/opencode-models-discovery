@@ -16,7 +16,7 @@ This project is not affiliated with, endorsed by, or sponsored by [AI-ROUTER](ht
   ],
   "providers": {
     "ai-router": {
-      "package": "@opencode-ai/ai/providers/openai-compatible",
+      "package": "@opencode/ai/providers/openai-compatible",
       "settings": {
         "baseURL": "https://api.ai-router.dev/v1",
         // Optional: omit if managing credentials interactively via OpenCode '/connect'

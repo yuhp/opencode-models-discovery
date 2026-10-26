@@ -125,7 +125,7 @@ V1 model configuration and V2 catalog drafts use different shapes:
 | `cost.cache_read` | `cost.cache.read` |
 | `cost.cache_write` | `cost.cache.write` |
 
-V2 custom provider configuration likewise changes from `provider.<id>.npm` and `options.baseURL` to `providers.<id>.package` and `settings.baseURL`. The V2 native compatible provider package is `@opencode-ai/ai/providers/openai-compatible`; the AI SDK compatible package form is `aisdk:@ai-sdk/openai-compatible`.
+V2 custom provider configuration likewise changes from `provider.<id>.npm` and `options.baseURL` to `providers.<id>.package` and `settings.baseURL`. The V2 native compatible provider package is `@opencode/ai/providers/openai-compatible`; the AI SDK compatible package form is `aisdk:@ai-sdk/openai-compatible`.
 
 The provider spike and integration tests confirm the runtime model shape used by the v2 catalog transform. The mapper converts the shared discovery/enrichment representation into the v2 `Model.Info` shape, including limits, capabilities, reasoning compatibility, and variants.
 
