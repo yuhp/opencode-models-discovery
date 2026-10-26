@@ -1076,7 +1076,7 @@ describe('ModelDiscovery Plugin', () => {
 
       await pluginHooks.config(config)
 
-      expect(readFileSpy).toHaveBeenCalledWith(expect.stringMatching(/\/opencode\/auth\.json$/), 'utf8')
+      expect(readFileSpy).toHaveBeenCalledWith(expect.stringMatching(/[\\/]opencode[\\/]auth\.json$/), 'utf8')
       expect(config.provider.test_provider.models['host-auth-model']).toBeDefined()
       expect(mockFetch).toHaveBeenCalledWith('http://127.0.0.1:4000/v1/models', expect.objectContaining({
         method: 'GET',
@@ -1117,7 +1117,7 @@ describe('ModelDiscovery Plugin', () => {
 
       await pluginHooks.config(config)
 
-      expect(readFileSpy).toHaveBeenCalledWith(expect.stringMatching(/\/opencode\/auth\.json$/), 'utf8')
+      expect(readFileSpy).toHaveBeenCalledWith(expect.stringMatching(/[\\/]opencode[\\/]auth\.json$/), 'utf8')
       expect(config.provider.test_provider.models['default-host-auth-model']).toBeDefined()
       expect(mockFetch).toHaveBeenCalledWith('http://127.0.0.1:4000/v1/models', expect.objectContaining({
         method: 'GET',
@@ -1161,7 +1161,7 @@ describe('ModelDiscovery Plugin', () => {
 
       await pluginHooks.config(config)
 
-      expect(readFileSpy).toHaveBeenCalledWith(expect.stringMatching(/\/mimocode\/auth\.json$/), 'utf8')
+      expect(readFileSpy).toHaveBeenCalledWith(expect.stringMatching(/[\\/]mimocode[\\/]auth\.json$/), 'utf8')
       expect(config.provider.test_provider.models['mimo-auth-model']).toBeDefined()
       expect(mockFetch).toHaveBeenCalledWith('http://127.0.0.1:4000/v1/models', expect.objectContaining({
         method: 'GET',

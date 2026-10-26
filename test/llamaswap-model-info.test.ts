@@ -30,6 +30,26 @@ describe('native llama-swap enricher', () => {
     expect(result.limit).toEqual({ context: 34816, input: 32768, output: 2048 })
   })
 
+  it('resolves the effective context as the smallest declaration (llama.cpp reports the trained max in context_length)', () => {
+    const result = createLlamaSwapEnricher(null).enrich({
+      id: 'Qwen3.8-27B-UD-Q4_K_M',
+      context_length: 262144,
+      meta: { n_ctx: 100096, n_ctx_train: 262144 },
+    }, { filterNonChat: true })
+
+    expect(result.limit).toEqual({ context: 100096, output: 32000 })
+  })
+
+  it('caps the context at the context_length declaration when it is below the runtime context', () => {
+    const result = createLlamaSwapEnricher(null).enrich({
+      id: 'capped-model',
+      context_length: 8192,
+      meta: { n_ctx: 32768 },
+    }, { filterNonChat: true })
+
+    expect(result.limit).toEqual({ context: 8192, output: 8192 })
+  })
+
   it('uses supported_parameters as a tool-calling fallback', () => {
     const result = createLlamaSwapEnricher(null).enrich({ id: 'tool-model', supported_parameters: ['tools'] }, { filterNonChat: true })
     expect(result.toolCall).toBe(true)
