@@ -1,0 +1,17 @@
+{
+  "model": "gemma4-e2b",
+  "modified_at": "2026-10-01T00:00:00Z",
+  "details": {
+    "family": "gemma4",
+    "parameter_size": "2B",
+    "quantization_level": "Q4_K_M"
+  },
+  "parameters": "num_ctx 131072",
+  "model_info": {
+    "general.architecture": "gemma4",
+    "gemma4.context_length": 131072,
+    "gemma4.embedding_length": 2048,
+    "distractor.context_length": 4096
+  },
+  "capabilities": ["completion", "vision", "tools", "thinking"]
+}

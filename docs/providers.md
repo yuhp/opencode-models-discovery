@@ -118,6 +118,31 @@ The examples below use the OpenCode v1 keys `plugin`, `provider`, `npm`, and `op
 }
 ```
 
+### Ollama Metadata Enrichment
+
+Ollama's OpenAI-compatible model list only exposes ids. Enable `modelInfoFormat: "ollama"` to read context lengths and capabilities from the native `POST /api/show` endpoint:
+
+```json
+{
+  "plugin": ["opencode-models-discovery"],
+  "provider": {
+    "ollama": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "Ollama",
+      "options": {
+        "baseURL": "http://127.0.0.1:11434/v1",
+        "modelsDiscovery": {
+          "enabled": true,
+          "modelInfoFormat": "ollama"
+        }
+      }
+    }
+  }
+}
+```
+
+The plugin appends `/api/show` to the provider origin, so the example above calls `http://127.0.0.1:11434/api/show`. It requests each discovered model with bounded concurrency and degrades to no enrichment for models whose request fails. See [Ollama model info](configuration.md#ollama-model-info) for context-length precedence and capability mapping.
+
 ### Non-`/v1` Discovery Endpoint
 
 ```json

@@ -43,6 +43,105 @@ describe("V2 provider discovery with metadata enrichment", () => {
     expect((model as any).reasoning).toBe(true)
   })
 
+  it("enriches Ollama models from /api/show after the model list is known", async () => {
+    const options = new Map([
+      ["local", parseProviderDiscoveryOptions({
+        enabled: true,
+        smartModelName: true,
+        modelInfoFormat: ModelInfoFormat.Ollama,
+      })!],
+    ])
+
+    const fetcher = vi.fn(async (url: string, init?: RequestInit) => {
+      if (url.endsWith("/v1/models")) {
+        return {
+          ok: true,
+          json: async () => ({
+            data: [
+              { id: "gemma4-e2b" },
+              { id: "nomic-text" },
+            ],
+          }),
+        } as Response
+      }
+
+      const model = JSON.parse(String(init?.body)).model
+      if (model === "gemma4-e2b") {
+        return {
+          ok: true,
+          json: async () => ({
+            details: { family: "gemma4" },
+            parameters: "num_ctx 131072",
+            model_info: {
+              "general.architecture": "gemma4",
+              "gemma4.context_length": 131072,
+            },
+            capabilities: ["completion", "vision", "tools", "thinking"],
+          }),
+        } as Response
+      }
+      return {
+        ok: true,
+        json: async () => ({
+          parameters: "num_ctx 2048",
+          capabilities: ["embedding"],
+        }),
+      } as Response
+    })
+
+    const inventory = await discoverInventory([{
+      id: "local",
+      package: "@opencode/ai/providers/openai-compatible",
+      settings: { baseURL: "http://127.0.0.1:11434/v1" },
+    }], options, fetcher as unknown as typeof fetch)
+
+    expect(fetcher).toHaveBeenCalledWith("http://127.0.0.1:11434/api/show", expect.objectContaining({
+      method: "POST",
+      body: JSON.stringify({ model: "gemma4-e2b" }),
+    }))
+
+    const models = inventory.get("local")!
+    expect(models.has("nomic-text")).toBe(false)
+    expect(models.get("gemma4-e2b")).toMatchObject({
+      limit: { context: 131_072, output: 32_000 },
+      capabilities: { input: ["text", "image"], output: ["text"] },
+      reasoning: true,
+    })
+  })
+
+  it("keeps default limits when every Ollama /api/show request fails", async () => {
+    const options = new Map([
+      ["local", parseProviderDiscoveryOptions({
+        enabled: true,
+        modelInfoFormat: ModelInfoFormat.Ollama,
+      })!],
+    ])
+
+    const fetcher = vi.fn(async (url: string) => {
+      if (url.endsWith("/v1/models")) {
+        return {
+          ok: true,
+          json: async () => ({ data: [{ id: "gemma4-e2b" }] }),
+        } as Response
+      }
+      return {
+        ok: false,
+        status: 404,
+        json: async () => ({}),
+      } as Response
+    })
+
+    const inventory = await discoverInventory([{
+      id: "local",
+      package: "@opencode/ai/providers/openai-compatible",
+      settings: { baseURL: "http://127.0.0.1:11434/v1" },
+    }], options, fetcher as unknown as typeof fetch)
+
+    expect(inventory.get("local")?.get("gemma4-e2b")).toMatchObject({
+      limit: { context: 200_000, output: 32_000 },
+    })
+  })
+
   it("queries external litellm endpoint and filters non-chat models", async () => {
     const options = new Map([
       ["local", parseProviderDiscoveryOptions({

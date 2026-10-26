@@ -33,6 +33,34 @@ describe('shared enricher resolver', () => {
     expect(fetcher).not.toHaveBeenCalled()
   })
 
+  it('resolves Ollama as a deferred enricher without fetching at resolution time', async () => {
+    const fetcher = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        parameters: 'num_ctx 8192',
+        capabilities: ['completion', 'tools'],
+      }),
+    })
+    const enricher = await resolveModelInfoEnricher(
+      { baseURL: 'http://127.0.0.1:11434/v1', fetcher },
+      { format: ModelInfoFormat.Ollama },
+    )
+
+    expect(enricher).toBeDefined()
+    expect(fetcher).not.toHaveBeenCalled()
+
+    await enricher!.prepare!(['gemma3'])
+
+    expect(fetcher).toHaveBeenCalledWith('http://127.0.0.1:11434/api/show', expect.objectContaining({
+      method: 'POST',
+      body: JSON.stringify({ model: 'gemma3' }),
+    }))
+    expect(enricher!.enrich({ id: 'gemma3' }, { filterNonChat: true })).toMatchObject({
+      limit: { context: 8_192 },
+      toolCall: true,
+    })
+  })
+
   it('resolves remote LiteLLM format with authentication and timeout', async () => {
     const fetcher = vi.fn().mockResolvedValue({
       ok: true,

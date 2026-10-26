@@ -4,6 +4,25 @@ export interface ModelEnrichmentContext {
   readonly filterNonChat: boolean
 }
 
+export interface ModelEnricherLogger {
+  warn(message: string, context?: Record<string, unknown>): void
+  info?(message: string, context?: Record<string, unknown>): void
+}
+
+/**
+ * Request bindings passed to deferred enricher factories at resolution time.
+ * Format modules use these to construct an enricher that performs per-model
+ * metadata requests later in prepare().
+ */
+export interface ModelEnricherDeferredContext {
+  readonly baseURL: string
+  readonly apiKey?: string
+  readonly endpoint?: string
+  readonly timeoutMs?: number
+  readonly fetcher?: typeof fetch
+  readonly logger?: ModelEnricherLogger
+}
+
 export interface ModelEnrichmentResult {
   readonly skip?: boolean
   readonly metadataName?: string

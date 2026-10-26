@@ -1,6 +1,9 @@
 import { ModelInfoFormat } from '../types/plugin-config'
-import { createModelEnricher, isSupportedModelInfoFormat, type ModelEnricher } from '../utils/model-info/index'
+import { createDeferredModelEnricher, createModelEnricher, isSupportedModelInfoFormat, type ModelEnricher } from '../utils/model-info/index'
 import { fetchModelsDevData, DEFAULT_MODELS_DEV_URL } from '../utils/models-dev-fetcher'
+import { buildModelInfoURL } from './model-info-url'
+
+export { buildModelInfoURL } from './model-info-url'
 
 export const DEFAULT_LITELLM_ENDPOINT = '/v1/model/info'
 export const DEFAULT_LMSTUDIO_ENDPOINT = '/api/v1/models'
@@ -24,15 +27,6 @@ export interface ModelInfoResolverContext {
   readonly providerName?: string
   readonly fetcher?: typeof fetch
   readonly logger?: ModelInfoResolverLogger
-}
-
-export function buildModelInfoURL(baseURL: string, endpoint: string): string {
-  if (/^https?:\/\//i.test(endpoint)) {
-    return endpoint
-  }
-  return endpoint.startsWith('/')
-    ? new URL(endpoint, new URL(baseURL).origin).toString()
-    : new URL(endpoint, baseURL.endsWith('/') ? baseURL : `${baseURL}/`).toString()
 }
 
 /**
@@ -78,6 +72,16 @@ export async function resolveModelInfoEnricher(
   ) {
     return createModelEnricher(format, null)
   }
+
+  const deferred = createDeferredModelEnricher(format, {
+    baseURL: context.baseURL,
+    apiKey: context.apiKey,
+    endpoint: options.endpoint,
+    timeoutMs: options.timeoutMs ?? DEFAULT_ENRICHER_TIMEOUT_MS,
+    fetcher: context.fetcher,
+    logger: context.logger,
+  })
+  if (deferred) return deferred
 
   if (format === ModelInfoFormat.LiteLLM || format === ModelInfoFormat.LMStudio) {
     const defaultEndpoint = format === ModelInfoFormat.LiteLLM ? DEFAULT_LITELLM_ENDPOINT : DEFAULT_LMSTUDIO_ENDPOINT
