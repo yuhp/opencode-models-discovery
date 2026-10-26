@@ -18,7 +18,7 @@ OpenCode v2 features a first-class Integration subsystem (`ctx.integration`) and
 {
   "$schema": "https://opencode.ai/config.json",
   "plugins": [
-    "opencode-models-discovery@latest"
+    "opencode-models-discovery@2.0.1"
   ],
   "providers": {
     "deepseek-custom": {
@@ -83,7 +83,7 @@ OpenCode v1 does not have the V2 plugin integration API. Instead, the V1 adapter
 {
   "$schema": "https://opencode.ai/config.json",
   "plugin": [
-    "opencode-models-discovery@latest"
+    "opencode-models-discovery@2.0.1"
   ],
   "provider": {
     "test_provider": {

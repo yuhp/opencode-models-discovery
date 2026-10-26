@@ -34,7 +34,7 @@ Add the plugin package to your OpenCode v2 `opencode.json` (or `opencode.jsonc`)
 {
   "$schema": "https://opencode.ai/config.json",
   "plugins": [
-    "opencode-models-discovery@2.0.0"
+    "opencode-models-discovery@2.0.1"
   ],
   "providers": {
     "gateway-custom": {
@@ -103,7 +103,7 @@ For OpenCode v1 (1.18.29+), add the plugin to your `opencode.json`:
 {
   "$schema": "https://opencode.ai/config.json",
   "plugin": [
-    "opencode-models-discovery@latest"
+    "opencode-models-discovery@2.0.1"
   ],
   "provider": {
     "lmstudio": {

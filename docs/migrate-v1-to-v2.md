@@ -9,7 +9,7 @@ OpenCode v2 is the stable, primary integration. The package contains separate ad
 | OpenCode v1 | OpenCode v2 |
 |---|---|
 | `plugin` | `plugins` |
-| `plugin: ["opencode-models-discovery"]` | `plugins: ["opencode-models-discovery@2.0.0"]` |
+| `plugin: ["opencode-models-discovery"]` | `plugins: ["opencode-models-discovery@2.0.1"]` |
 | `provider` | `providers` |
 | `provider.<id>.npm` | `providers.<id>.package` |
 | `provider.<id>.options` | `providers.<id>.settings` |
@@ -64,7 +64,7 @@ The V1 package commonly uses:
 {
   "$schema": "https://opencode.ai/config.json",
   "plugins": [
-    "opencode-models-discovery@2.0.0"
+    "opencode-models-discovery@2.0.1"
   ],
   "providers": {
     "gateway": {
