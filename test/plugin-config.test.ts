@@ -15,6 +15,7 @@ describe('JSON config struct parsing', () => {
     { json: '{"modelInfoFormat":"vllm"}', expected: true },
     { json: '{"modelInfoFormat":"llama-swap"}', expected: true },
     { json: '{"modelInfoFormat":"omniroute"}', expected: true },
+    { json: '{"modelInfoFormat":"ollama"}', expected: true },
     { json: '{"modelInfoFormat":"bogus"}', expected: false },
   ])('handles modelInfoFormat=$json', ({ json, expected }) => {
     const config = parse(json)

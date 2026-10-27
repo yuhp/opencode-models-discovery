@@ -12,7 +12,7 @@ This project is not affiliated with, endorsed by, or sponsored by [A2Agent](http
 {
   "$schema": "https://opencode.ai/config.json",
   "plugins": [
-    "opencode-models-discovery@2.0.0"
+    "opencode-models-discovery@2.1.0"
   ],
   "providers": {
     "a2agent": {

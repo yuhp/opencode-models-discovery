@@ -39,6 +39,7 @@ export enum ModelInfoFormat {
   LlamaSwap = 'llama-swap',
   OmniRoute = 'omniroute',
   OpenRouter = 'openrouter',
+  Ollama = 'ollama',
 }
 
 export const DEFAULT_CACHE_TTL_SECONDS = 86400

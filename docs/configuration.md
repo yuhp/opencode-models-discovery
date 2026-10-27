@@ -14,7 +14,7 @@ OpenCode v2 uses `plugins` and `providers`. The plugin can be declared directly 
 {
   "$schema": "https://opencode.ai/config.json",
   "plugins": [
-    "opencode-models-discovery@2.0.0"
+    "opencode-models-discovery@2.1.0"
   ],
   "providers": {
     "my-provider": {
@@ -116,8 +116,8 @@ Each provider can configure discovery behavior through `provider.<name>.options.
 | `provider.<name>.options.modelsDiscovery.enabled` | `boolean` | Force enable or disable discovery for a single provider |
 | `provider.<name>.options.modelsDiscovery.endpoint` | `string` | Provider-specific models endpoint as an origin-relative path beginning with `/`. Defaults to `/v1/models` |
 | `provider.<name>.options.modelsDiscovery.timeoutMs` | positive finite `number` | Per-request timeout for the provider's models and provider-specific metadata endpoints. Defaults to `3000` |
-| `provider.<name>.options.modelsDiscovery.modelInfoEndpoint` | `string` | Override a format-specific metadata endpoint as an origin-relative path or complete URL. Defaults to `/v1/model/info` for `"litellm"` and `/api/v1/models` for `"lmstudio"`; for `"aiproxy"`, it overrides the models.dev fallback URL |
-| `provider.<name>.options.modelsDiscovery.modelInfoFormat` | `string` | Model info response format. Currently supports `"aiproxy"`, `"bifrost"`, `"litellm"`, `"models.dev"`, `"vllm"`, `"lmstudio"`, `"llama-swap"`, `"omniroute"`, and `"openrouter"` |
+| `provider.<name>.options.modelsDiscovery.modelInfoEndpoint` | `string` | Override a format-specific metadata endpoint as an origin-relative path or complete URL. Defaults to `/v1/model/info` for `"litellm"`, `/api/v1/models` for `"lmstudio"`, and `/api/show` for `"ollama"`; for `"aiproxy"`, it overrides the models.dev fallback URL |
+| `provider.<name>.options.modelsDiscovery.modelInfoFormat` | `string` | Model info response format. Currently supports `"aiproxy"`, `"bifrost"`, `"litellm"`, `"models.dev"`, `"vllm"`, `"lmstudio"`, `"llama-swap"`, `"omniroute"`, `"openrouter"`, and `"ollama"` |
 | `provider.<name>.options.modelsDiscovery.filterNonChat` | `boolean` | When model info is available, skip models whose `model_info.mode` is not `chat`. Defaults to `true` |
 | `provider.<name>.options.modelsDiscovery.models.includeRegex` | `string[]` | Shortcut regex allow-list for discovered model ids only |
 | `provider.<name>.options.modelsDiscovery.models.excludeRegex` | `string[]` | Shortcut regex deny-list for discovered model ids only |
@@ -355,7 +355,7 @@ Community provider examples live in [`docs/config_example/`](config_example/).
 
 The generic OpenAI-compatible `/v1/models` endpoint only guarantees a small model list shape. Extra metadata such as context limits, tool calling, reasoning, image input, or structured output is provider-specific, so metadata enrichment is opt-in.
 
-The plugin currently supports nine model info formats:
+The plugin currently supports ten model info formats:
 
 | Format | Source | Requires `modelInfoEndpoint` | Notes |
 |--------|--------|------------------------------|-------|
@@ -368,6 +368,7 @@ The plugin currently supports nine model info formats:
 | `"llama-swap"` | Fields in llama-swap's `/v1/models` response | No | Reads inline context, modalities, and function-calling metadata when present |
 | `"omniroute"` | Fields in OmniRoute's `/v1/models` response | No | Reads OmniRoute inline limits, modalities, and capabilities when present |
 | `"openrouter"` | Fields in OpenRouter's `/v1/models` response | No | Reads OpenRouter inline limits, modalities, pricing, capabilities, and reasoning metadata when present |
+| `"ollama"` | Ollama's `/api/show` per-model endpoint | No | Uses `/api/show` by default; makes one POST per discovered model id; set `modelInfoEndpoint` for another path or a proxy URL |
 
 > **Configuration syntax**: All examples below use the primary **OpenCode v2** configuration shape (`providers.<id>.settings.modelsDiscovery`). The discovery options (`enabled`, `modelInfoFormat`, `models`, `smartModelName`, etc.) are identical between versions; for legacy OpenCode v1, place the same options under `provider.<id>.options.modelsDiscovery` (with `plugin: ["opencode-models-discovery"]` and `npm: "@ai-sdk/openai-compatible"`).
 
@@ -615,6 +616,40 @@ Only models returned by `/v1/models` are injected. A model is enriched only when
 
 When available, the plugin sets `limit.context` from the largest loaded instance `config.context_length`, otherwise it uses `max_context_length`. LM Studio does not report a distinct output limit, so the plugin resolves a safe default output limit bounded by the context window and capped at OpenCode's default 32,000 output tokens. The plugin maps `capabilities.vision` to image input and `capabilities.trained_for_tool_use` to `tool_call`. Its reported reasoning options are the source of truth for variants: `off`, `low`, `medium`, `high`, and `xhigh` become variants, with `off` sent as `reasoningEffort: "none"`; `on` and unknown options are omitted because they are not concrete OpenAI-compatible efforts. Missing or malformed metadata is left unset without preventing discovery.
 
+### Ollama Model Info
+
+Use `modelInfoFormat: "ollama"` for Ollama providers. Ollama's OpenAI-compatible `/v1/models` response only contains ids, so the plugin discovers models normally and then calls Ollama's native `POST /api/show` once per discovered model to read context length and capabilities.
+
+```jsonc
+{
+  "providers": {
+    "ollama": {
+      "package": "@opencode/ai/providers/openai-compatible",
+      "settings": {
+        "baseURL": "http://127.0.0.1:11434/v1",
+        "modelsDiscovery": {
+          "enabled": true,
+          "modelInfoFormat": "ollama"
+        }
+      }
+    }
+  }
+}
+```
+
+The endpoint defaults to `/api/show` on the provider base URL origin, so `http://127.0.0.1:11434/v1` becomes `http://127.0.0.1:11434/api/show`. Set `modelInfoEndpoint` only for a non-standard path or a proxy URL. Requests use the configured `timeoutMs` and are limited to four concurrent calls. A failed, timed-out, or malformed per-model response only disables enrichment for that model; discovery continues and other models are still enriched.
+
+Context length is resolved in this order:
+
+1. `num_ctx` from the model's `parameters` string, when positive;
+2. `model_info.<general.architecture>.context_length`, then `model_info.<details.family>.context_length`;
+3. any other positive `*.context_length` entry in `model_info`;
+4. a top-level `context_length`.
+
+`num_ctx` is preferred because it is the only intentional effective-context signal the model exposes. The `model_info` values are architecture-derived maxima and are used when `num_ctx` is absent or invalid. The plugin does not clamp `num_ctx` to the architecture maximum, and it cannot see server-wide runtime overrides such as `OLLAMA_CONTEXT_LENGTH`. When no value is available, the model keeps the host default context limit.
+
+Capabilities are mapped as follows: `vision` or `images` adds image input, `audio` adds audio input, `thinking` sets `reasoning`, and `tools`, `function_calling`, or `tool_calling` sets `tool_call`. When `filterNonChat` is enabled, a model whose capabilities contain `embedding` but not `completion` is skipped.
+
 ### models.dev Metadata
 
 Use `modelInfoFormat: "models.dev"` to enrich discovered models from the public [models.dev](https://models.dev) metadata index.
@@ -692,7 +727,7 @@ For providers with custom metadata paths or non-standard behavior:
 {
   "$schema": "https://opencode.ai/config.json",
   "plugins": [
-    "opencode-models-discovery@2.0.0"
+    "opencode-models-discovery@2.1.0"
   ],
   "providers": {
     "lmstudio": {
@@ -741,7 +776,7 @@ In this example:
 {
   "$schema": "https://opencode.ai/config.json",
   "plugins": [
-    "opencode-models-discovery@2.0.0"
+    "opencode-models-discovery@2.1.0"
   ],
   "providers": {
     "ollama": {

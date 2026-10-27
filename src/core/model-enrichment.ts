@@ -4,6 +4,25 @@ export interface ModelEnrichmentContext {
   readonly filterNonChat: boolean
 }
 
+export interface ModelEnricherLogger {
+  warn(message: string, context?: Record<string, unknown>): void
+  info?(message: string, context?: Record<string, unknown>): void
+}
+
+/**
+ * Request bindings passed to deferred enricher factories at resolution time.
+ * Format modules use these to construct an enricher that performs per-model
+ * metadata requests later in prepare().
+ */
+export interface ModelEnricherDeferredContext {
+  readonly baseURL: string
+  readonly apiKey?: string
+  readonly endpoint?: string
+  readonly timeoutMs?: number
+  readonly fetcher?: typeof fetch
+  readonly logger?: ModelEnricherLogger
+}
+
 export interface ModelEnrichmentResult {
   readonly skip?: boolean
   readonly metadataName?: string
@@ -24,7 +43,37 @@ export interface ModelEnrichmentResult {
 }
 
 export interface ModelEnricher {
+  /**
+   * Optional deferred hydration step. Called at most once per discovery run,
+   * after the provider model list is known and before any enrich() call.
+   *
+   * Implementations may perform network requests to fetch per-model metadata.
+   * Individual failures must degrade to "no enrichment" for that model and
+   * must not reject; enrichment is always best-effort.
+   */
+  prepare?(modelIds: readonly string[]): Promise<void>
+
   enrich(model: DiscoveredRawModel, context: ModelEnrichmentContext): ModelEnrichmentResult
+}
+
+/**
+ * Runs the optional deferred hydration step of an enricher.
+ *
+ * Adapters call this after the provider model list is available and before
+ * building discovery drafts, so enrichers that need per-model detail requests
+ * can keep enrich() synchronous. Preparation is best-effort: a failure must
+ * never abort discovery.
+ */
+export async function prepareModelEnricher(
+  enricher: ModelEnricher | undefined,
+  modelIds: readonly string[],
+): Promise<void> {
+  if (!enricher?.prepare) return
+  try {
+    await enricher.prepare(modelIds)
+  } catch {
+    // Deferred enrichment is best-effort; discovery must continue.
+  }
 }
 
 export interface EnrichedModelDraft {
