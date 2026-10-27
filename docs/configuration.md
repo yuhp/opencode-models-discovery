@@ -14,7 +14,7 @@ OpenCode v2 uses `plugins` and `providers`. The plugin can be declared directly 
 {
   "$schema": "https://opencode.ai/config.json",
   "plugins": [
-    "opencode-models-discovery@2.0.1"
+    "opencode-models-discovery@2.1.0"
   ],
   "providers": {
     "my-provider": {
@@ -727,7 +727,7 @@ For providers with custom metadata paths or non-standard behavior:
 {
   "$schema": "https://opencode.ai/config.json",
   "plugins": [
-    "opencode-models-discovery@2.0.1"
+    "opencode-models-discovery@2.1.0"
   ],
   "providers": {
     "lmstudio": {
@@ -776,7 +776,7 @@ In this example:
 {
   "$schema": "https://opencode.ai/config.json",
   "plugins": [
-    "opencode-models-discovery@2.0.1"
+    "opencode-models-discovery@2.1.0"
   ],
   "providers": {
     "ollama": {
