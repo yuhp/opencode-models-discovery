@@ -112,7 +112,7 @@ Explain the mechanism to the user:
 Supported plugin options under provider.<id>.options.modelsDiscovery:
 - enabled: force enable or disable discovery for this provider
 - endpoint: provider-specific models endpoint as an origin-relative path beginning with /; it always uses the provider base URL origin and defaults to /v1/models
-- modelInfoEndpoint: override the metadata endpoint; accepts either an origin-relative path or a complete URL for "litellm" and "lmstudio", while "models.dev" requires a complete models.json URL
+- modelInfoEndpoint: override the metadata endpoint; accepts either an origin-relative path or a complete URL for "litellm", "lmstudio", and "ollama", while "models.dev" requires a complete models.json URL
 - modelInfoFormat="aiproxy": overlay inline AIProxy limits, pricing, and explicitly advertised effort tiers on models.dev metadata; modelInfoEndpoint optionally overrides the models.dev URL
 - models.includeRegex: shortcut for model id regex allow-list; prefer models.includeBy with field="id" and match for new config
 - models.excludeRegex: shortcut for model id regex deny-list; prefer models.excludeBy with field="id" and match for new config
@@ -127,6 +127,7 @@ Supported plugin options under provider.<id>.options.modelsDiscovery:
 - modelInfoFormat="llama-swap": read llama-swap's inline /v1/models context, modalities, and function-calling metadata without another request
 - modelInfoFormat="omniroute": read OmniRoute's documented inline /v1/models limits, modalities, and capabilities without another request
 - modelInfoFormat="openrouter": read OpenRouter's inline /v1/models limits, modalities, pricing, capabilities, and reasoning metadata without another request
+- modelInfoFormat="ollama": discover through the normal /v1/models endpoint, then read per-model context length and capabilities from Ollama's native POST /api/show endpoint
 - filterNonChat: when LiteLLM model info is available, skip non-chat models by default
 - cache.enabled: opt in to a provider-scoped persisted discovery cache of filtered and enriched model configurations; defaults to false
 - cache.ttlSeconds: non-negative finite cache lifetime in seconds; defaults to 86400
@@ -155,6 +156,7 @@ Recommended defaults:
 - use modelInfoFormat="llama-swap" only for llama-swap /v1/models responses; it is an explicit inline-metadata format and does not make another request
 - use modelInfoFormat="omniroute" only for OmniRoute's documented /v1/models response; it is an explicit inline-metadata format and does not make another request
 - use modelInfoFormat="openrouter" only for OpenRouter's /v1/models response; it is an explicit inline-metadata format and does not make another request
+- use modelInfoFormat="ollama" for Ollama providers that expose the native /api/show endpoint; it makes one POST per discovered model, keeps going when individual models fail, and does not require modelInfoEndpoint unless Ollama is behind a non-standard path or proxy
 - configure caching only when the user requests it; it is disabled by default
 - the persisted discovery cache belongs to this plugin and is not a replacement for opencode.json
 

@@ -282,6 +282,7 @@ describe('ModelDiscovery Plugin', () => {
         expect(config.command['models-discovery:config'].template).toContain('modelInfoFormat="llama-swap"')
         expect(config.command['models-discovery:config'].template).toContain('modelInfoFormat="omniroute"')
         expect(config.command['models-discovery:config'].template).toContain('modelInfoFormat="openrouter"')
+        expect(config.command['models-discovery:config'].template).toContain('modelInfoFormat="ollama"')
         expect(config.command['models-discovery:config'].template).toContain('max_model_len')
         expect(config.command['models-discovery:config'].template).toContain('restart opencode')
 
@@ -2696,6 +2697,108 @@ describe('ModelDiscovery Plugin', () => {
         'generic-model': expect.objectContaining({ id: 'generic-model' }),
       }))
       expect(config.provider.lmstudio.models['generic-model'].limit).toBeUndefined()
+    })
+
+    it('enriches Ollama models from /api/show after the model list is known', async () => {
+      mockFetch.mockImplementation(async (url: string, init: any) => {
+        if (url.endsWith('/v1/models')) {
+          return {
+            ok: true,
+            json: async () => ({
+              data: [
+                { id: 'gemma4-e2b', object: 'model', created: 0, owned_by: 'library' },
+                { id: 'nomic-text', object: 'model', created: 0, owned_by: 'library' },
+              ],
+            }),
+          }
+        }
+        if (url.endsWith('/api/show')) {
+          const model = JSON.parse(init.body).model
+          if (model === 'gemma4-e2b') {
+            return {
+              ok: true,
+              json: async () => ({
+                details: { family: 'gemma4' },
+                parameters: 'num_ctx 131072',
+                model_info: {
+                  'general.architecture': 'gemma4',
+                  'gemma4.context_length': 131072,
+                },
+                capabilities: ['completion', 'vision', 'tools', 'thinking'],
+              }),
+            }
+          }
+          return {
+            ok: true,
+            json: async () => ({
+              parameters: 'num_ctx 2048',
+              capabilities: ['embedding'],
+            }),
+          }
+        }
+        return { ok: false }
+      })
+      const config: any = {
+        provider: {
+          ollama: {
+            npm: '@ai-sdk/openai-compatible',
+            options: {
+              baseURL: 'http://127.0.0.1:11434/v1',
+              modelsDiscovery: { modelInfoFormat: 'ollama' },
+            },
+            models: {},
+          },
+        },
+      }
+
+      await pluginHooks.config(config)
+
+      expect(mockFetch).toHaveBeenCalledWith('http://127.0.0.1:11434/api/show', expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ model: 'gemma4-e2b' }),
+      }))
+      expect(config.provider.ollama.models['gemma4-e2b']).toMatchObject({
+        id: 'gemma4-e2b',
+        limit: { context: 131072, output: 32000 },
+        modalities: { input: ['text', 'image'], output: ['text'] },
+        reasoning: true,
+        tool_call: true,
+      })
+      expect(config.provider.ollama.models['nomic-text']).toBeUndefined()
+    })
+
+    it('keeps generic Ollama discovery when /api/show metadata is unavailable', async () => {
+      mockFetch.mockImplementation(async (url: string) => {
+        if (url.endsWith('/v1/models')) {
+          return {
+            ok: true,
+            json: async () => ({ data: [{ id: 'generic-model', object: 'model', created: 0, owned_by: 'library' }] }),
+          }
+        }
+        if (url.endsWith('/api/show')) {
+          return { ok: false, status: 404, json: async () => ({}) }
+        }
+        return { ok: false }
+      })
+      const config: any = {
+        provider: {
+          ollama: {
+            npm: '@ai-sdk/openai-compatible',
+            options: {
+              baseURL: 'http://127.0.0.1:11434/v1',
+              modelsDiscovery: { modelInfoFormat: 'ollama' },
+            },
+            models: {},
+          },
+        },
+      }
+
+      await pluginHooks.config(config)
+
+      expect(config.provider.ollama.models['generic-model']).toMatchObject({
+        id: 'generic-model',
+      })
+      expect(config.provider.ollama.models['generic-model'].limit).toBeUndefined()
     })
 
     it('reuses enriched LM Studio models from a fresh cache without requests', async () => {

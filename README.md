@@ -80,7 +80,7 @@ events without requiring a restart.
 See [Connect and Auth Documentation](docs/connect-and-auth.md) for credential
 resolution, lifecycle handling, and security details.
 
-`modelInfoFormat` and `smartModelName` are optional: without them, discovered names remain the model IDs and no external metadata is fetched. Supported metadata formats are `aiproxy`, `models.dev`, `bifrost`, `litellm`, `vllm`, `lmstudio`, `llama-swap`, `omniroute`, and `openrouter`. `models.dev` fetches `https://models.dev/models.json` by default; `modelInfoEndpoint` can override the catalog URL. The `aiproxy` format composes that catalog with inline metadata from AIProxy's model list. The `openrouter` format reads OpenRouter's inline `/v1/models` metadata without another request. `filterNonChat` defaults to `true`; it can filter non-chat models when the selected metadata source supplies that information. `timeoutMs` defaults to 5000 ms. Models returned by discovery are added alongside explicitly configured models.
+`modelInfoFormat` and `smartModelName` are optional: without them, discovered names remain the model IDs and no external metadata is fetched. Supported metadata formats are `aiproxy`, `models.dev`, `bifrost`, `litellm`, `vllm`, `lmstudio`, `llama-swap`, `omniroute`, `openrouter`, and `ollama`. `models.dev` fetches `https://models.dev/models.json` by default; `modelInfoEndpoint` can override the catalog URL. The `aiproxy` format composes that catalog with inline metadata from AIProxy's model list. The `openrouter` format reads OpenRouter's inline `/v1/models` metadata without another request. The `ollama` format reads per-model context lengths and capabilities from Ollama's native `/api/show` endpoint. `filterNonChat` defaults to `true`; it can filter non-chat models when the selected metadata source supplies that information. `timeoutMs` defaults to 5000 ms. Models returned by discovery are added alongside explicitly configured models.
 
 For a local build, run `npm run compile` and replace the package value above with `"file:///absolute/path/to/opencode-models-discovery/dist"`. OpenCode v2 expects a **directory**, not a path to `index.js` or `server.js`. After rebuilding plugin code, run `opencode service restart` so the background service loads the new bundle. Discovery runs when the plugin initializes. The native TUI commands are `/models-discovery-refresh` and `/models-discovery-console`; the console combines Provider → model → model details browsing with cache inspection and clearing. Use `/models-discovery-console status --provider <provider-id>` to filter the browser. The OpenCode v2 agent tools `models_discovery_refresh` and `models_discovery_status` remain available for automation. Pass `rawCache: true` to `models_discovery_status` to include cached raw models and enrichment results.
 
@@ -332,6 +332,17 @@ For LM Studio 0.4.0+'s native v1 REST inventory endpoint:
   "modelsDiscovery": {
     "enabled": true,
     "modelInfoFormat": "lmstudio"
+  }
+}
+```
+
+For Ollama's native `/api/show` per-model metadata:
+
+```json
+{
+  "modelsDiscovery": {
+    "enabled": true,
+    "modelInfoFormat": "ollama"
   }
 }
 ```
