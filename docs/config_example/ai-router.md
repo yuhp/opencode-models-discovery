@@ -12,7 +12,7 @@ This project is not affiliated with, endorsed by, or sponsored by [AI-ROUTER](ht
 {
   "$schema": "https://opencode.ai/config.json",
   "plugins": [
-    "opencode-models-discovery@2.1.0"
+    "opencode-models-discovery@2.1.1"
   ],
   "providers": {
     "ai-router": {
