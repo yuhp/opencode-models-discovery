@@ -105,7 +105,9 @@ Enrichment is opt-in. Without `modelInfoFormat`, the plugin does not contact ext
 
 Supported formats include:
 
-`aiproxy`, `bifrost`, `litellm`, `lmstudio`, `llama-swap`, `models.dev`, `ollama`, `omniroute`, `openrouter`, and `vllm`.
+`aiproxy`, `bifrost`, `capabilities`, `litellm`, `lmstudio`, `llama-swap`, `models.dev`, `ollama`, `omniroute`, `openrouter`, and `vllm`.
+
+`capabilities` reads metadata inline from each `/v1/models` entry: top-level `context_length` / `max_input_tokens` / `max_output_tokens`, plus a `capabilities` object with `vision`, `pdf`, `audioInput`, `videoInput`, `imageOutput`, `audioOutput`, `tools`, `reasoning`, `thinkingFormat`, and `effort_tiers` (or top-level `thinkingLevels`). It makes no extra metadata request. Routers such as Uwalrouter report models this way.
 
 Example using `models.dev`:
 

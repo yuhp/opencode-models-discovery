@@ -1,4 +1,5 @@
 import { createBifrostEnricher } from './bifrost'
+import { createCapabilitiesEnricher } from './capabilities'
 import { createLiteLLMEnricher } from './litellm'
 import { createLMStudioEnricher } from './lmstudio'
 import { createLlamaSwapEnricher } from './llamaswap'
@@ -23,6 +24,7 @@ const MODEL_ENRICHERS: Partial<Record<ModelInfoFormat, ModelEnricherFactory>> = 
   [ModelInfoFormat.LMStudio]: (data) => createLMStudioEnricher(data),
   [ModelInfoFormat.LiteLLM]: (data) => createLiteLLMEnricher(data),
   [ModelInfoFormat.AIProxy]: (data) => createAIProxyEnricher(data),
+  [ModelInfoFormat.Capabilities]: (data) => createCapabilitiesEnricher(data),
   [ModelInfoFormat.OpenRouter]: (data) => createOpenRouterEnricher(data),
 }
 
