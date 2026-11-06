@@ -66,6 +66,56 @@ describe("V2 provider controller", () => {
     expect(added[0]?.info.settings).toBeUndefined()
   })
 
+  describe("pruneMissing", () => {
+    function run(pruneMissing: boolean) {
+      const set = vi.fn()
+      const kept = { id: "both", modelID: "both" }
+      const stale = { id: "stale", modelID: "stale" }
+      const controller = createProviderController(
+        { provider: { reload: vi.fn() } } as never,
+        [{ ...provider(), pruneMissing }],
+        (id) => `integration.${id}`,
+      )
+      const editor = {
+        get: vi.fn().mockReturnValue({
+          provider: { id: "local" },
+          models: new Map([["both", kept], ["stale", stale]]),
+        }),
+        add: vi.fn(),
+        update: vi.fn(),
+        models: { set },
+      }
+      return { controller, editor, set, kept, stale }
+    }
+
+    function discovered(...ids: string[]): Inventory {
+      const models = inventory(ids[0]).get("local")!
+      for (const id of ids.slice(1)) models.set(id, { ...models.get(ids[0])!, id, modelID: id })
+      return new Map([["local", models]])
+    }
+
+    it("removes source models the provider no longer lists and keeps source metadata for the rest", async () => {
+      const { controller, editor, set, kept } = run(true)
+      await controller.replaceInventory(discovered("both", "new"))
+      controller.transform(editor as never)
+      expect(set).toHaveBeenCalledWith("local", [kept, expect.objectContaining({ modelID: "new" })])
+    })
+
+    it("keeps source models when the option is off", async () => {
+      const { controller, editor, set, kept, stale } = run(false)
+      await controller.replaceInventory(discovered("both"))
+      controller.transform(editor as never)
+      expect(set).toHaveBeenCalledWith("local", [kept, stale])
+    })
+
+    it("does not prune when the inventory is empty, as after a failed first request", async () => {
+      const { controller, editor, set, kept, stale } = run(true)
+      await controller.replaceInventory(new Map([["local", new Map()]]))
+      controller.transform(editor as never)
+      expect(set).toHaveBeenCalledWith("local", [kept, stale])
+    })
+  })
+
   it("preserves existing source models when adding discovered models", async () => {
     const set = vi.fn()
     const existing = { modelID: "explicit-model" }
