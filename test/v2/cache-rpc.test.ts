@@ -390,6 +390,67 @@ describe("V2 Cache Operations RPC", () => {
         fetcher.mockRestore()
       }
     })
+
+    it("keeps a capability override scoped to the full model ID across refreshes", async () => {
+      const modelA = "openai/gpt-4o-mini"
+      const modelB = "anthropic/claude-3-5-sonnet"
+      const response = (ids: string[]) => ({
+        ok: true,
+        json: async () => ({
+          data: ids.map((id) => ({
+            id,
+            architecture: {
+              input_modalities: ["text", "image"],
+              output_modalities: ["text"],
+            },
+          })),
+        }),
+      } as Response)
+      const fetcher = vi.spyOn(globalThis, "fetch")
+        .mockResolvedValueOnce(response([modelA]))
+        .mockResolvedValueOnce(response([modelA, modelB]))
+        .mockResolvedValueOnce(response([modelA, modelB]))
+      const { ctx, rpcHandlers } = createTestSetup([
+        {
+          id: "provider-a",
+          name: "Provider A",
+          package: "@opencode/ai/providers/openai-compatible",
+          settings: {
+            baseURL: "http://127.0.0.1:1234/v1",
+            modelsDiscovery: { enabled: true, modelInfoFormat: "bifrost" },
+          },
+        },
+      ])
+
+      try {
+        await plugin.setup(ctx as never)
+        const set = rpcHandlers.overrideSet as (input: unknown) => Promise<unknown>
+        const refresh = rpcHandlers.refresh as (input?: unknown) => Promise<unknown>
+        const status = rpcHandlers.status as (input?: unknown) => Promise<RpcStatusOutput>
+
+        await set({
+          providerID: "provider-a",
+          modelID: modelA,
+          patch: { capabilities: { input: ["text"] } },
+        })
+        await refresh({ force: true })
+
+        const models = (await status({ providerID: "provider-a", details: true })).providers[0]?.models ?? []
+        expect(models.find((model) => model.id === modelA)).toMatchObject({
+          id: modelA,
+          override: expect.objectContaining({ modelID: modelA }),
+        })
+        expect(models.find((model) => model.id === modelA)?.detail).toContain("  Input: text")
+        expect(models.find((model) => model.id === modelA)?.detail).not.toContain("image")
+        expect(models.find((model) => model.id === modelB)).toMatchObject({
+          id: modelB,
+        })
+        expect(models.find((model) => model.id === modelB)?.detail).toContain("  Input: text, image")
+        expect(models.find((model) => model.id === modelB)?.override).toBeUndefined()
+      } finally {
+        fetcher.mockRestore()
+      }
+    })
   })
 })
 
