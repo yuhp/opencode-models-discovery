@@ -35,6 +35,7 @@ Do not paste secrets into public issues or pull requests. Configure provider cre
 - [A2Agent](a2agent.md)
 - [AI-ROUTER](ai-router.md)
 - [DeepSeek](deepseek.md)
+- [UberLLM](uberllm.md)
 
 ## Community Example PR Scope
 
