@@ -4,8 +4,8 @@
 [![npm downloads](https://img.shields.io/npm/dt/opencode-models-discovery.svg)](https://www.npmjs.com/package/opencode-models-discovery)
 [![release](https://github.com/yuhp/opencode-models-discovery/actions/workflows/release.yml/badge.svg)](https://github.com/yuhp/opencode-models-discovery/actions/workflows/release.yml)
 [![license](https://img.shields.io/github/license/yuhp/opencode-models-discovery)](https://github.com/yuhp/opencode-models-discovery/blob/main/LICENSE)
-[![OpenCode v1](https://img.shields.io/badge/OpenCode%20v1-%3E%3D1.18.29-blueviolet)](https://opencode.ai/docs)
-[![OpenCode v2](https://img.shields.io/badge/OpenCode%20v2-%3E%3D2.2.5-blueviolet)](https://opencode.ai/v2/docs/)
+[![OpenCode v1](https://img.shields.io/badge/OpenCode%20v1-%3E%3D1.18.29-blueviolet)](https://opencode.ai/v1/docs)
+[![OpenCode v2](https://img.shields.io/badge/OpenCode%20v2-%3E%3D2.2.6-blueviolet)](https://opencode.ai/v2/docs/)
 
 > Discover models from OpenAI-compatible providers and add them to OpenCode automatically.
 
@@ -29,7 +29,7 @@ OpenCode v2 uses `plugins` and `providers`. Discovery settings belong under `pro
 {
   "$schema": "https://opencode.ai/config.json",
   "plugins": [
-    "opencode-models-discovery@2.1.0"
+    "opencode-models-discovery@2.1.2"
   ],
   "providers": {
     "gateway": {
@@ -73,7 +73,7 @@ For OpenCode v1 (`1.18.29+`), use `plugin`, `provider`, and `options`:
 ```json
 {
   "$schema": "https://opencode.ai/config.json",
-  "plugin": ["opencode-models-discovery@2.1.0"],
+  "plugin": ["opencode-models-discovery@2.1.2"],
   "provider": {
     "lmstudio": {
       "npm": "@ai-sdk/openai-compatible",
