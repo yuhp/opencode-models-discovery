@@ -101,6 +101,28 @@ describe("V2 provider controller", () => {
       expect(set).toHaveBeenCalledWith("local", [kept, expect.objectContaining({ modelID: "new" })])
     })
 
+    it("keeps a source model whose modelID is listed under a different catalog id", async () => {
+      const set = vi.fn()
+      const alias = { id: "alias", modelID: "listed" }
+      const hidden = { id: "other", modelID: "hidden" }
+      const controller = createProviderController(
+        { provider: { reload: vi.fn() } } as never,
+        [{ ...provider(), pruneMissing: true }],
+        (id) => `integration.${id}`,
+      )
+      const editor = {
+        get: vi.fn().mockReturnValue({ provider: { id: "local" }, models: new Map([["alias", alias], ["other", hidden]]) }),
+        add: vi.fn(),
+        update: vi.fn(),
+        models: { set },
+      }
+      await controller.replaceInventory(discovered("listed"))
+      controller.transform(editor as never)
+      const ids = set.mock.calls[0]![1].map((model: { id: string }) => model.id)
+      expect(ids).toContain("alias")
+      expect(ids).not.toContain("other")
+    })
+
     it("keeps source models when the option is off", async () => {
       const { controller, editor, set, kept, stale } = run(false)
       await controller.replaceInventory(discovered("both"))

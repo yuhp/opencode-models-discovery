@@ -104,8 +104,10 @@ export function createProviderController(
       const source = editor.get(providerID)
       const sourceModels = source ? [...source.models.values()] : []
       // An empty inventory is what a failed first request looks like, so it must never prune.
+      // Match on either key: a source model can alias a listed upstream model under its own id.
+      const listed = new Set([...models.values()].flatMap((model) => [model.id, model.modelID]))
       const existing = provider.pruneMissing && models.size > 0
-        ? sourceModels.filter((model) => models.has(String(model.id)))
+        ? sourceModels.filter((model) => listed.has(String(model.id)) || listed.has(String((model as { modelID?: unknown }).modelID)))
         : sourceModels
       const existingIDs = new Set(existing.map((model) => String(model.id)))
       editor.models.set(providerID, [
