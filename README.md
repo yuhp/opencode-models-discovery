@@ -29,7 +29,7 @@ OpenCode v2 uses `plugins` and `providers`. Discovery settings belong under `pro
 {
   "$schema": "https://opencode.ai/config.json",
   "plugins": [
-    "opencode-models-discovery@2.1.1"
+    "opencode-models-discovery@2.1.2"
   ],
   "providers": {
     "gateway": {
@@ -73,7 +73,7 @@ For OpenCode v1 (`1.18.29+`), use `plugin`, `provider`, and `options`:
 ```json
 {
   "$schema": "https://opencode.ai/config.json",
-  "plugin": ["opencode-models-discovery@2.1.1"],
+  "plugin": ["opencode-models-discovery@2.1.2"],
   "provider": {
     "lmstudio": {
       "npm": "@ai-sdk/openai-compatible",
