@@ -60,4 +60,20 @@ describe('native AIProxy model enricher', () => {
       capabilities: { effort_tiers: ['unsupported'] },
     }, { filterNonChat: true })).toEqual({ variants: {} })
   })
+
+  it('keeps provider-advertised limits as the base that inline limits overlay', () => {
+    const enricher = createAIProxyEnricher(new Map([['gpt-6-luna', {
+      id: 'gpt-6-luna',
+      limit: { context: 1_050_000, output: 32_000 },
+    }]]))
+
+    const result = enricher.enrich({
+      id: 'gpt-6-luna',
+      context_length: 272_000,
+      max_completion_tokens: 128_000,
+      limits: { max_output_tokens: 64_000 },
+    }, { filterNonChat: true })
+
+    expect(result.limit).toEqual({ context: 272_000, output: 64_000 })
+  })
 })
