@@ -53,6 +53,7 @@ async function configuredProviders(ctx: Plugin.Context): Promise<{
         name: typeof entry.name === "string" ? entry.name : undefined,
         package: entry.package,
         settings,
+        pruneMissing: parsed.pruneMissing,
       })
       discovery.set(entry.id, parsed)
     }
