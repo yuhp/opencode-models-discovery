@@ -10,4 +10,5 @@ opencode-debug.log
 .cache/
 coverage/
 opencode.json*
+AGENTS.md
 docs/articles/
