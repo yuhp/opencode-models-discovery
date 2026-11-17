@@ -15,7 +15,7 @@
  * step the Desktop plugin loader performs.
  */
 import { execFileSync } from 'node:child_process'
-import { existsSync, mkdtempSync, mkdirSync, readdirSync, readFileSync, rmSync, renameSync, cpSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, mkdirSync, readdirSync, readFileSync, rmSync, renameSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -101,26 +101,10 @@ describe('Node host compatibility (OpenCode Desktop)', () => {
     rmSync(stagedPkgDir, { recursive: true, force: true })
     renameSync(path.join(stagedRoot, 'package'), stagedPkgDir)
 
-    // Provide the runtime dependency the host would install alongside the plugin.
-    const depSource = path.join(repoRoot, 'node_modules', 'xdg-basedir')
-    if (existsSync(depSource)) {
-      cpSync(depSource, path.join(stagedRoot, 'node_modules', 'xdg-basedir'), { recursive: true })
-    }
-
-    // The combined V1/V2 entrypoint has an external V2 SDK dependency. Install
-    // production dependencies in the temporary consumer just like a package
-    // manager would for a published plugin.
-    const dependencyRoot = path.join(workDir, 'runtime-dependencies')
-    mkdirSync(dependencyRoot, { recursive: true })
-    execFileSync('npm', [
-      'install',
-      '--prefix', dependencyRoot,
-      '--ignore-scripts',
-      '--no-package-lock',
-      '--omit=dev',
-      '@opencode/plugin@2.0.26',
-    ], { stdio: 'pipe', env: cleanNpmEnv() })
-    cpSync(path.join(dependencyRoot, 'node_modules'), path.join(stagedRoot, 'node_modules'), { recursive: true })
+    // The published package bundles its SDK dependencies, so no runtime
+    // dependencies are installed alongside it. Staging the tarball alone
+    // proves the entries load self-contained, exactly as a host with an
+    // empty dependency tree would load them.
   }, 180_000)
 
   afterAll(() => {

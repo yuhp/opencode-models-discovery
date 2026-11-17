@@ -20,6 +20,23 @@ feature branches -> dev -> release/vX.Y.Z -> main -> publish
 
 Release branches are short-lived per-version branches. There is no long-lived `release` branch.
 
+## Bundled Dependencies
+
+`dist/runtime.js` and `dist/tui.js` bundle the OpenCode plugin SDKs (`@opencode/plugin`, and the type-only `@opencode-ai/plugin`) at build time, so the published package declares **no runtime or peer dependencies** and hosts install it without unpacking a dependency tree. Consequences for releases:
+
+1. Bump the `@opencode/plugin` / `@opencode-ai/plugin` devDependencies when preparing a release if you want the published plugin to track a newer SDK; the bundled copy is otherwise frozen at the last bump.
+2. Do not add entries to `dependencies`, `peerDependencies`, or `optionalDependencies`. Hosts materialize every installed dependency as individual files in their plugin cache (a previous external-SDK setup unpacked ~30k files per install). `npm run check:bundle` fails the build if a bundled output keeps an external import or the manifest declares installable dependencies again.
+3. `npm run compile` regenerates `dist/THIRD-PARTY-NOTICES.md` from the esbuild metafiles: an inventory of every bundled package with its exact version and full license text, shipped inside the tarball. `npm run check:notices` (part of `validate:package`) fails if the file is stale or a bundled package has no license classification, and `scripts/release.ts` embeds the SDK versions it lists into the GitHub release notes.
+4. Development builds (`npm run build`) retain source maps for debugging. Release publishing uses `npm run build:release`, which compiles without source maps and removes stale `.map` files before packaging. The `files` allowlist also excludes source maps as a final packaging safeguard.
+
+## Release Validation
+
+`npm run validate:package` (run by the publish path) checks the release contract introduced with the bundling change:
+
+- `npm run check:bundle` — zero installable dependencies, SDKs bundled into the runtime.
+- `npm run check:notices` — `dist/THIRD-PARTY-NOTICES.md` matches what the bundles actually contain.
+- `test/types-consumer.test.ts` (via the test suites) — a clean consumer typechecks against the published package with nothing but ambient Node types installed.
+
 ## What the Workflows Do
 
 ### Release Workflow
