@@ -174,6 +174,42 @@ function groupCommits(commits: CommitEntry[]): Array<{ title: string; commits: C
   return grouped
 }
 
+/**
+ * Summarizes the versions that were actually bundled into dist/ by reading
+ * THIRD-PARTY-NOTICES.md, which `npm run compile` regenerates from the esbuild
+ * metafiles on every build (see scripts/bundle-notices.ts).
+ */
+function bundledDependencySection(): string {
+  const noticesPath = 'dist/THIRD-PARTY-NOTICES.md'
+  if (!existsSync(noticesPath)) {
+    return '### Bundled dependencies\n\n- dist/THIRD-PARTY-NOTICES.md is missing; run `npm run compile` before releasing.'
+  }
+
+  const inventory = readFileSync(noticesPath, 'utf-8')
+    .split('\n')
+    .slice(0, 40) // inventory lines live before the first license section
+    .filter((line) => line.startsWith('- ') && /@[^ ]+ \([^)]+\)$/.test(line))
+
+  if (inventory.length === 0) {
+    return '### Bundled dependencies\n\n- THIRD-PARTY-NOTICES.md lists no bundled packages; the build may be broken.'
+  }
+
+  const sdkNames = ['@opencode/plugin', '@opencode-ai/plugin']
+  const sdk = inventory
+    .map((line) => line.slice(2))
+    .filter((entry) => sdkNames.some((name) => entry.startsWith(`${name}@`)))
+
+  return [
+    '### Bundled dependencies',
+    '',
+    'The plugin SDKs are statically bundled (the published package installs no runtime dependencies):',
+    '',
+    ...(sdk.length > 0 ? sdk.map((entry) => `- ${entry}`) : ['- _No SDK entries found in THIRD-PARTY-NOTICES.md._']),
+    '',
+    `The exact versions bundled into this release are recorded in \`dist/THIRD-PARTY-NOTICES.md\` (${inventory.length} packages).`,
+  ].join('\n')
+}
+
 function generateReleaseNotes(version: string): string {
   const { name } = getPackageInfo()
   const previousTag = getPreviousTag()
@@ -193,6 +229,8 @@ function generateReleaseNotes(version: string): string {
 ${compareText}
 
 ${changesSection}
+
+${bundledDependencySection()}
 
 ### Installation
 

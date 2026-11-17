@@ -50,5 +50,10 @@ jobs:
       - name: Build distribution
         run: npm run compile
 
+      - name: Bundle dependency guards
+        run: |
+          npm run check:bundle
+          npm run check:notices
+
       - name: Inspect npm package
         run: npm pack --dry-run --ignore-scripts
