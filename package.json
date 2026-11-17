@@ -1,28 +1,29 @@
 {
   "$schema": "https://json.schemastore.org/package.json",
   "name": "opencode-models-discovery",
-  "version": "2.1.2",
+  "version": "2.2.0-rc.1",
   "description": "OpenCode plugin for auto-discovery of OpenAI-compatible models with dynamic provider configuration",
   "type": "module",
   "main": "./dist/index.js",
-  "types": "./src/index.ts",
+  "types": "./types/index.d.ts",
   "exports": {
     ".": {
-      "types": "./src/index.ts",
+      "types": "./types/index.d.ts",
       "default": "./dist/index.js"
     },
     "./server": {
-      "types": "./src/server.ts",
+      "types": "./types/server.d.ts",
       "default": "./dist/server.js"
     },
     "./tui": {
-      "types": "./src/tui.ts",
+      "types": "./types/tui.d.ts",
       "default": "./dist/tui.js"
     }
   },
   "files": [
-    "dist",
-    "src"
+    "dist/*.js",
+    "dist/THIRD-PARTY-NOTICES.md",
+    "types"
   ],
   "scripts": {
     "typecheck": "tsc --noEmit",
@@ -32,19 +33,27 @@
     "test:watch": "vitest watch",
     "lint": "eslint src",
     "lint:fix": "eslint src --fix",
-    "compile": "npm run compile:runtime && npm run compile:root && npm run compile:server && npm run compile:tui",
-    "compile:runtime": "esbuild src/runtime.ts --bundle --format=esm --platform=node --packages=external --target=node18 --sourcemap --keep-names --outfile=dist/runtime.js",
+    "compile": "npm run compile:runtime && npm run compile:root && npm run compile:server && npm run compile:tui && bun scripts/bundle-notices.ts",
+    "compile:release": "npm run compile:runtime:release && npm run compile:root:release && npm run compile:server:release && npm run compile:tui:release && bun scripts/remove-source-maps.ts && bun scripts/bundle-notices.ts",
+    "compile:runtime": "esbuild src/runtime.ts --bundle --format=esm --platform=node --target=node18 --sourcemap --keep-names --metafile=meta/runtime.meta.json --outfile=dist/runtime.js",
+    "compile:runtime:release": "esbuild src/runtime.ts --bundle --format=esm --platform=node --target=node18 --keep-names --metafile=meta/runtime.meta.json --outfile=dist/runtime.js",
     "compile:root": "esbuild src/index.ts --format=esm --platform=node --packages=external --target=node18 --sourcemap --keep-names --outfile=dist/index.js",
+    "compile:root:release": "esbuild src/index.ts --format=esm --platform=node --packages=external --target=node18 --keep-names --outfile=dist/index.js",
     "compile:server": "esbuild src/server.ts --format=esm --platform=node --packages=external --target=node18 --sourcemap --keep-names --outfile=dist/server.js",
-    "compile:tui": "esbuild src/tui.ts --bundle --format=esm --platform=node --packages=external --target=node18 --sourcemap --keep-names --outfile=dist/tui.js",
-    "build": "npm run lint && npm run typecheck && npm run test:run && npm run compile",
+    "compile:server:release": "esbuild src/server.ts --format=esm --platform=node --packages=external --target=node18 --keep-names --outfile=dist/server.js",
+    "compile:tui": "esbuild src/tui.ts --bundle --format=esm --platform=node --target=node18 --sourcemap --keep-names --metafile=meta/tui.meta.json --outfile=dist/tui.js",
+    "compile:tui:release": "esbuild src/tui.ts --bundle --format=esm --platform=node --target=node18 --keep-names --metafile=meta/tui.meta.json --outfile=dist/tui.js",
+    "build": "npm run lint && npm run typecheck && npm run test:run && npm run compile && npm run check:bundle && npm run check:notices",
+    "build:release": "npm run lint && npm run typecheck && npm run test:run && npm run compile:release && npm run check:bundle && npm run check:notices",
+    "check:bundle": "bun scripts/check-bundle-deps.ts meta/runtime.meta.json meta/tui.meta.json",
+    "check:notices": "bun scripts/check-bundle-deps.ts --notices meta/runtime.meta.json meta/tui.meta.json",
     "test:v1": "vitest run test/plugin.test.ts test/v1-v2-isolation.test.ts",
     "test:v2": "vitest run test/v2",
-    "validate:package": "npm run compile && npm pack --dry-run --ignore-scripts",
+    "validate:package": "npm run compile && npm run check:bundle && npm run check:notices && npm pack --dry-run --ignore-scripts",
     "validate": "npm run lint && npm run typecheck && npm run test:run",
     "validate:config": "bun scripts/validate-config.ts",
     "release": "bun scripts/release.ts",
-    "prepublishOnly": "npm run build"
+    "prepublishOnly": "npm run build:release"
   },
   "keywords": [
     "opencode",
@@ -66,16 +75,11 @@
     "type": "git",
     "url": "git+https://github.com/yuhp/opencode-models-discovery.git"
   },
-  "dependencies": {
-    "@opencode/plugin": "2.2.6",
-    "xdg-basedir": "^5.1.0"
-  },
-  "peerDependencies": {
-    "@opencode-ai/plugin": ">=1.18.29"
-  },
+  "dependencies": {},
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@opencode-ai/plugin": "^1.18.29",
+    "@opencode/plugin": "2.2.6",
     "@types/node": "^26.5.1",
     "@vitest/coverage-v8": "^5.0.0",
     "esbuild": "^0.28.2",
@@ -83,6 +87,7 @@
     "globals": "^17.12.0",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.70.0",
-    "vitest": "^5.0.0"
+    "vitest": "^5.0.0",
+    "xdg-basedir": "^5.1.0"
   }
 }

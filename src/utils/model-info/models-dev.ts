@@ -1,9 +1,31 @@
 import { lookupModelsDevData, type ModelsDevModel } from '../models-dev-fetcher'
 import type { ModelEnricher } from '../../core/model-enrichment'
-import { createModelLimits } from '../../core/model-types'
+import { createModelLimits, type DiscoveredRawModel } from '../../core/model-types'
 
 function hasUsableNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value) && value > 0
+}
+
+function firstUsableNumber(...values: readonly unknown[]): number | undefined {
+  return values.find(hasUsableNumber)
+}
+
+/**
+ * Reads token limits advertised inline by an OpenAI-compatible /v1/models entry.
+ *
+ * Gateways that front several upstreams (CLIProxyAPI, LiteLLM poolers, custom
+ * routers) advertise the limits they actually accept. Those values describe the
+ * live endpoint, so they take precedence over the static models.dev catalog,
+ * which can lag behind or overstate what a specific route enforces.
+ */
+function advertisedProviderLimits(model: DiscoveredRawModel): { context?: number; output?: number } | undefined {
+  const context = firstUsableNumber(model.context_length, model.max_context_length)
+  const output = firstUsableNumber(model.max_completion_tokens, model.max_output_tokens)
+  if (context === undefined && output === undefined) return undefined
+  return {
+    ...(context !== undefined ? { context } : {}),
+    ...(output !== undefined ? { output } : {}),
+  }
 }
 
 export function createModelsDevEnricher(data: unknown): ModelEnricher {
@@ -11,9 +33,11 @@ export function createModelsDevEnricher(data: unknown): ModelEnricher {
   return {
     enrich(model) {
       const info = lookupModelsDevData(model.id, cache)
-      const contextLimit = hasUsableNumber(info?.limit?.context) ? info?.limit?.context : info?.limit?.input
+      const advertised = advertisedProviderLimits(model)
+      const infoContext = hasUsableNumber(info?.limit?.context) ? info?.limit?.context : info?.limit?.input
+      const contextLimit = advertised?.context ?? infoContext
       const limits = hasUsableNumber(contextLimit)
-        ? createModelLimits(contextLimit, info?.limit?.output, info?.limit?.input)
+        ? createModelLimits(contextLimit, advertised?.output ?? info?.limit?.output, info?.limit?.input)
         : undefined
       return {
         metadataName: info?.name,

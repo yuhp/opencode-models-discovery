@@ -119,6 +119,7 @@ Each provider can configure discovery behavior through `provider.<name>.options.
 | `provider.<name>.options.modelsDiscovery.modelInfoEndpoint` | `string` | Override a format-specific metadata endpoint as an origin-relative path or complete URL. Defaults to `/v1/model/info` for `"litellm"`, `/api/v1/models` for `"lmstudio"`, and `/api/show` for `"ollama"`; for `"aiproxy"`, it overrides the models.dev fallback URL |
 | `provider.<name>.options.modelsDiscovery.modelInfoFormat` | `string` | Model info response format. Currently supports `"aiproxy"`, `"bifrost"`, `"litellm"`, `"models.dev"`, `"vllm"`, `"lmstudio"`, `"llama-swap"`, `"omniroute"`, `"openrouter"`, and `"ollama"` |
 | `provider.<name>.options.modelsDiscovery.filterNonChat` | `boolean` | When model info is available, skip models whose `model_info.mode` is not `chat`. Defaults to `true` |
+| `provider.<name>.options.modelsDiscovery.pruneMissing` | `boolean` | OpenCode v2 only. Remove models from the provider's catalog when the provider's models endpoint doesn't list them by `id` or `modelID`, including ones excluded by the filters below. The plugin can't tell config-declared models from built-in ones, so any model it sees is pruned the same way; on OpenCode 2.2.5, models declared in `provider.<name>.models` were applied after the plugin and stayed. A failed refresh reuses the last successful list, and nothing is removed until one succeeds. Defaults to `false` |
 | `provider.<name>.options.modelsDiscovery.models.includeRegex` | `string[]` | Shortcut regex allow-list for discovered model ids only |
 | `provider.<name>.options.modelsDiscovery.models.excludeRegex` | `string[]` | Shortcut regex deny-list for discovered model ids only |
 | `provider.<name>.options.modelsDiscovery.models.includeBy` | `{ field: string, equals: string \| number \| boolean \| null }[]` or `{ field: string, match: string }[]` | Allow-list for top-level raw provider model fields |
@@ -362,7 +363,7 @@ The plugin currently supports ten model info formats:
 | `"aiproxy"` | AIProxy's discovered `/models` entries plus models.dev | No | Maps inline AIProxy limits, pricing, and declared effort tiers; models.dev supplies general metadata |
 | `"bifrost"` | Fields in Bifrost's `/v1/models` response | No | Reads Bifrost inline limits, modalities, and base pricing when present |
 | `"litellm"` | Provider-specific model info endpoint | No | Uses `/v1/model/info` by default; set `modelInfoEndpoint` to override it |
-| `"models.dev"` | `https://models.dev/models.json` | No | Uses the public models.dev metadata index |
+| `"models.dev"` | `https://models.dev/models.json` | No | Uses the public models.dev metadata index; limits advertised inline by the provider take precedence |
 | `"vllm"` | Fields in the provider's `/v1/models` response | No | Reads vLLM-style `max_model_len` when present |
 | `"lmstudio"` | LM Studio 0.4.0+ `/api/v1/models` inventory | No | Uses `/api/v1/models` by default; set `modelInfoEndpoint` for another path |
 | `"llama-swap"` | Fields in llama-swap's `/v1/models` response | No | Reads inline context, modalities, and function-calling metadata when present |
@@ -374,7 +375,7 @@ The plugin currently supports ten model info formats:
 
 ### AIProxy Metadata
 
-Use `modelInfoFormat: "aiproxy"` when the configured model-list endpoint returns AIProxy's inline `limits` and `pricing` fields. The plugin makes no second request to AIProxy. It also fetches models.dev for general metadata and display names, then overlays valid AIProxy values. Explicit model configuration remains highest priority.
+Use `modelInfoFormat: "aiproxy"` when the configured model-list endpoint returns AIProxy's inline `limits` and `pricing` fields. The plugin makes no second request to AIProxy. It also fetches models.dev for general metadata and display names, then overlays valid AIProxy values. Limits advertised inline in the model-list entry are kept as the base, so they win over models.dev before the AIProxy `limits` block is applied. Explicit model configuration remains highest priority.
 
 ```jsonc
 {
@@ -688,6 +689,8 @@ When a discovered model can be matched to models.dev metadata, the plugin may po
 - `modalities`
 
 The current models.dev data uses a flat `provider/model`-keyed object. Its `limit` object is singular, and its `context`, `input`, and `output` fields are independently optional. `structured_output` and `temperature` may also be omitted; the plugin leaves omitted fields unset rather than inferring `false`. The current models.dev dataset does not provide `variants` metadata.
+
+For gateways that expose inline limits on their `/v1/models` entries, those values take precedence over matching models.dev limits. The plugin reads `context_length` or `max_context_length` for the context window and `max_completion_tokens` or `max_output_tokens` for the output budget, then fills any remaining gap from models.dev. This keeps gateways that front several upstreams (for example a LiteLLM pool or a custom router) authoritative for what their own routes accept, while models.dev still supplies names and capabilities. A models.dev input limit is bounded by the effective context window.
 
 Matching is intentionally conservative:
 

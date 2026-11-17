@@ -115,4 +115,9 @@ describe('Model limit normalization (createModelLimits)', () => {
     const limits = createModelLimits(32768, 4096, 28000)
     expect(limits).toEqual({ context: 32768, output: 4096, input: 28000 })
   })
+
+  it('bounds explicit input limits so they do not exceed context', () => {
+    const limits = createModelLimits(32768, 4096, 64000)
+    expect(limits).toEqual({ context: 32768, output: 4096, input: 32768 })
+  })
 })

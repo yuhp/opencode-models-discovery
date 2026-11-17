@@ -34,6 +34,7 @@ export interface ConfiguredProvider {
   readonly package: string
   readonly settings: Record<string, unknown>
   readonly apiKey?: string
+  readonly pruneMissing?: boolean
 }
 
 type ProviderContext = Pick<Plugin.Context, "provider">
@@ -101,7 +102,13 @@ export function createProviderController(
       const models = inventory.get(provider.id)
       if (!models) continue
       const source = editor.get(providerID)
-      const existing = source ? [...source.models.values()] : []
+      const sourceModels = source ? [...source.models.values()] : []
+      // An empty inventory is what a failed first request looks like, so it must never prune.
+      // Match on either key: a source model can alias a listed upstream model under its own id.
+      const listed = new Set([...models.values()].flatMap((model) => [model.id, model.modelID]))
+      const existing = provider.pruneMissing && models.size > 0
+        ? sourceModels.filter((model) => listed.has(String(model.id)) || listed.has(String((model as { modelID?: unknown }).modelID)))
+        : sourceModels
       const existingIDs = new Set(existing.map((model) => String(model.id)))
       editor.models.set(providerID, [
         ...existing,

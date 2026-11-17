@@ -18,6 +18,7 @@ export interface ProviderDiscoveryOptions {
   readonly modelInfoFormat?: ModelInfoFormat
   readonly modelInfoEndpoint?: string
   readonly filterNonChat: boolean
+  readonly pruneMissing: boolean
   readonly cache?: {
     readonly enabled: boolean
     readonly ttlSeconds: number
@@ -106,6 +107,7 @@ export function parseProviderDiscoveryOptions(raw: unknown): ProviderDiscoveryOp
     modelInfoFormat,
     modelInfoEndpoint,
     filterNonChat,
+    pruneMissing: value.pruneMissing === true,
     cache,
   }
 }
