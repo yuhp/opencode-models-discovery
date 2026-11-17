@@ -45,7 +45,7 @@ export interface NormalizedModelLimit {
 /**
  * Creates a normalized limit object.
  * - requires a positive context window
- * - preserves valid explicit output limits, bounded by the context limit
+ * - preserves valid explicit output and input limits, bounded by the context limit
  * - falls back to Math.min(context, DEFAULT_OUTPUT_TOKEN_LIMIT) when output is missing or non-positive
  */
 export function createModelLimits(
@@ -58,11 +58,14 @@ export function createModelLimits(
   const output = typeof explicitOutput === 'number' && Number.isFinite(explicitOutput) && explicitOutput > 0
     ? Math.min(explicitOutput, context)
     : Math.min(context, DEFAULT_OUTPUT_TOKEN_LIMIT)
+  const normalizedInput = typeof input === 'number' && Number.isFinite(input) && input > 0
+    ? Math.min(input, context)
+    : undefined
 
   return {
     context,
     output,
-    ...(typeof input === 'number' && Number.isFinite(input) && input > 0 ? { input } : {}),
+    ...(normalizedInput !== undefined ? { input: normalizedInput } : {}),
   }
 }
 
