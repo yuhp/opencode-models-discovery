@@ -295,7 +295,7 @@ function publishCurrentVersion(): void {
 
   console.log(`\n🚀 Publishing release ${tagName}`)
 
-  runCommand('npm', ['run', 'build'], 'Running build and tests')
+  runCommand('npm', ['run', 'build:release'], 'Running release build and tests')
 
   const releaseNotes = generateReleaseNotes(newVersion)
   const notesFile = `/tmp/release-notes-${newVersion}.md`

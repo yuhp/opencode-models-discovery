@@ -21,7 +21,8 @@
     }
   },
   "files": [
-    "dist",
+    "dist/*.js",
+    "dist/THIRD-PARTY-NOTICES.md",
     "types"
   ],
   "scripts": {
@@ -33,11 +34,17 @@
     "lint": "eslint src",
     "lint:fix": "eslint src --fix",
     "compile": "npm run compile:runtime && npm run compile:root && npm run compile:server && npm run compile:tui && bun scripts/bundle-notices.ts",
+    "compile:release": "npm run compile:runtime:release && npm run compile:root:release && npm run compile:server:release && npm run compile:tui:release && bun scripts/remove-source-maps.ts && bun scripts/bundle-notices.ts",
     "compile:runtime": "esbuild src/runtime.ts --bundle --format=esm --platform=node --target=node18 --sourcemap --keep-names --metafile=meta/runtime.meta.json --outfile=dist/runtime.js",
+    "compile:runtime:release": "esbuild src/runtime.ts --bundle --format=esm --platform=node --target=node18 --keep-names --metafile=meta/runtime.meta.json --outfile=dist/runtime.js",
     "compile:root": "esbuild src/index.ts --format=esm --platform=node --packages=external --target=node18 --sourcemap --keep-names --outfile=dist/index.js",
+    "compile:root:release": "esbuild src/index.ts --format=esm --platform=node --packages=external --target=node18 --keep-names --outfile=dist/index.js",
     "compile:server": "esbuild src/server.ts --format=esm --platform=node --packages=external --target=node18 --sourcemap --keep-names --outfile=dist/server.js",
+    "compile:server:release": "esbuild src/server.ts --format=esm --platform=node --packages=external --target=node18 --keep-names --outfile=dist/server.js",
     "compile:tui": "esbuild src/tui.ts --bundle --format=esm --platform=node --target=node18 --sourcemap --keep-names --metafile=meta/tui.meta.json --outfile=dist/tui.js",
+    "compile:tui:release": "esbuild src/tui.ts --bundle --format=esm --platform=node --target=node18 --keep-names --metafile=meta/tui.meta.json --outfile=dist/tui.js",
     "build": "npm run lint && npm run typecheck && npm run test:run && npm run compile && npm run check:bundle && npm run check:notices",
+    "build:release": "npm run lint && npm run typecheck && npm run test:run && npm run compile:release && npm run check:bundle && npm run check:notices",
     "check:bundle": "bun scripts/check-bundle-deps.ts meta/runtime.meta.json meta/tui.meta.json",
     "check:notices": "bun scripts/check-bundle-deps.ts --notices meta/runtime.meta.json meta/tui.meta.json",
     "test:v1": "vitest run test/plugin.test.ts test/v1-v2-isolation.test.ts",
@@ -46,7 +53,7 @@
     "validate": "npm run lint && npm run typecheck && npm run test:run",
     "validate:config": "bun scripts/validate-config.ts",
     "release": "bun scripts/release.ts",
-    "prepublishOnly": "npm run build"
+    "prepublishOnly": "npm run build:release"
   },
   "keywords": [
     "opencode",
