@@ -690,7 +690,7 @@ When a discovered model can be matched to models.dev metadata, the plugin may po
 
 The current models.dev data uses a flat `provider/model`-keyed object. Its `limit` object is singular, and its `context`, `input`, and `output` fields are independently optional. `structured_output` and `temperature` may also be omitted; the plugin leaves omitted fields unset rather than inferring `false`. The current models.dev dataset does not provide `variants` metadata.
 
-Limits advertised inline by the provider's `/v1/models` entry take precedence over matching models.dev limits. The plugin reads `context_length` or `max_context_length` for the context window and `max_completion_tokens` or `max_output_tokens` for the output budget, then fills any remaining gap from models.dev. This keeps gateways that front several upstreams (for example CLIProxyAPI or a LiteLLM pool) authoritative for what their own routes accept, while models.dev still supplies names and capabilities.
+For gateways that expose inline limits on their `/v1/models` entries, those values take precedence over matching models.dev limits. The plugin reads `context_length` or `max_context_length` for the context window and `max_completion_tokens` or `max_output_tokens` for the output budget, then fills any remaining gap from models.dev. This keeps gateways that front several upstreams (for example a LiteLLM pool or a custom router) authoritative for what their own routes accept, while models.dev still supplies names and capabilities. A models.dev input limit is bounded by the effective context window.
 
 Matching is intentionally conservative:
 

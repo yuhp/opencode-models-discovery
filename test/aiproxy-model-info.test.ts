@@ -71,9 +71,9 @@ describe('native AIProxy model enricher', () => {
       id: 'gpt-6-luna',
       context_length: 272_000,
       max_completion_tokens: 128_000,
-      limits: { max_output_tokens: 64_000 },
+      limits: { max_input_tokens: 500_000, max_output_tokens: 64_000 },
     }, { filterNonChat: true })
 
-    expect(result.limit).toEqual({ context: 272_000, output: 64_000 })
+    expect(result.limit).toEqual({ context: 272_000, input: 272_000, output: 64_000 })
   })
 })

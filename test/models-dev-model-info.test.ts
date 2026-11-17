@@ -36,7 +36,7 @@ describe('models.dev model enricher', () => {
     expect(result.limit).toEqual({ context: 262_144, output: 65_536 })
   })
 
-  it('fills missing provider fields from the models.dev catalog', () => {
+  it('fills missing provider fields and bounds catalog input to provider context', () => {
     const enricher = createModelsDevEnricher(catalog('custom-model', {
       context: 1_000_000,
       input: 900_000,
@@ -48,7 +48,7 @@ describe('models.dev model enricher', () => {
       context_length: 200_000,
     }, { filterNonChat: true })
 
-    expect(result.limit).toEqual({ context: 200_000, input: 900_000, output: 32_000 })
+    expect(result.limit).toEqual({ context: 200_000, input: 200_000, output: 32_000 })
   })
 
   it('keeps the models.dev context when the provider advertises output only', () => {
