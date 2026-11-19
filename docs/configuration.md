@@ -546,7 +546,8 @@ Set `modelInfoFormat` to `"litellm"` to enable it. The plugin requests `/v1/mode
         "modelsDiscovery": {
           "enabled": true,
           "endpoint": "/v1/models",
-          "modelInfoFormat": "litellm"
+          "modelInfoFormat": "litellm",
+          "smartModelName": true
         }
       }
     }
@@ -556,6 +557,7 @@ Set `modelInfoFormat` to `"litellm"` to enable it. The plugin requests `/v1/mode
 
 When model info is available, the plugin uses LiteLLM `model_info` fields to populate OpenCode model configuration:
 
+- A non-empty `display_name` is used as the display name when `smartModelName` is enabled.
 - `max_input_tokens` (or `max_tokens` fallback) becomes `limit.context` and `limit.input`; `max_output_tokens` (or `max_tokens` when strictly smaller than context) becomes `limit.output`, bounded by the context and default token limit
 - `modalities.input` and `modalities.output` become `modalities`, normalized to lowercase (`speech` becomes `audio`) and limited to `text`, `audio`, `image`, `video`, and `pdf`; the undeclared side defaults to `["text"]`, but a declared side that contains no supported values makes the whole declaration untrustworthy and the existing configuration is left untouched
 - `supports_vision: true` without `modalities` falls back to input `["text", "image"]`
