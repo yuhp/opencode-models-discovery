@@ -158,6 +158,7 @@ function getLiteLLMModelInfo(entry: LiteLLMModelInfoEntry | undefined): ModelEnr
   if (!info) return {}
 
   const result: {
+    metadataName?: string
     modalities?: { input: string[]; output: string[] }
     limit?: NormalizedModelLimit
     reasoning?: boolean
@@ -166,6 +167,9 @@ function getLiteLLMModelInfo(entry: LiteLLMModelInfoEntry | undefined): ModelEnr
     toolCall?: boolean
     temperature?: boolean
   } = {}
+
+  const displayName = info.display_name
+  if (typeof displayName === 'string' && displayName.trim().length > 0) result.metadataName = displayName
 
   const modalities = buildModalities(info)
   if (modalities) {
