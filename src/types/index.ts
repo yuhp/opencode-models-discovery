@@ -13,6 +13,7 @@ export interface OpenAIModelsResponse {
 
 export interface LiteLLMModelInfo {
   key?: string | null
+  display_name?: string | null
   mode?: string | null
   max_tokens?: number | null
   max_input_tokens?: number | null

@@ -61,9 +61,10 @@ describe("V2 model-mapper", () => {
     expect(mapped.limit.output).toBe(32_000)
   })
 
-  it("enriches limits and modalities from litellm model info endpoint", () => {
+  it("enriches the display name, limits, and modalities from the LiteLLM model info endpoint", () => {
     const options = parseProviderDiscoveryOptions({ enabled: true, smartModelName: true, modelInfoFormat: ModelInfoFormat.LiteLLM })!
     const litellmData = { data: [{ model_name: "custom-litellm", model_info: {
+      display_name: "  Custom LiteLLM Model  ",
       max_tokens: 4_096,
       max_input_tokens: 100_000,
       supports_function_calling: true,
@@ -76,6 +77,7 @@ describe("V2 model-mapper", () => {
     const enricher = createModelEnricher(ModelInfoFormat.LiteLLM, litellmData, { filterNonChat: true })
     const mapped = mapToDiscoveredV2Model(discover({ id: "custom-litellm" }, true, enricher), options)
 
+    expect(mapped.name).toBe("Custom LiteLLM Model")
     expect(mapped.limit.context).toBe(100_000)
     expect(mapped.limit.output).toBe(4_096)
     expect(mapped.capabilities.input).toContain("image")
