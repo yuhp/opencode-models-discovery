@@ -100,6 +100,7 @@ function mapV1Variant(id: string, value: unknown): {
 export function mapToDiscoveredV2Model(
   draft: DiscoveredModelDraft,
   options: { readonly smartModelName: boolean },
+  declaredEfforts?: readonly string[],
 ): DiscoveredV2ModelProjection {
   const resultDraft = draft
   const rawModel = resultDraft.raw
@@ -155,11 +156,8 @@ export function mapToDiscoveredV2Model(
   } else if (resultDraft.variants && typeof resultDraft.variants === 'object') {
     mapped.variants = Object.entries(resultDraft.variants).map(([id, value]) => mapV1Variant(id, value))
   } else if (isReasoning && !mapped.variants) {
-    mapped.variants = [
-      { id: 'low', settings: { reasoningEffort: 'low' } },
-      { id: 'medium', settings: { reasoningEffort: 'medium' } },
-      { id: 'high', settings: { reasoningEffort: 'high' } },
-    ]
+    const efforts = declaredEfforts?.length ? declaredEfforts : ['low', 'medium', 'high']
+    mapped.variants = efforts.map(id => ({ id, settings: { reasoningEffort: id } }))
   }
 
   if (typeof resultDraft.attachment === 'boolean') {

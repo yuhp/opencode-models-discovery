@@ -7,6 +7,8 @@ import { isDiscoveredRawModel } from "../core/model-types.js"
 import { prepareModelEnricher, type ModelEnrichmentResult, type ModelEnricher } from "../core/model-enrichment.js"
 import { createDiscoveryCacheEntry, discoveryCacheKey, readDiscoveryCache, writeDiscoveryCache, type DiscoveryCacheBackend, type DiscoveryCacheEntry } from "../core/discovery-cache.js"
 import { resolveModelInfoEnricher } from "../core/enricher-resolver.js"
+import { ModelInfoFormat } from "../types/plugin-config.js"
+import { loadModelsDevEfforts } from "../utils/models-dev-efforts.js"
 
 export interface DiscoveryLogger {
   warn(message: string, context?: Record<string, unknown>): void
@@ -169,7 +171,12 @@ export async function discoverInventory(
           enricher: recordingEnricher,
          enrichmentContext: { filterNonChat: config.filterNonChat },
        })
-        const models = new Map<string, DiscoveredV2Model>(drafts.map((draft) => [draft.id, mapToDiscoveredV2Model(draft, config)]))
+        const efforts = drafts.length > 0 && config.modelInfoFormat === ModelInfoFormat.ModelsDev
+          ? await loadModelsDevEfforts(config.modelInfoEndpoint)
+          : undefined
+        const models = new Map<string, DiscoveredV2Model>(drafts.map(draft => [
+          draft.id, mapToDiscoveredV2Model(draft, config, efforts?.(draft.id)),
+        ]))
 
         inventory.set(provider.id, models)
         if (cacheSupported && !cached) {
