@@ -1,6 +1,3 @@
-import { DEFAULT_MODELS_DEV_URL } from './models-dev-fetcher.js'
-
-const PROVIDER_URL = 'https://models.dev/api.json'
 type Efforts = readonly string[] | undefined
 interface EffortIndex {
   routes: Map<string, Efforts>
@@ -24,11 +21,11 @@ function namedEfforts(options: unknown): Efforts {
   }
 }
 
-function indexEfforts(data: unknown, url: string): EffortIndex | undefined {
+export function indexEfforts(data: unknown, layout: 'flat' | 'providers' | 'mirror'): EffortIndex | undefined {
   if (!isObject(data)) return
   const routes = new Map<string, Efforts>()
   const shortNames = new Map<string, string | null>()
-  const mirror = url !== DEFAULT_MODELS_DEV_URL && url !== PROVIDER_URL
+  const mirror = layout === 'mirror'
 
   function add(key: string, row: Record<string, unknown>, provider?: string) {
     // Public keys identify provider routes, even when a gateway key contains slashes.
@@ -52,7 +49,7 @@ function indexEfforts(data: unknown, url: string): EffortIndex | undefined {
 
   for (const [key, value] of Object.entries(data)) {
     if (!isObject(value)) continue
-    if (url === PROVIDER_URL || (mirror && !key.includes('/') && isObject(value.models))) {
+    if (layout === 'providers' || (mirror && !key.includes('/') && isObject(value.models))) {
       if (!key.trim() || !isObject(value.models)) continue
       for (const [id, row] of Object.entries(value.models)) {
         if (isObject(row)) add(id, row, key)
@@ -64,33 +61,7 @@ function indexEfforts(data: unknown, url: string): EffortIndex | undefined {
   if (routes.size) return { routes, shortNames }
 }
 
-const indexCache = new Map<string, Promise<EffortIndex | undefined>>()
-
-async function fetchIndex(url: string): Promise<EffortIndex | undefined> {
-  try {
-    const response = await fetch(url, { method: 'GET', signal: AbortSignal.timeout(3000) })
-    if (response.ok) return indexEfforts(await response.json(), url)
-  } catch {
-    // The optional catalog can be retried on a later discovery.
-  }
-}
-
-function loadIndex(url: string): Promise<EffortIndex | undefined> {
-  const cached = indexCache.get(url)
-  if (cached) return cached
-  const pending = fetchIndex(url).then(index => {
-    if (!index) indexCache.delete(url)
-    return index
-  })
-  indexCache.set(url, pending)
-  return pending
-}
-
-export async function loadModelsDevEfforts(endpoint = DEFAULT_MODELS_DEV_URL): Promise<(modelID: string) => Efforts> {
-  const [primary, supplement] = await Promise.all([
-    loadIndex(endpoint),
-    endpoint === DEFAULT_MODELS_DEV_URL ? loadIndex(PROVIDER_URL) : undefined,
-  ])
+export function matchModelsDevEfforts(primary?: EffortIndex, supplement?: EffortIndex): (modelID: string) => Efforts {
   return modelID => {
     let route: string | null | undefined = modelID
     if (!modelID.includes('/')) {
@@ -103,5 +74,3 @@ export async function loadModelsDevEfforts(endpoint = DEFAULT_MODELS_DEV_URL): P
     return efforts?.length ? efforts : undefined
   }
 }
-
-export const modelsDevEffortsTestUtils = { resetCache: () => indexCache.clear() }

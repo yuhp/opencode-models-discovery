@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { loadModelsDevEfforts, modelsDevEffortsTestUtils } from '../src/utils/models-dev-efforts.js'
+import { createModelsDevReader, modelsDevTestUtils } from '../src/utils/models-dev-fetcher.js'
+
+const loadModelsDevEfforts = (url?: string) => createModelsDevReader().efforts(url)
 
 const flat = 'https://models.dev/models.json'
 const providers = 'https://models.dev/api.json'
@@ -16,7 +18,7 @@ function serve(catalogs: Record<string, unknown>) {
 
 afterEach(() => {
   vi.unstubAllGlobals()
-  modelsDevEffortsTestUtils.resetCache()
+  modelsDevTestUtils.resetCache()
 })
 
 describe('loadModelsDevEfforts', () => {
@@ -73,7 +75,9 @@ describe('loadModelsDevEfforts', () => {
       },
       [secondMirror]: { 'vendor/canonical': named('low') },
     })
-    const lookup = await loadModelsDevEfforts(mirror)
+    const reader = createModelsDevReader()
+    const [metadata, lookup] = await Promise.all([reader.models(mirror), reader.efforts(mirror)])
+    expect(metadata.has('vendor/flat')).toBe(true)
     expect(lookup('vendor/flat')).toEqual(['high'])
     expect(lookup('flat-alias')).toBeUndefined()
     expect(lookup('vendor/canonical')).toEqual(['max'])
@@ -83,7 +87,7 @@ describe('loadModelsDevEfforts', () => {
     expect(lookup('plain')).toEqual(['medium'])
     expect(lookup('vendor/malformed')).toBeUndefined()
     expect((await loadModelsDevEfforts(secondMirror))('canonical')).toEqual(['low'])
-    expect(new Set(fetcher.mock.calls.map(([url]) => url))).toEqual(new Set([mirror, secondMirror]))
+    expect(fetcher.mock.calls.map(([url]) => url)).toEqual([mirror, secondMirror])
   })
 
   it('uses agreeing mirror aliases and declines conflicting aliases in either order', async () => {
