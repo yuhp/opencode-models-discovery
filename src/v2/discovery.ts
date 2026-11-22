@@ -109,7 +109,7 @@ export async function discoverInventory(
             baseURL,
             apiKey: resolvedApiKey,
             providerName: provider.id,
-            modelsDevData: config.modelInfoFormat === ModelInfoFormat.ModelsDev ? modelsDev.models : undefined,
+            modelsDevData: modelsDev.models,
             fetcher,
             logger: {
               warn: (message, context) => logger.warn(message, context),

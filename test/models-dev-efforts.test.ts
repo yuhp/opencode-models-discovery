@@ -112,4 +112,15 @@ describe('loadModelsDevEfforts', () => {
     catalogs[flat] = { 'a/chat': {} }
     expect((await loadModelsDevEfforts())('chat')).toEqual(['high'])
   })
+
+  it('recovers declared choices after the supplement returns an unusable document', async () => {
+    const catalogs: Record<string, unknown> = {
+      [flat]: { 'a/chat': {} }, [providers]: { error: { message: 'unavailable' } },
+    }
+    serve(catalogs)
+    expect((await loadModelsDevEfforts())('chat')).toBeUndefined()
+
+    catalogs[providers] = { a: { models: { chat: named('max') } } }
+    expect((await loadModelsDevEfforts())('chat')).toEqual(['max'])
+  })
 })

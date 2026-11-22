@@ -107,7 +107,8 @@ async function fetchModelsDevCatalog(url: string): Promise<ModelsDevCatalog | un
     const data: unknown = await response.json()
     const layout = url === DEFAULT_MODELS_DEV_URL ? 'flat' : url === PROVIDER_CATALOG_URL ? 'providers' : 'mirror'
     const catalog = { models: parseModelsDevData(data), efforts: indexEfforts(data, layout) }
-    if (catalog.models.size || catalog.efforts) modelsDevCaches.set(url, catalog)
+    // Public catalogs must contain a route in their advertised layout to be cached.
+    if (catalog.efforts || (layout === 'mirror' && catalog.models.size)) modelsDevCaches.set(url, catalog)
     return catalog
   } catch {
     return undefined
