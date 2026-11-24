@@ -190,7 +190,10 @@ export async function discoverInventory(
           }
         }
         const models = new Map<string, DiscoveredV2Model>(drafts.map(draft => [
-          draft.id, mapToDiscoveredV2Model(draft, config, efforts?.(draft.id, provider.id)),
+          draft.id, mapToDiscoveredV2Model(draft, {
+            ...config,
+            declaredEfforts: efforts?.(draft.id, provider.id),
+          }),
         ]))
 
         inventory.set(provider.id, models)

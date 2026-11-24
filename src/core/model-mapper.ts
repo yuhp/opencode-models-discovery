@@ -105,11 +105,15 @@ export function usesGeneratedEfforts(draft: DiscoveredModelDraft): boolean {
   return hasReasoning(draft) && !(draft.variants && typeof draft.variants === 'object')
 }
 
+export interface MapToDiscoveredV2ModelOptions {
+  readonly smartModelName: boolean
+  readonly declaredEfforts?: readonly string[]
+}
+
 /** Projects a shared discovery draft into the V2 model catalog shape. */
 export function mapToDiscoveredV2Model(
   draft: DiscoveredModelDraft,
-  options: { readonly smartModelName: boolean },
-  declaredEfforts?: readonly string[],
+  options: MapToDiscoveredV2ModelOptions,
 ): DiscoveredV2ModelProjection {
   const resultDraft = draft
 
@@ -157,7 +161,7 @@ export function mapToDiscoveredV2Model(
   } else if (resultDraft.variants && typeof resultDraft.variants === 'object') {
     mapped.variants = Object.entries(resultDraft.variants).map(([id, value]) => mapV1Variant(id, value))
   } else if (mapped.reasoning) {
-    const efforts = declaredEfforts?.length ? declaredEfforts : ['low', 'medium', 'high']
+    const efforts = options.declaredEfforts?.length ? options.declaredEfforts : ['low', 'medium', 'high']
     mapped.variants = efforts.map(id => ({ id, settings: { reasoningEffort: id } }))
   }
 

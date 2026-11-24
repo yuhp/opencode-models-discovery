@@ -50,10 +50,10 @@ describe('shared model projections', () => {
 
   it('uses declared efforts only for the V2 reasoning fallback', () => {
     const names = ['xhigh']
-    expect(mapToDiscoveredV2Model(draft({ reasoning: true }), options, names).variants)
+    expect(mapToDiscoveredV2Model(draft({ reasoning: true }), { ...options, declaredEfforts: names }).variants)
       .toEqual([{ id: 'xhigh', settings: { reasoningEffort: 'xhigh' } }])
-    expect(mapToDiscoveredV2Model(draft({ reasoning: false }), options, names).variants).toBeUndefined()
-    expect(mapToDiscoveredV2Model(draft({ reasoning: true, variants: [] }), options, names).variants).toEqual([])
+    expect(mapToDiscoveredV2Model(draft({ reasoning: false }), { ...options, declaredEfforts: names }).variants).toBeUndefined()
+    expect(mapToDiscoveredV2Model(draft({ reasoning: true, variants: [] }), { ...options, declaredEfforts: names }).variants).toEqual([])
   })
 
   it('preserves variant body and header request overlays for V2 models', () => {
@@ -70,7 +70,7 @@ describe('shared model projections', () => {
       },
     })
 
-    const mapped = mapToDiscoveredV2Model(customDraft, options, ['xhigh'])
+    const mapped = mapToDiscoveredV2Model(customDraft, { ...options, declaredEfforts: ['xhigh'] })
     expect(mapped.variants).toEqual([
       {
         id: 'medium',
