@@ -9,16 +9,6 @@ function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-const RECOGNIZED_REASONING_EFFORTS = new Set([
-  'none',
-  'minimal',
-  'low',
-  'medium',
-  'high',
-  'xhigh',
-  'max',
-])
-
 function namedEfforts(options: unknown): Efforts {
   if (!Array.isArray(options)) return
   for (const option of options) {
@@ -26,9 +16,10 @@ function namedEfforts(options: unknown): Efforts {
     const rawNames: string[] = option.values.flatMap((value: unknown) =>
       typeof value === 'string' && value.trim() ? [value.trim()] : [],
     )
-    const recognized = rawNames.filter(name => name !== 'default' && RECOGNIZED_REASONING_EFFORTS.has(name))
     // An explicit empty or default-only declaration takes precedence over the supplement.
-    if (rawNames.length || !option.values.length) return [...new Set(recognized)]
+    if (rawNames.length || !option.values.length) {
+      return [...new Set(rawNames.filter(name => name !== 'default'))]
+    }
   }
 }
 

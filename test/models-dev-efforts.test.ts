@@ -26,9 +26,9 @@ describe('loadModelsDevEfforts', () => {
     serve({
       [flat]: { 'openai/chat-pro': { id: 'openai/chat-pro', reasoning: true } },
       [providers]: {
-        openai: { models: { 'chat-pro': { id: 'chat-pro', ...named('default', 'low', 'max', 'max', 'unrecognized-tier') } } },
+        openai: { models: { 'chat-pro': { id: 'chat-pro', ...named('default', 'low', 'max', 'max') } } },
         gateway: { models: {
-          'openai/chat-pro': { id: 'openai/chat-pro', ...named('xhigh') },
+          'openai/chat-pro': { id: 'openai/chat-pro', ...named('custom-level') },
           'chat-pro': named('high'),
           'new-model': named('medium'),
         } },
@@ -37,13 +37,13 @@ describe('loadModelsDevEfforts', () => {
     const lookup = await loadModelsDevEfforts()
     expect(lookup('openai/chat-pro')).toEqual(['low', 'max'])
     expect(lookup('chat-pro')).toEqual(['low', 'max'])
-    expect(lookup('gateway/openai/chat-pro')).toEqual(['xhigh'])
+    expect(lookup('gateway/openai/chat-pro')).toEqual(['custom-level'])
     expect(lookup('new-model')).toEqual(['medium'])
     for (const id of ['unknown/chat-pro', 'chat-pro-2099', 'chat-pro:free', 'OPENAI/chat-pro']) {
       expect(lookup(id)).toBeUndefined()
     }
     // When provider is specified, prioritize that provider's own route
-    expect(lookup('openai/chat-pro', 'gateway')).toEqual(['xhigh'])
+    expect(lookup('openai/chat-pro', 'gateway')).toEqual(['custom-level'])
     expect(lookup('chat-pro', 'gateway')).toEqual(['high'])
     expect(lookup('chat-pro', 'openai')).toEqual(['low', 'max'])
     expect(lookup('openai/chat-pro', 'unknown-provider')).toEqual(['low', 'max'])
