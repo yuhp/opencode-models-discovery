@@ -23,6 +23,7 @@ export interface ModelInfoResolverLogger {
 
 export interface ModelInfoResolverContext {
   readonly baseURL: string
+  readonly modelsDevData?: typeof fetchModelsDevData
   readonly apiKey?: string
   readonly providerName?: string
   readonly fetcher?: typeof fetch
@@ -53,7 +54,7 @@ export async function resolveModelInfoEnricher(
 
   if (format === ModelInfoFormat.ModelsDev || format === ModelInfoFormat.AIProxy) {
     const endpoint = options.endpoint ?? DEFAULT_MODELS_DEV_URL
-    const data = await fetchModelsDevData(endpoint)
+    const data = await (context.modelsDevData ?? fetchModelsDevData)(endpoint)
     const enricher = createModelEnricher(format, data, { filterNonChat })
     context.logger?.info?.('Loaded models.dev data', {
       provider: context.providerName,

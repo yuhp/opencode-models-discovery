@@ -363,7 +363,7 @@ The plugin currently supports ten model info formats:
 | `"aiproxy"` | AIProxy's discovered `/models` entries plus models.dev | No | Maps inline AIProxy limits, pricing, and declared effort tiers; models.dev supplies general metadata |
 | `"bifrost"` | Fields in Bifrost's `/v1/models` response | No | Reads Bifrost inline limits, modalities, and base pricing when present |
 | `"litellm"` | Provider-specific model info endpoint | No | Uses `/v1/model/info` by default; set `modelInfoEndpoint` to override it |
-| `"models.dev"` | `https://models.dev/models.json` | No | Uses the public models.dev metadata index; limits advertised inline by the provider take precedence |
+| `"models.dev"` | `https://models.dev/models.json` | No | Uses the public models.dev metadata index; supplements reasoning variants from `api.json`; limits advertised inline by the provider take precedence |
 | `"vllm"` | Fields in the provider's `/v1/models` response | No | Reads vLLM-style `max_model_len` when present |
 | `"lmstudio"` | LM Studio 0.4.0+ `/api/v1/models` inventory | No | Uses `/api/v1/models` by default; set `modelInfoEndpoint` for another path |
 | `"llama-swap"` | Fields in llama-swap's `/v1/models` response | No | Reads inline context, modalities, and function-calling metadata when present |
@@ -690,7 +690,11 @@ When a discovered model can be matched to models.dev metadata, the plugin may po
 - `temperature`
 - `modalities`
 
-The current models.dev data uses a flat `provider/model`-keyed object. Its `limit` object is singular, and its `context`, `input`, and `output` fields are independently optional. `structured_output` and `temperature` may also be omitted; the plugin leaves omitted fields unset rather than inferring `false`. The current models.dev dataset does not provide `variants` metadata.
+The current models.dev flat data uses an organization/model-keyed object. Its `limit` object is singular, and its `context`, `input`, and `output` fields are independently optional. `structured_output` and `temperature` may also be omitted; the plugin leaves omitted fields unset rather than inferring `false`.
+
+On OpenCode v2, when discovery would generate low, medium and high variants for a reasoning model, it uses the named effort values (such as `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`, or provider-declared custom effort tiers) from the model's `reasoning_options` when available. Explicit variants in the discovery data take priority. OpenCode merges discovered variants with user configuration and the provider adapter handles the selected `reasoningEffort` setting. The plugin supplements the default flat catalog with [the provider catalog](https://models.dev/api.json). A custom `modelInfoEndpoint` is the sole reference for that provider.
+
+Effort choices check the provider's specific route first (e.g. `openrouter/bytedance-seed/seed-2.0-mini`), falling back to the canonical model route or an unambiguous short model ID. Models declaring non-effort reasoning controls (such as `toggle` or `budget_tokens`), empty choices, `default`-only choices, or when supplemental catalog requests fail gracefully fall back to standard `low`, `medium`, and `high` variants.
 
 For gateways that expose inline limits on their `/v1/models` entries, those values take precedence over matching models.dev limits. The plugin reads `context_length` or `max_context_length` for the context window and `max_completion_tokens` or `max_output_tokens` for the output budget, then fills any remaining gap from models.dev. This keeps gateways that front several upstreams (for example a LiteLLM pool or a custom router) authoritative for what their own routes accept, while models.dev still supplies names and capabilities. A models.dev input limit is bounded by the effective context window.
 

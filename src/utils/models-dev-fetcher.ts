@@ -1,3 +1,5 @@
+import { indexEfforts, matchModelsDevEfforts } from './models-dev-efforts.js'
+
 export interface ModelsDevModel {
   id: string
   name?: string
@@ -18,10 +20,16 @@ export interface ModelsDevModel {
 }
 
 export const DEFAULT_MODELS_DEV_URL = 'https://models.dev/models.json'
+const PROVIDER_CATALOG_URL = 'https://models.dev/api.json'
 const PREFIX_MATCH_MIN_SCORE = 70
 const PREFIX_MATCH_MIN_SHARED_PARTS = 2
 
-const modelsDevCaches = new Map<string, Map<string, ModelsDevModel>>()
+interface ModelsDevCatalog {
+  models: Map<string, ModelsDevModel>
+  efforts: ReturnType<typeof indexEfforts>
+}
+
+const modelsDevCaches = new Map<string, ModelsDevCatalog>()
 
 function isObject(value: unknown): value is Record<string, any> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -85,7 +93,7 @@ function parseModelsDevData(data: unknown): Map<string, ModelsDevModel> {
   return cache
 }
 
-export async function fetchModelsDevData(url: string = DEFAULT_MODELS_DEV_URL): Promise<Map<string, ModelsDevModel>> {
+async function fetchModelsDevCatalog(url: string): Promise<ModelsDevCatalog | undefined> {
   const cached = modelsDevCaches.get(url)
   if (cached) return cached
 
@@ -95,15 +103,42 @@ export async function fetchModelsDevData(url: string = DEFAULT_MODELS_DEV_URL): 
       signal: AbortSignal.timeout(3000),
     })
 
-    if (!response.ok) {
-      return new Map()
-    }
-
-    const models = parseModelsDevData(await response.json())
-    modelsDevCaches.set(url, models)
-    return models
+    if (!response.ok) return
+    const data: unknown = await response.json()
+    const layout = url === DEFAULT_MODELS_DEV_URL ? 'flat' : url === PROVIDER_CATALOG_URL ? 'providers' : 'mirror'
+    const catalog = { models: parseModelsDevData(data), efforts: indexEfforts(data, layout) }
+    // Public catalogs must contain a route in their advertised layout to be cached.
+    if (catalog.efforts || (layout === 'mirror' && catalog.models.size)) modelsDevCaches.set(url, catalog)
+    return catalog
   } catch {
-    return new Map()
+    return undefined
+  }
+}
+
+export async function fetchModelsDevData(url = DEFAULT_MODELS_DEV_URL): Promise<Map<string, ModelsDevModel>> {
+  return (await fetchModelsDevCatalog(url))?.models ?? new Map()
+}
+
+/** Share each reference response within a V2 refresh, including an unavailable source. */
+export function createModelsDevReader() {
+  const requests = new Map<string, Promise<ModelsDevCatalog | undefined>>()
+  function read(url: string) {
+    const existing = requests.get(url)
+    if (existing) return existing
+    const request = fetchModelsDevCatalog(url)
+    requests.set(url, request)
+    return request
+  }
+  return {
+    async models(url = DEFAULT_MODELS_DEV_URL) {
+      return (await read(url))?.models ?? new Map<string, ModelsDevModel>()
+    },
+    async efforts(url = DEFAULT_MODELS_DEV_URL) {
+      const [primary, supplement] = await Promise.all([
+        read(url), url === DEFAULT_MODELS_DEV_URL ? read(PROVIDER_CATALOG_URL) : undefined,
+      ])
+      return matchModelsDevEfforts(primary?.efforts, supplement?.efforts)
+    },
   }
 }
 
