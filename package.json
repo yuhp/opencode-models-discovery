@@ -79,7 +79,7 @@
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@opencode-ai/plugin": "^1.18.29",
-    "@opencode/plugin": "2.2.6",
+    "@opencode/plugin": "2.3.2",
     "@types/node": "^26.5.1",
     "@vitest/coverage-v8": "^5.0.0",
     "esbuild": "^0.28.2",
