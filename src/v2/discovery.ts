@@ -179,7 +179,7 @@ export async function discoverInventory(
         if (!cached && efforts) {
           for (const draft of drafts) {
             if (usesGeneratedEfforts(draft)) {
-              const modelEfforts = efforts(draft.id)
+              const modelEfforts = efforts(draft.id, provider.id)
               if (modelEfforts?.length) {
                 enrichments[draft.id] = {
                   ...enrichments[draft.id],
@@ -190,7 +190,7 @@ export async function discoverInventory(
           }
         }
         const models = new Map<string, DiscoveredV2Model>(drafts.map(draft => [
-          draft.id, mapToDiscoveredV2Model(draft, config, efforts?.(draft.id)),
+          draft.id, mapToDiscoveredV2Model(draft, config, efforts?.(draft.id, provider.id)),
         ]))
 
         inventory.set(provider.id, models)

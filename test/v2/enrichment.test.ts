@@ -421,4 +421,68 @@ describe("V2 provider discovery with metadata enrichment", () => {
       modelsDevTestUtils.resetCache()
     }
   })
+
+  it("prioritizes gateway provider reasoning effort declarations over upstream provider defaults", async () => {
+    modelsDevTestUtils.resetCache()
+    vi.stubGlobal("fetch", vi.fn(async (url: string) => {
+      if (url === "https://models.dev/models.json") {
+        return Response.json({
+          "openai/gpt-6-astra": { id: "openai/gpt-6-astra", reasoning: true },
+        })
+      }
+      if (url === "https://models.dev/api.json") {
+        return Response.json({
+          openai: {
+            models: {
+              "gpt-6-astra": {
+                id: "gpt-6-astra",
+                reasoning_options: [{ type: "effort", values: ["low", "medium", "high"] }],
+              },
+            },
+          },
+          openrouter: {
+            models: {
+              "openai/gpt-6-astra": {
+                id: "openai/gpt-6-astra",
+                reasoning_options: [{ type: "effort", values: ["xhigh", "max"] }],
+              },
+            },
+          },
+        })
+      }
+      return new Response(null, { status: 404 })
+    }))
+
+    const options = new Map([
+      ["openrouter", parseProviderDiscoveryOptions({
+        enabled: true,
+        modelInfoFormat: ModelInfoFormat.ModelsDev,
+      })!],
+    ])
+
+    const providerFetcher = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        data: [{ id: "openai/gpt-6-astra" }],
+      }),
+    })
+
+    try {
+      const inventory = await discoverInventory([{
+        id: "openrouter",
+        package: "@opencode/ai/providers/openai-compatible",
+        settings: { baseURL: "https://openrouter.ai/api/v1" },
+      }], options, providerFetcher as unknown as typeof fetch)
+
+      const model = inventory.get("openrouter")?.get("openai/gpt-6-astra")
+      // Should use openrouter's declared efforts (xhigh, max), not openai's default (low, medium, high)
+      expect(model?.variants).toEqual([
+        { id: "xhigh", settings: { reasoningEffort: "xhigh" } },
+        { id: "max", settings: { reasoningEffort: "max" } },
+      ])
+    } finally {
+      vi.unstubAllGlobals()
+      modelsDevTestUtils.resetCache()
+    }
+  })
 })

@@ -61,13 +61,26 @@ export function indexEfforts(data: unknown, layout: 'flat' | 'providers' | 'mirr
   if (routes.size) return { routes, shortNames }
 }
 
-export function matchModelsDevEfforts(primary?: EffortIndex, supplement?: EffortIndex): (modelID: string) => Efforts {
-  return modelID => {
-    let route: string | null | undefined = modelID
-    if (!modelID.includes('/')) {
-      if (!primary) return // A missing primary index cannot establish a unique short name.
-      route = primary.routes.has(modelID) ? modelID : primary.shortNames.get(modelID)
-      if (route === undefined) route = supplement?.shortNames.get(modelID)
+export function matchModelsDevEfforts(
+  primary?: EffortIndex,
+  supplement?: EffortIndex,
+): (modelID: string, providerID?: string) => Efforts {
+  return (modelID, providerID) => {
+    let route: string | null | undefined
+    if (providerID) {
+      const providerLower = providerID.toLowerCase()
+      const providerRoute = `${providerLower}/${modelID}`
+      if (primary?.routes.has(providerRoute) || supplement?.routes.has(providerRoute)) {
+        route = providerRoute
+      }
+    }
+    if (!route) {
+      route = modelID
+      if (!modelID.includes('/')) {
+        if (!primary) return // A missing primary index cannot establish a unique short name.
+        route = primary.routes.has(modelID) ? modelID : primary.shortNames.get(modelID)
+        if (route === undefined) route = supplement?.shortNames.get(modelID)
+      }
     }
     if (route == null) return
     const efforts = primary?.routes.get(route) ?? supplement?.routes.get(route)

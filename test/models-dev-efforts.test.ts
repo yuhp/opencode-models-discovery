@@ -42,6 +42,11 @@ describe('loadModelsDevEfforts', () => {
     for (const id of ['unknown/chat-pro', 'chat-pro-2099', 'chat-pro:free', 'OPENAI/chat-pro']) {
       expect(lookup(id)).toBeUndefined()
     }
+    // When provider is specified, prioritize that provider's own route
+    expect(lookup('openai/chat-pro', 'gateway')).toEqual(['custom-level'])
+    expect(lookup('chat-pro', 'gateway')).toEqual(['high'])
+    expect(lookup('chat-pro', 'openai')).toEqual(['low', 'max'])
+    expect(lookup('openai/chat-pro', 'unknown-provider')).toEqual(['low', 'max'])
   })
 
   it('preserves explicit flat declarations and counts rows without efforts when checking short-name ambiguity', async () => {
