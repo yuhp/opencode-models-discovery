@@ -11,6 +11,7 @@ describe("DiscoveryRpcDefinition", () => {
     expect(DiscoveryRpcDefinition.methods).toHaveProperty("overrideList")
     expect(DiscoveryRpcDefinition.methods).toHaveProperty("overrideSet")
     expect(DiscoveryRpcDefinition.methods).toHaveProperty("overrideDelete")
+    expect(DiscoveryRpcDefinition.events).toHaveProperty("discoveryFailed")
   })
 
   it("registers RPC handlers on host during setupV2", async () => {
@@ -93,5 +94,107 @@ describe("DiscoveryRpcDefinition", () => {
     const refreshResult = await registeredHandlers!["refresh"]({ force: true }, {} as any)
     expect(refreshResult).toHaveProperty("providers")
     expect(refreshResult).toHaveProperty("models")
+    expect(refreshResult).toHaveProperty("failures")
+  })
+
+  it("reports provider error and emits discoveryFailed event when 401 occurs", async () => {
+    let registeredHandlers: Record<string, Function> | undefined
+    const emitMock = vi.fn().mockResolvedValue(undefined)
+
+    const registerMock = vi.fn().mockImplementation(async (_def, handlers) => {
+      registeredHandlers = handlers
+      return { events: { emit: emitMock } }
+    })
+
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: false,
+      status: 401,
+      statusText: "Unauthorized",
+    } as Response)
+
+    let eventSubscriber: ((event: unknown) => void) | undefined
+    const eventStream = {
+      [Symbol.asyncIterator]() {
+        return {
+          async next() {
+            return new Promise<{ value: unknown; done: boolean }>((resolve) => {
+              eventSubscriber = (event) => resolve({ value: event, done: false })
+            })
+          },
+        }
+      },
+    }
+
+    const ctx = {
+      provider: {
+        list: vi.fn().mockResolvedValue([
+          {
+            id: "bad-prov",
+            name: "Bad Provider",
+            package: "@opencode/ai/providers/openai-compatible",
+            settings: {
+              baseURL: "http://localhost:11434/v1",
+              modelsDiscovery: { enabled: true },
+            },
+          },
+        ]),
+        transform: vi.fn(),
+        reload: vi.fn().mockResolvedValue(undefined),
+      },
+      integration: {
+        transform: vi.fn(),
+        reload: vi.fn().mockResolvedValue(undefined),
+        connection: {
+          active: vi.fn().mockResolvedValue(undefined),
+          resolve: vi.fn().mockResolvedValue(undefined),
+        },
+      },
+      tool: { transform: vi.fn() },
+      command: { transform: vi.fn(), reload: vi.fn().mockResolvedValue(undefined) },
+      event: { subscribe: vi.fn().mockReturnValue(eventStream) },
+      rpc: { register: registerMock },
+    }
+
+    try {
+      const cleanup = await setupV2(ctx as any)
+
+      // Test refresh handler includes the failure
+      const refreshResult = await registeredHandlers!["refresh"]({ force: true }, {} as any)
+      expect(refreshResult.failures).toHaveLength(1)
+      expect(refreshResult.failures[0]).toMatchObject({
+        providerID: "bad-prov",
+        status: 401,
+        isAuthError: true,
+      })
+
+      // Test status handler includes the provider error
+      const statusResult = await registeredHandlers!["status"]({}, {} as any)
+      expect(statusResult.providers[0]?.error).toMatchObject({
+        providerID: "bad-prov",
+        status: 401,
+        isAuthError: true,
+      })
+      expect(statusResult.report).toContain("Status: Error")
+      expect(statusResult.report).toContain("Hint: Authentication failed. Please verify the API key with /connect.")
+
+      // Trigger credential.updated event and verify discoveryFailed is emitted
+      expect(eventSubscriber).toBeDefined()
+      eventSubscriber?.({ type: "credential.updated" })
+
+      // Wait a tick for async event handler
+      await new Promise((resolve) => setTimeout(resolve, 50))
+      expect(emitMock).toHaveBeenCalledWith(
+        "discoveryFailed",
+        expect.objectContaining({
+          providerID: "bad-prov",
+          status: 401,
+          isAuthError: true,
+        }),
+      )
+
+      cleanup()
+    } finally {
+      fetchSpy.mockRestore()
+    }
   })
 })
