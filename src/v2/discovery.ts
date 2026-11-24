@@ -173,9 +173,22 @@ export async function discoverInventory(
           enricher: recordingEnricher,
          enrichmentContext: { filterNonChat: config.filterNonChat },
        })
-        const efforts = config.modelInfoFormat === ModelInfoFormat.ModelsDev && drafts.some(usesGeneratedEfforts)
+        const efforts = !cached && config.modelInfoFormat === ModelInfoFormat.ModelsDev && drafts.some(usesGeneratedEfforts)
           ? await modelsDev.efforts(config.modelInfoEndpoint)
           : undefined
+        if (!cached && efforts) {
+          for (const draft of drafts) {
+            if (usesGeneratedEfforts(draft)) {
+              const modelEfforts = efforts(draft.id)
+              if (modelEfforts?.length) {
+                enrichments[draft.id] = {
+                  ...enrichments[draft.id],
+                  variants: modelEfforts.map(id => ({ id, settings: { reasoningEffort: id } })),
+                }
+              }
+            }
+          }
+        }
         const models = new Map<string, DiscoveredV2Model>(drafts.map(draft => [
           draft.id, mapToDiscoveredV2Model(draft, config, efforts?.(draft.id)),
         ]))
