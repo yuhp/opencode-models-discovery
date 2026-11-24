@@ -34,6 +34,15 @@ const defaultLogger: DiscoveryLogger = {
   },
 }
 
+export interface ProviderDiscoveryFailure {
+  readonly providerID: string
+  readonly url?: string
+  readonly status?: number
+  readonly statusText?: string
+  readonly message: string
+  readonly isAuthError?: boolean
+}
+
 export interface CatalogProvider extends ConfiguredProvider {
   /** Ephemeral request credential resolved by the plugin refresh orchestration. */
   readonly apiKey?: string
@@ -52,7 +61,11 @@ export async function discoverInventory(
   discovery: ReadonlyMap<string, ProviderDiscoveryOptions>,
   fetcher: typeof fetch = fetch,
   storage?: DiscoveryCacheBackend,
-  options?: { readonly force?: boolean; readonly logger?: DiscoveryLogger },
+  options?: {
+    readonly force?: boolean
+    readonly logger?: DiscoveryLogger
+    readonly onFailure?: (failure: ProviderDiscoveryFailure) => void
+  },
 ): Promise<Inventory> {
   const inventory: Inventory = new Map()
   const logger = options?.logger ?? defaultLogger
@@ -66,6 +79,10 @@ export async function discoverInventory(
     if (!baseURL) {
       logger.warn(`Model discovery skipped for provider "${provider.id}": missing or invalid settings.baseURL`, {
         provider: provider.id,
+      })
+      options?.onFailure?.({
+        providerID: provider.id,
+        message: "Missing or invalid settings.baseURL",
       })
       return
     }
@@ -130,6 +147,18 @@ export async function discoverInventory(
             status: modelsResponse.status,
             statusText: modelsResponse.statusText,
           })
+          const isAuthError = modelsResponse.status === 401 || modelsResponse.status === 403
+          const message = isAuthError
+            ? `Authentication failed (HTTP ${modelsResponse.status}${modelsResponse.statusText ? ` ${modelsResponse.statusText}` : ""}). Please verify the API key.`
+            : `Request failed with HTTP ${modelsResponse.status}${modelsResponse.statusText ? ` ${modelsResponse.statusText}` : ""}`
+          options?.onFailure?.({
+            providerID: provider.id,
+            url,
+            status: modelsResponse.status,
+            statusText: modelsResponse.statusText,
+            message,
+            isAuthError,
+          })
           return
         }
 
@@ -140,6 +169,11 @@ export async function discoverInventory(
             url,
             payloadType: typeof payload,
             keys: payload && typeof payload === "object" && !Array.isArray(payload) ? Object.keys(payload) : undefined,
+          })
+          options?.onFailure?.({
+            providerID: provider.id,
+            url,
+            message: 'Invalid response payload: expected array in "data" property',
           })
           return
         }
@@ -209,10 +243,16 @@ export async function discoverInventory(
               ), enrichments))
         }
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error)
       logger.warn(`Model discovery error for provider "${provider.id}"`, {
         provider: provider.id,
         url,
-        error: error instanceof Error ? error.message : String(error),
+        error: errorMessage,
+      })
+      options?.onFailure?.({
+        providerID: provider.id,
+        url,
+        message: errorMessage,
       })
       // Network and parsing failures are non-fatal; existing discovered models remain untouched.
     }
