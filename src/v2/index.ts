@@ -3,11 +3,12 @@ import { createProviderController, type ConfiguredProvider, type Inventory } fro
 import { discoverInventory, type CatalogProvider, type ProviderDiscoveryFailure } from "./discovery.js"
 import { parseProviderDiscoveryOptions, type ProviderDiscoveryOptions } from "./provider-config.js"
 import { registerDiscoveryTools, type DiscoveryStatusInput, type DiscoveryStatusProviderReport, formatStatusReport } from "./tools.js"
+import { registerDiscoveryCommands } from "./commands.js"
 import type { RefreshResult } from "./tools.js"
 import { createV2StorageCache } from "./storage-cache.js"
 import { discoveryCacheKey, isDiscoveryCacheFresh, sanitizeSensitiveFields } from "../core/discovery-cache.js"
 import { resolveProviderCredential } from "./credential-resolver.js"
-import { DiscoveryRpcDefinition, type RpcCacheEntry } from "./rpc.js"
+import { DiscoveryRpcDefinition, type RpcCacheClearOutput, type RpcCacheEntry, type RpcCacheInspectOutput } from "./rpc.js"
 import { applyModelOverride, deleteModelOverride, listModelOverrides, setModelOverride } from "./overrides.js"
 
 export function integrationID(providerID: string): string {
@@ -282,8 +283,108 @@ export async function setupV2(ctx: Plugin.Context): Promise<() => void> {
   const inspectStatus = async (options?: DiscoveryStatusInput): Promise<string> =>
     formatStatusReport(await collectStatus(options), options)
 
+  const inspectCache = async (providerID?: string): Promise<RpcCacheInspectOutput> => {
+    await syncConfiguredProviders()
+    const storageBackend = ctx.storage ? createV2StorageCache(ctx.storage) : undefined
+    const targetProviders = providerID
+      ? providers.filter((p) => p.id === providerID)
+      : providers
+    const entries: RpcCacheEntry[] = []
+
+    if (providerID && targetProviders.length === 0) {
+      if (storageBackend) {
+        const cacheKey = discoveryCacheKey("opencode.models-discovery.v2", providerID)
+        try {
+          const raw = await storageBackend.get(cacheKey)
+          const entry = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : undefined
+          if (entry && entry.version === 1) {
+            const fetchedAt = typeof entry.fetchedAt === "string" ? entry.fetchedAt : undefined
+            const rawModels = Array.isArray(entry.rawModels) ? entry.rawModels : []
+            entries.push({
+              providerID,
+              status: fetchedAt ? (isDiscoveryCacheFresh(fetchedAt, 86400) ? "fresh" : "expired") : "expired",
+              fetchedAt,
+              ttlSeconds: 86400,
+              modelCount: rawModels.length,
+            })
+          } else {
+            entries.push({ providerID, status: entry ? "corrupt" : "empty" })
+          }
+        } catch {
+          entries.push({ providerID, status: "corrupt" })
+        }
+      } else {
+        entries.push({ providerID, status: "empty" })
+      }
+      return { entries }
+    }
+
+    for (const provider of targetProviders) {
+      const providerDiscoveryOptions = discovery.get(provider.id)
+      const cacheConfig = providerDiscoveryOptions?.cache
+      if (!storageBackend || !cacheConfig?.enabled) {
+        entries.push({ providerID: provider.id, status: "empty" })
+        continue
+      }
+      const cacheKey = discoveryCacheKey("opencode.models-discovery.v2", provider.id)
+      try {
+        const raw = await storageBackend.get(cacheKey)
+        const entry = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : undefined
+        if (entry && entry.version === 1) {
+          const fetchedAt = typeof entry.fetchedAt === "string" ? entry.fetchedAt : undefined
+          const ttl = cacheConfig.ttlSeconds ?? 86400
+          const fresh = fetchedAt ? isDiscoveryCacheFresh(fetchedAt, ttl) : false
+          const rawModels = Array.isArray(entry.rawModels) ? entry.rawModels : []
+          entries.push({
+            providerID: provider.id,
+            status: fresh ? "fresh" : "expired",
+            fetchedAt,
+            ttlSeconds: ttl,
+            modelCount: rawModels.length,
+          })
+        } else {
+          entries.push({ providerID: provider.id, status: entry ? "corrupt" : "empty" })
+        }
+      } catch {
+        entries.push({ providerID: provider.id, status: "corrupt" })
+      }
+    }
+    return { entries }
+  }
+
+  const clearCache = async (providerID?: string): Promise<RpcCacheClearOutput> => {
+    const storageBackend = ctx.storage ? createV2StorageCache(ctx.storage) : undefined
+    if (!storageBackend?.remove) return { cleared: 0 }
+
+    await syncConfiguredProviders()
+    let clearedCount = 0
+    const targetIDs = providerID
+      ? [providerID]
+      : providers.map((p) => p.id)
+
+    for (const id of targetIDs) {
+      const cacheKey = discoveryCacheKey("opencode.models-discovery.v2", id)
+      try {
+        await storageBackend.remove(cacheKey)
+        clearedCount++
+      } catch {
+        // Ignore individual delete errors
+      }
+    }
+    return { cleared: clearedCount }
+  }
+
   await ensureTransformsRegistered()
   await registerDiscoveryTools(ctx, refreshFromCurrentConfig, inspectStatus)
+
+  if (ctx.command && typeof ctx.command.transform === "function") {
+    await registerDiscoveryCommands(ctx, {
+      refresh: refreshFromCurrentConfig,
+      status: inspectStatus,
+      cacheInspect: inspectCache,
+      cacheClear: clearCache,
+    })
+  }
 
   if (ctx.rpc && typeof ctx.rpc.register === "function") {
     rpcRegistration = await ctx.rpc.register(DiscoveryRpcDefinition, {
@@ -355,94 +456,11 @@ export async function setupV2(ctx: Plugin.Context): Promise<() => void> {
       },
       cacheInspect: async (rawInput) => {
         const input = rawInput as { readonly providerID?: string } | undefined
-        await syncConfiguredProviders()
-        const storageBackend = ctx.storage ? createV2StorageCache(ctx.storage) : undefined
-        const targetProviders = input?.providerID
-          ? providers.filter((p) => p.id === input.providerID)
-          : providers
-        const entries: RpcCacheEntry[] = []
-
-        if (input?.providerID && targetProviders.length === 0) {
-          if (storageBackend) {
-            const cacheKey = discoveryCacheKey("opencode.models-discovery.v2", input.providerID)
-            try {
-              const raw = await storageBackend.get(cacheKey)
-              const entry = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : undefined
-              if (entry && entry.version === 1) {
-                const fetchedAt = typeof entry.fetchedAt === "string" ? entry.fetchedAt : undefined
-                const rawModels = Array.isArray(entry.rawModels) ? entry.rawModels : []
-                entries.push({
-                  providerID: input.providerID,
-                  status: fetchedAt ? (isDiscoveryCacheFresh(fetchedAt, 86400) ? "fresh" : "expired") : "expired",
-                  fetchedAt,
-                  ttlSeconds: 86400,
-                  modelCount: rawModels.length,
-                })
-              } else {
-                entries.push({ providerID: input.providerID, status: entry ? "corrupt" : "empty" })
-              }
-            } catch {
-              entries.push({ providerID: input.providerID, status: "corrupt" })
-            }
-          } else {
-            entries.push({ providerID: input.providerID, status: "empty" })
-          }
-          return { entries }
-        }
-
-        for (const provider of targetProviders) {
-          const providerDiscoveryOptions = discovery.get(provider.id)
-          const cacheConfig = providerDiscoveryOptions?.cache
-          if (!storageBackend || !cacheConfig?.enabled) {
-            entries.push({ providerID: provider.id, status: "empty" })
-            continue
-          }
-          const cacheKey = discoveryCacheKey("opencode.models-discovery.v2", provider.id)
-          try {
-            const raw = await storageBackend.get(cacheKey)
-            const entry = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : undefined
-            if (entry && entry.version === 1) {
-              const fetchedAt = typeof entry.fetchedAt === "string" ? entry.fetchedAt : undefined
-              const ttl = cacheConfig.ttlSeconds ?? 86400
-              const fresh = fetchedAt ? isDiscoveryCacheFresh(fetchedAt, ttl) : false
-              const rawModels = Array.isArray(entry.rawModels) ? entry.rawModels : []
-              entries.push({
-                providerID: provider.id,
-                status: fresh ? "fresh" : "expired",
-                fetchedAt,
-                ttlSeconds: ttl,
-                modelCount: rawModels.length,
-              })
-            } else {
-              entries.push({ providerID: provider.id, status: entry ? "corrupt" : "empty" })
-            }
-          } catch {
-            entries.push({ providerID: provider.id, status: "corrupt" })
-          }
-        }
-        return { entries }
+        return inspectCache(input?.providerID)
       },
       cacheClear: async (rawInput) => {
         const input = rawInput as { readonly providerID?: string } | undefined
-        const storageBackend = ctx.storage ? createV2StorageCache(ctx.storage) : undefined
-        if (!storageBackend?.remove) return { cleared: 0 }
-
-        await syncConfiguredProviders()
-        let clearedCount = 0
-        const targetIDs = input?.providerID
-          ? [input.providerID]
-          : providers.map((p) => p.id)
-
-        for (const providerID of targetIDs) {
-          const cacheKey = discoveryCacheKey("opencode.models-discovery.v2", providerID)
-          try {
-            await storageBackend.remove(cacheKey)
-            clearedCount++
-          } catch {
-            // Ignore individual delete errors
-          }
-        }
-        return { cleared: clearedCount }
+        return clearCache(input?.providerID)
       },
       overrideList: async (rawInput) => {
         const input = rawInput as { readonly providerID?: string } | undefined

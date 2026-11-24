@@ -78,6 +78,36 @@ describe("V2 plugin entrypoint", () => {
     }
   })
 
+  it("registers server slash commands on ctx.command during setup", async () => {
+    const fetcher = vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      json: async () => ({ data: [{ id: "discovered-model" }] }),
+    } as Response)
+    const registeredCommands: Array<{ name: string; description?: string }> = []
+    const ctx = context({
+      command: {
+        transform: vi.fn().mockImplementation(async (callback) => {
+          callback({
+            add: (cmd: { name: string; description?: string }) => registeredCommands.push(cmd),
+          })
+        }),
+        reload: vi.fn().mockResolvedValue(undefined),
+      },
+    })
+
+    try {
+      await plugin.setup(ctx as never)
+      expect(ctx.command.transform).toHaveBeenCalledTimes(1)
+      expect(ctx.command.reload).toHaveBeenCalledTimes(1)
+      expect(registeredCommands.map((c) => c.name)).toEqual([
+        "models-discovery-refresh",
+        "models-discovery-console",
+      ])
+    } finally {
+      fetcher.mockRestore()
+    }
+  })
+
   it("uses a managed key only for discovery requests", async () => {
     const fetcher = vi.spyOn(globalThis, "fetch").mockResolvedValue({ ok: true, json: async () => ({ data: [] }) } as Response)
     const ctx = context()
