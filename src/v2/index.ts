@@ -299,48 +299,49 @@ export async function setupV2(ctx: Plugin.Context): Promise<() => void> {
             id: provider.id,
             name: provider.name ?? provider.id,
             modelCount: provider.models.length,
-            error: provider.error,
-            models: provider.models.map((model) => ({
-              id: model.id,
-              name: model.name,
-              defaultValues: (() => {
-                const baseline = baselineInventory.get(provider.id)?.get(model.id) ?? baselineInventory.get(provider.id)?.get(model.modelID)
-                return baseline ? {
-                  name: baseline.name,
-                  limit: baseline.limit,
-                  capabilities: baseline.capabilities,
-                  ...(baseline.reasoning !== undefined ? { reasoning: baseline.reasoning } : {}),
-                  ...(baseline.attachment !== undefined ? { attachment: baseline.attachment } : {}),
-                } : undefined
-              })(),
-              detail: [
-                `Model: ${model.name}`,
-                "",
-                "Identity",
-                `  Provider: ${provider.name ?? provider.id} (${provider.id})`,
-                `  Model ID: ${model.id}`,
-                `  API Model ID: ${model.modelID}`,
-                "",
-                "Limits",
-                `  Context: ${model.limit.context.toLocaleString()}`,
-                `  Output: ${model.limit.output.toLocaleString()}`,
-                `  Input: ${model.limit.input?.toLocaleString() ?? "unknown"}`,
-                "",
-                "Capabilities",
-                `  Tools: ${model.capabilities.tools ? "yes" : "no"}`,
-                `  Reasoning: ${model.reasoning === undefined ? "unknown" : model.reasoning ? "yes" : "no"}`,
-                `  Attachments: ${model.attachment === undefined ? "unknown" : model.attachment ? "yes" : "no"}`,
-                `  Input: ${model.capabilities.input.join(", ") || "unknown"}`,
-                `  Output: ${model.capabilities.output.join(", ") || "unknown"}`,
-                `  Variants: ${model.variants?.map((variant) => variant.id).join(", ") || "none"}`,
-                ...(overrideByModel.has(`${provider.id}:${model.id}`) || overrideByModel.has(`${provider.id}:${model.modelID}`)
-                  ? ["", "Override", `  Updated: ${(overrideByModel.get(`${provider.id}:${model.id}`) ?? overrideByModel.get(`${provider.id}:${model.modelID}`))?.updatedAt ?? "unknown"}`, `  Fields: ${Object.keys((overrideByModel.get(`${provider.id}:${model.id}`) ?? overrideByModel.get(`${provider.id}:${model.modelID}`))?.patch ?? {}).join(", ")}`]
-                  : []),
-              ].join("\n"),
-              ...((overrideByModel.get(`${provider.id}:${model.id}`) ?? overrideByModel.get(`${provider.id}:${model.modelID}`))
-                ? { override: overrideByModel.get(`${provider.id}:${model.id}`) ?? overrideByModel.get(`${provider.id}:${model.modelID}`) }
-                : {}),
-            })),
+            ...(provider.error ? { error: provider.error } : {}),
+            models: provider.models.map((model) => {
+              const baseline = baselineInventory.get(provider.id)?.get(model.id) ?? baselineInventory.get(provider.id)?.get(model.modelID)
+              const override = overrideByModel.get(`${provider.id}:${model.id}`) ?? overrideByModel.get(`${provider.id}:${model.modelID}`)
+              return {
+                id: model.id,
+                name: model.name,
+                ...(baseline ? {
+                  defaultValues: {
+                    name: baseline.name,
+                    limit: baseline.limit,
+                    capabilities: baseline.capabilities,
+                    ...(baseline.reasoning !== undefined ? { reasoning: baseline.reasoning } : {}),
+                    ...(baseline.attachment !== undefined ? { attachment: baseline.attachment } : {}),
+                  },
+                } : {}),
+                detail: [
+                  `Model: ${model.name}`,
+                  "",
+                  "Identity",
+                  `  Provider: ${provider.name ?? provider.id} (${provider.id})`,
+                  `  Model ID: ${model.id}`,
+                  `  API Model ID: ${model.modelID}`,
+                  "",
+                  "Limits",
+                  `  Context: ${model.limit.context.toLocaleString()}`,
+                  `  Output: ${model.limit.output.toLocaleString()}`,
+                  `  Input: ${model.limit.input?.toLocaleString() ?? "unknown"}`,
+                  "",
+                  "Capabilities",
+                  `  Tools: ${model.capabilities.tools ? "yes" : "no"}`,
+                  `  Reasoning: ${model.reasoning === undefined ? "unknown" : model.reasoning ? "yes" : "no"}`,
+                  `  Attachments: ${model.attachment === undefined ? "unknown" : model.attachment ? "yes" : "no"}`,
+                  `  Input: ${model.capabilities.input.join(", ") || "unknown"}`,
+                  `  Output: ${model.capabilities.output.join(", ") || "unknown"}`,
+                  `  Variants: ${model.variants?.map((variant) => variant.id).join(", ") || "none"}`,
+                  ...(override
+                    ? ["", "Override", `  Updated: ${override.updatedAt ?? "unknown"}`, `  Fields: ${Object.keys(override.patch ?? {}).join(", ")}`]
+                    : []),
+                ].join("\n"),
+                ...(override ? { override } : {}),
+              }
+            }),
           })),
         }
       },
@@ -374,7 +375,7 @@ export async function setupV2(ctx: Plugin.Context): Promise<() => void> {
                 entries.push({
                   providerID: input.providerID,
                   status: fetchedAt ? (isDiscoveryCacheFresh(fetchedAt, 86400) ? "fresh" : "expired") : "expired",
-                  fetchedAt,
+                  ...(fetchedAt ? { fetchedAt } : {}),
                   ttlSeconds: 86400,
                   modelCount: rawModels.length,
                 })
@@ -409,7 +410,7 @@ export async function setupV2(ctx: Plugin.Context): Promise<() => void> {
               entries.push({
                 providerID: provider.id,
                 status: fresh ? "fresh" : "expired",
-                fetchedAt,
+                ...(fetchedAt ? { fetchedAt } : {}),
                 ttlSeconds: ttl,
                 modelCount: rawModels.length,
               })
