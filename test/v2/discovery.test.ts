@@ -226,4 +226,63 @@ describe("V2 provider discovery", () => {
       }),
     )
   })
+
+  it("calls onFailure when models request fails with 401 Unauthorized", async () => {
+    const onFailure = vi.fn()
+    const fetcher = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 401,
+      statusText: "Unauthorized",
+    })
+
+    const inventory = await discoverInventory([
+      { id: "auth-fail", package: "@opencode/ai/providers/openai-compatible", settings: { baseURL: "https://example.com/api" } },
+    ], new Map([
+      ["auth-fail", parseProviderDiscoveryOptions({ enabled: true, endpoint: "/models" })!],
+    ]), fetcher, undefined, { onFailure })
+
+    expect(inventory.has("auth-fail")).toBe(false)
+    expect(onFailure).toHaveBeenCalledWith(expect.objectContaining({
+      providerID: "auth-fail",
+      status: 401,
+      statusText: "Unauthorized",
+      isAuthError: true,
+      message: "Authentication failed (HTTP 401 Unauthorized). Please verify the API key.",
+    }))
+  })
+
+  it("calls onFailure when models endpoint returns invalid payload", async () => {
+    const onFailure = vi.fn()
+    const fetcher = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ error: "Endpoint not supported" }),
+    })
+
+    await discoverInventory([
+      { id: "invalid-payload", package: "@opencode/ai/providers/openai-compatible", settings: { baseURL: "https://example.com/api" } },
+    ], new Map([
+      ["invalid-payload", parseProviderDiscoveryOptions({ enabled: true, endpoint: "/models" })!],
+    ]), fetcher, undefined, { onFailure })
+
+    expect(onFailure).toHaveBeenCalledWith(expect.objectContaining({
+      providerID: "invalid-payload",
+      message: 'Invalid response payload: expected array in "data" property',
+    }))
+  })
+
+  it("calls onFailure when models request throws network error", async () => {
+    const onFailure = vi.fn()
+    const fetcher = vi.fn().mockRejectedValue(new Error("fetch failed"))
+
+    await discoverInventory([
+      { id: "network-fail", package: "@opencode/ai/providers/openai-compatible", settings: { baseURL: "https://example.com/api" } },
+    ], new Map([
+      ["network-fail", parseProviderDiscoveryOptions({ enabled: true, endpoint: "/models" })!],
+    ]), fetcher, undefined, { onFailure })
+
+    expect(onFailure).toHaveBeenCalledWith(expect.objectContaining({
+      providerID: "network-fail",
+      message: "fetch failed",
+    }))
+  })
 })

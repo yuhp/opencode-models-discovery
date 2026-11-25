@@ -159,6 +159,29 @@ export default defineTuiPlugin({
     const rpc = context.client.rpc(DiscoveryRpcDefinition)
     const getLocation = () => context.location ?? context.data?.location?.default()
 
+    let unsubscribeDiscoveryFailed: (() => void) | undefined
+    if ((rpc as unknown as { events?: { on?: Function } }).events?.on) {
+      try {
+        unsubscribeDiscoveryFailed = (rpc as unknown as { events: { on: Function } }).events.on(
+          "discoveryFailed",
+          (event: unknown) => {
+            const payload = (event as { data?: { providerID?: string; status?: number; message?: string; isAuthError?: boolean } })?.data
+            if (!payload) return
+            const isAuth = payload.isAuthError || payload.status === 401 || payload.status === 403
+            context.ui.toast.show({
+              title: "Models Discovery",
+              message: isAuth
+                ? `Authentication failed for provider "${payload.providerID}" (${payload.status ?? 401}). Check your API key with /connect.`
+                : `Model discovery failed for provider "${payload.providerID}": ${payload.message}`,
+              variant: "error",
+            })
+          },
+        )
+      } catch {
+        // Event subscription is optional if host doesn't support rpc events
+      }
+    }
+
     context.keymap.layer(() => ({
       mode: "global",
       priority: 10,
@@ -224,16 +247,30 @@ export default defineTuiPlugin({
                 const selected = await context.ui.dialog.select({
                   title: "Models Discovery: Providers",
                   placeholder: "Select a provider",
-                  options: result.providers.map((provider) => ({
-                    title: `${provider.id} | ${provider.name} | ${provider.modelCount} models`,
-                    value: provider.id,
-                  })),
+                  options: result.providers.map((provider) => {
+                    const errorBadge = provider.error ? (provider.error.isAuthError ? " [Auth Error]" : " [Error]") : ""
+                    return {
+                      title: `${provider.id} | ${provider.name} | ${provider.modelCount} models${errorBadge}`,
+                      value: provider.id,
+                      description: provider.error?.message,
+                    }
+                  }),
                 })
                 if (selected === undefined) return
                 let provider = result.providers.find((entry) => entry.id === selected)
                 if (!provider) return
+                if (provider.error) {
+                  await context.ui.dialog.alert({
+                    title: `${provider.name ?? provider.id} Error`,
+                    message: provider.error.isAuthError
+                      ? `${provider.error.message}\n\nPlease check or re-enter your API key using /connect.`
+                      : provider.error.message,
+                  })
+                }
                 if (provider.models.length === 0) {
-                  await context.ui.dialog.alert({ title: provider.name, message: "No discovered models for this provider." })
+                  if (!provider.error) {
+                    await context.ui.dialog.alert({ title: provider.name, message: "No discovered models for this provider." })
+                  }
                   continue
                 }
                   while (true) {
@@ -317,11 +354,35 @@ export default defineTuiPlugin({
             const location = getLocation()
             try {
               const result = (await rpc.refresh({ force }, { location })) as RpcRefreshOutput
-              context.ui.toast.show({
-                title: "Models Discovery",
-                message: `Discovered ${result.models} models across ${result.providers} providers${force ? " (bypassed cache)" : ""}.`,
-                variant: "success",
-              })
+              const failures = result.failures ?? []
+              if (failures.length > 0) {
+                const authFailures = failures.filter((f) => f.isAuthError || f.status === 401 || f.status === 403)
+                if (result.models === 0) {
+                  const message = authFailures.length > 0
+                    ? `Authentication failed for ${authFailures.map((f) => f.providerID).join(", ")}. Check your API key with /connect.`
+                    : `Discovery failed: ${failures.map((f) => `${f.providerID} (${f.message})`).join(", ")}`
+                  context.ui.toast.show({
+                    title: "Models Discovery",
+                    message,
+                    variant: "error",
+                  })
+                } else {
+                  const message = authFailures.length > 0
+                    ? `Discovered ${result.models} models, but auth failed for: ${authFailures.map((f) => f.providerID).join(", ")}.`
+                    : `Discovered ${result.models} models, with errors for: ${failures.map((f) => f.providerID).join(", ")}.`
+                  context.ui.toast.show({
+                    title: "Models Discovery",
+                    message,
+                    variant: "warning",
+                  })
+                }
+              } else {
+                context.ui.toast.show({
+                  title: "Models Discovery",
+                  message: `Discovered ${result.models} models across ${result.providers} providers${force ? " (bypassed cache)" : ""}.`,
+                  variant: "success",
+                })
+              }
             } catch (error) {
               context.ui.toast.show({
                 title: "Models Discovery",
@@ -501,5 +562,9 @@ export default defineTuiPlugin({
         },
       ],
     }))
+
+    return () => {
+      unsubscribeDiscoveryFailed?.()
+    }
   },
 })

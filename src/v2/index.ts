@@ -1,6 +1,6 @@
 import { Plugin } from "@opencode/plugin"
 import { createProviderController, type ConfiguredProvider, type Inventory } from "./catalog.js"
-import { discoverInventory, type CatalogProvider } from "./discovery.js"
+import { discoverInventory, type CatalogProvider, type ProviderDiscoveryFailure } from "./discovery.js"
 import { parseProviderDiscoveryOptions, type ProviderDiscoveryOptions } from "./provider-config.js"
 import { registerDiscoveryTools, type DiscoveryStatusInput, type DiscoveryStatusProviderReport, formatStatusReport } from "./tools.js"
 import type { RefreshResult } from "./tools.js"
@@ -88,6 +88,8 @@ export async function setupV2(ctx: Plugin.Context): Promise<() => void> {
   const controller = createProviderController(ctx, providers, integrationID)
   let baselineInventory: Inventory = new Map()
   let transformsRegistration: Promise<void> | undefined
+  const providerFailures = new Map<string, ProviderDiscoveryFailure>()
+  let rpcRegistration: any
 
   const ensureTransformsRegistered = async (): Promise<void> => {
     if (!transformsRegistration) {
@@ -129,16 +131,40 @@ export async function setupV2(ctx: Plugin.Context): Promise<() => void> {
     return configured.providers.length > 0
   }
 
-  const refreshInventoryInternal = async (force?: boolean): Promise<RefreshResult> => {
+  const refreshInventoryInternal = async (
+    force?: boolean,
+    options?: { readonly emitEvents?: boolean },
+  ): Promise<RefreshResult> => {
     const resolved = await resolveProviderCredentials(ctx, providers)
     providers.splice(0, providers.length, ...resolved)
+    const currentFailures = new Map<string, ProviderDiscoveryFailure>()
     const discoveredInventory = await discoverInventory(
       resolved,
       discovery,
       fetch,
       ctx.storage ? createV2StorageCache(ctx.storage) : undefined,
-      { force }
+      {
+        force,
+        onFailure: (failure) => {
+          currentFailures.set(failure.providerID, failure)
+        },
+      }
     )
+    for (const provider of resolved) {
+      const failure = currentFailures.get(provider.id)
+      if (failure) {
+        providerFailures.set(provider.id, failure)
+        if (options?.emitEvents && rpcRegistration?.events?.emit) {
+          rpcRegistration.events.emit("discoveryFailed", failure).catch(() => {})
+        }
+      } else {
+        providerFailures.delete(provider.id)
+      }
+    }
+    for (const providerID of [...providerFailures.keys()]) {
+      if (!resolved.some((provider) => provider.id === providerID)) baselineInventory.delete(providerID)
+      if (!resolved.some((provider) => provider.id === providerID)) providerFailures.delete(providerID)
+    }
     const previousInventory = controller.getInventory()
     const inventory: Inventory = new Map()
     for (const provider of resolved) {
@@ -152,9 +178,6 @@ export async function setupV2(ctx: Plugin.Context): Promise<() => void> {
         inventory.set(provider.id, previousInventory.get(provider.id) ?? new Map())
       }
     }
-    for (const providerID of [...baselineInventory.keys()]) {
-      if (!resolved.some((provider) => provider.id === providerID)) baselineInventory.delete(providerID)
-    }
     const storedOverrides = await listModelOverrides(ctx.storage)
     const overrideByModel = new Map(storedOverrides.map((override) => [`${override.providerID}:${override.modelID}`, override]))
     for (const [providerID, models] of inventory) {
@@ -164,16 +187,25 @@ export async function setupV2(ctx: Plugin.Context): Promise<() => void> {
       }
     }
     await controller.replaceInventory(inventory)
-    return controller.status()
+    const status = controller.status()
+    return {
+      providers: status.providers,
+      models: status.models,
+      failures: [...currentFailures.values()],
+    }
   }
 
   let activeRefresh: Promise<RefreshResult> | undefined
   let pendingRefreshForce = false
 
-  const refreshFromCurrentConfig = (force?: boolean, reloadProviderConfig = false): Promise<RefreshResult> => {
+  const refreshFromCurrentConfig = (
+    force?: boolean,
+    reloadProviderConfig = false,
+    options?: { readonly emitEvents?: boolean },
+  ): Promise<RefreshResult> => {
     if (force) pendingRefreshForce = true
     if (activeRefresh) {
-      return activeRefresh.then(() => refreshFromCurrentConfig(pendingRefreshForce, reloadProviderConfig))
+      return activeRefresh.then(() => refreshFromCurrentConfig(pendingRefreshForce, reloadProviderConfig, options))
     }
     const runForce = force || pendingRefreshForce
     pendingRefreshForce = false
@@ -185,7 +217,7 @@ export async function setupV2(ctx: Plugin.Context): Promise<() => void> {
         // the new models request is still in flight, causing a transient 404.
         if (reloadProviderConfig) await ctx.provider.reload()
         await syncConfiguredProviders()
-        return await refreshInventoryInternal(runForce)
+        return await refreshInventoryInternal(runForce, options)
       } finally {
         activeRefresh = undefined
       }
@@ -240,6 +272,7 @@ export async function setupV2(ctx: Plugin.Context): Promise<() => void> {
         cacheConfig,
         storageCache: storageCacheInfo,
         models,
+        error: providerFailures.get(provider.id),
       })
     }
 
@@ -253,7 +286,7 @@ export async function setupV2(ctx: Plugin.Context): Promise<() => void> {
   await registerDiscoveryTools(ctx, refreshFromCurrentConfig, inspectStatus)
 
   if (ctx.rpc && typeof ctx.rpc.register === "function") {
-    await ctx.rpc.register(DiscoveryRpcDefinition, {
+    rpcRegistration = await ctx.rpc.register(DiscoveryRpcDefinition, {
       status: async (rawInput) => {
         const input = rawInput as DiscoveryStatusInput | undefined
         await syncConfiguredProviders()
@@ -266,6 +299,7 @@ export async function setupV2(ctx: Plugin.Context): Promise<() => void> {
             id: provider.id,
             name: provider.name ?? provider.id,
             modelCount: provider.models.length,
+            error: provider.error,
             models: provider.models.map((model) => ({
               id: model.id,
               name: model.name,
@@ -313,7 +347,11 @@ export async function setupV2(ctx: Plugin.Context): Promise<() => void> {
       refresh: async (rawInput) => {
         const input = rawInput as { readonly force?: boolean } | undefined
         const result = await refreshFromCurrentConfig(input?.force === true)
-        return { providers: result.providers, models: result.models }
+        return {
+          providers: result.providers,
+          models: result.models,
+          failures: result.failures ?? [],
+        }
       },
       cacheInspect: async (rawInput) => {
         const input = rawInput as { readonly providerID?: string } | undefined
@@ -452,7 +490,7 @@ export async function setupV2(ctx: Plugin.Context): Promise<() => void> {
             // Configuration and credential updates are delivered independently from the provider
             // registry. Reload the registry first so provider.list() observes the
             // new state before rebuilding the discovery inventory.
-            await refreshFromCurrentConfig(undefined, true)
+            await refreshFromCurrentConfig(undefined, true, { emitEvents: true })
           } catch {
             if (!abort.signal.aborted) {
               // should not happen, but if it does, we don't want to crash the plugin

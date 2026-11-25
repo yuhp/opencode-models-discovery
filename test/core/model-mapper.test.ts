@@ -48,9 +48,18 @@ describe('shared model projections', () => {
     })
   })
 
+  it('uses declared efforts only for the V2 reasoning fallback', () => {
+    const names = ['xhigh']
+    expect(mapToDiscoveredV2Model(draft({ reasoning: true }), { ...options, declaredEfforts: names }).variants)
+      .toEqual([{ id: 'xhigh', settings: { reasoningEffort: 'xhigh' } }])
+    expect(mapToDiscoveredV2Model(draft({ reasoning: false }), { ...options, declaredEfforts: names }).variants).toBeUndefined()
+    expect(mapToDiscoveredV2Model(draft({ reasoning: true, variants: [] }), { ...options, declaredEfforts: names }).variants).toEqual([])
+  })
+
   it('preserves variant body and header request overlays for V2 models', () => {
     const customDraft = draft({
       id: 'openai/gpt-fast',
+      reasoning: true,
       variants: {
         medium: { reasoningEffort: 'medium' },
         fast: {
@@ -61,8 +70,8 @@ describe('shared model projections', () => {
       },
     })
 
-    const mapped = mapToDiscoveredV2Model(customDraft, { smartModelName: true })
-    expect(mapped.variants).toEqual(expect.arrayContaining([
+    const mapped = mapToDiscoveredV2Model(customDraft, { ...options, declaredEfforts: ['xhigh'] })
+    expect(mapped.variants).toEqual([
       {
         id: 'medium',
         settings: { reasoningEffort: 'medium' },
@@ -73,7 +82,7 @@ describe('shared model projections', () => {
         body: { service_tier: 'fast' },
         headers: { 'x-tier': 'fast' },
       },
-    ]))
+    ])
   })
 
   it('safely bounds missing output token limit while preserving large context', () => {

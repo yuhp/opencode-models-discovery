@@ -1,12 +1,20 @@
 import type { DiscoveredV2Model } from "./catalog.js"
+import type { ProviderDiscoveryFailure } from "./discovery.js"
 
 export interface RefreshResult {
   readonly providers: number
   readonly models: number
+  readonly failures?: readonly ProviderDiscoveryFailure[]
 }
 
 export function formatRefreshResult(result: RefreshResult): string {
-  return `Model discovery refreshed: discovered ${result.models} models from ${result.providers} providers.`
+  const base = `Model discovery refreshed: discovered ${result.models} models from ${result.providers} providers.`
+  const failures = result.failures ?? []
+  if (failures.length === 0) {
+    return base
+  }
+  const failureLines = failures.map((f) => `  - Provider "${f.providerID}": ${f.message}`)
+  return `${base}\nErrors:\n${failureLines.join("\n")}`
 }
 
 export function formatRefreshFailure(error: unknown): string {
@@ -34,6 +42,7 @@ export interface DiscoveryStatusProviderReport {
     readonly enrichments?: Record<string, unknown>
   }
   readonly models: readonly DiscoveredV2Model[]
+  readonly error?: ProviderDiscoveryFailure
 }
 
 export function formatStatusReport(
@@ -61,6 +70,13 @@ export function formatStatusReport(
   for (const provider of filtered) {
     lines.push(`\n### Provider: \`${provider.id}\`${provider.name ? ` (${provider.name})` : ""}`)
     lines.push(`- Discovery: ${provider.enabled ? "enabled" : "disabled"}`)
+
+    if (provider.error) {
+      lines.push(`- Status: Error (${provider.error.message})`)
+      if (provider.error.isAuthError) {
+        lines.push(`  Hint: Authentication failed. Please verify the API key with /connect.`)
+      }
+    }
 
     if (provider.cacheConfig?.enabled) {
       const cacheStatus = provider.storageCache?.exists

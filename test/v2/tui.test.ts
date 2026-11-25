@@ -267,6 +267,136 @@ describe("V2 TUI Plugin", () => {
     })
   })
 
+  it("shows error toast when refresh has auth failure and 0 models", async () => {
+    const { ctx, rpcClient, toastShow, getKeymapLayer } = createMockTuiContext()
+    rpcClient.refresh.mockResolvedValueOnce({
+      providers: 1,
+      models: 0,
+      failures: [{
+        providerID: "bad-key-prov",
+        status: 401,
+        message: "Authentication failed (HTTP 401 Unauthorized). Please verify the API key.",
+        isAuthError: true,
+      }],
+    })
+
+    await tuiPlugin.setup(ctx as never)
+
+    const commands = getKeymapLayer()?.commands as Array<{
+      id: string
+      run: () => Promise<void>
+    }>
+    const refreshCmd = commands.find((command) => command.id === "models-discovery.refresh")
+
+    await refreshCmd?.run()
+
+    expect(toastShow).toHaveBeenCalledWith({
+      title: "Models Discovery",
+      message: "Authentication failed for bad-key-prov. Check your API key with /connect.",
+      variant: "error",
+    })
+  })
+
+  it("shows warning toast when refresh has partial auth failure", async () => {
+    const { ctx, rpcClient, toastShow, getKeymapLayer } = createMockTuiContext()
+    rpcClient.refresh.mockResolvedValueOnce({
+      providers: 2,
+      models: 5,
+      failures: [{
+        providerID: "bad-key-prov",
+        status: 401,
+        message: "Authentication failed (HTTP 401 Unauthorized). Please verify the API key.",
+        isAuthError: true,
+      }],
+    })
+
+    await tuiPlugin.setup(ctx as never)
+
+    const commands = getKeymapLayer()?.commands as Array<{
+      id: string
+      run: () => Promise<void>
+    }>
+    const refreshCmd = commands.find((command) => command.id === "models-discovery.refresh")
+
+    await refreshCmd?.run()
+
+    expect(toastShow).toHaveBeenCalledWith({
+      title: "Models Discovery",
+      message: "Discovered 5 models, but auth failed for: bad-key-prov.",
+      variant: "warning",
+    })
+  })
+
+  it("shows error toast when discoveryFailed RPC event is received", async () => {
+    let eventHandler: Function | undefined
+    const rpcOverrides = {
+      events: {
+        on: vi.fn().mockImplementation((name, handler) => {
+          if (name === "discoveryFailed") eventHandler = handler
+          return vi.fn()
+        }),
+      },
+    }
+    const { ctx, toastShow } = createMockTuiContext(rpcOverrides)
+    await tuiPlugin.setup(ctx as never)
+
+    expect(rpcOverrides.events.on).toHaveBeenCalledWith("discoveryFailed", expect.any(Function))
+    eventHandler?.({
+      data: {
+        providerID: "hyy",
+        status: 401,
+        isAuthError: true,
+        message: "Authentication failed",
+      },
+    })
+
+    expect(toastShow).toHaveBeenCalledWith({
+      title: "Models Discovery",
+      message: 'Authentication failed for provider "hyy" (401). Check your API key with /connect.',
+      variant: "error",
+    })
+  })
+
+  it("displays auth error badge and dialog alert when provider has error in console", async () => {
+    const { ctx, status, dialogSelect, dialogAlert, getKeymapLayer } = createMockTuiContext()
+    status.mockResolvedValueOnce({
+      report: "Current discovery inventory...",
+      providers: [
+        {
+          id: "broken-prov",
+          name: "Broken Gateway",
+          modelCount: 0,
+          error: {
+            providerID: "broken-prov",
+            status: 401,
+            isAuthError: true,
+            message: "Authentication failed (HTTP 401 Unauthorized). Please verify the API key.",
+          },
+          models: [],
+        },
+      ],
+    })
+    dialogSelect.mockResolvedValueOnce("broken-prov").mockResolvedValueOnce(undefined)
+
+    await tuiPlugin.setup(ctx as never)
+    const commands = getKeymapLayer()?.commands as Array<{ id: string; run: (input?: string) => Promise<void> }>
+    const consoleCmd = commands.find((cmd) => cmd.id === "models-discovery.console")
+    await consoleCmd?.run("browse")
+
+    expect(dialogSelect).toHaveBeenCalledWith(expect.objectContaining({
+      options: [
+        expect.objectContaining({
+          title: "broken-prov | Broken Gateway | 0 models [Auth Error]",
+          value: "broken-prov",
+        }),
+      ],
+    }))
+    expect(dialogAlert).toHaveBeenCalledWith({
+      title: "Broken Gateway Error",
+      message: "Authentication failed (HTTP 401 Unauthorized). Please verify the API key.\n\nPlease check or re-enter your API key using /connect.",
+    })
+  })
+
   it("formats non-Error RPC failure objects gracefully", async () => {
     const { ctx, rpcClient, toastShow, getKeymapLayer } = createMockTuiContext()
     rpcClient.refresh.mockRejectedValueOnce({

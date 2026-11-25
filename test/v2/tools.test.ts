@@ -60,4 +60,53 @@ describe("V2 discovery tools", () => {
     expect(rawCached).toContain('"rawModels"')
     expect(rawCached).toContain('"qwen-3"')
   })
+
+  it("formats refresh result with failure details", async () => {
+    const tools: Array<{ name: string; execute: (input: unknown) => Promise<{ content: string }> }> = []
+    await registerDiscoveryTools({
+      tool: {
+        transform: async (callback) => {
+          callback({ add: (tool) => tools.push(tool) })
+          return { dispose: async () => {} }
+        },
+      },
+    }, async () => ({
+      providers: 1,
+      models: 0,
+      failures: [{
+        providerID: "bad-key-prov",
+        status: 401,
+        message: "Authentication failed (HTTP 401 Unauthorized). Please verify the API key.",
+        isAuthError: true,
+      }],
+    }), () => ({ providers: 1, models: 0 }))
+
+    const refreshOutput = await tools[0]?.execute({})
+    expect(refreshOutput?.content).toContain("Model discovery refreshed: discovered 0 models from 1 providers.")
+    expect(refreshOutput?.content).toContain("Errors:")
+    expect(refreshOutput?.content).toContain('Provider "bad-key-prov": Authentication failed (HTTP 401 Unauthorized). Please verify the API key.')
+  })
+
+  it("formats status report with provider error and auth hint", () => {
+    const reports: DiscoveryStatusProviderReport[] = [
+      {
+        id: "auth-failed-prov",
+        name: "Broken Gateway",
+        enabled: true,
+        models: [],
+        error: {
+          providerID: "auth-failed-prov",
+          status: 401,
+          statusText: "Unauthorized",
+          message: "Authentication failed (HTTP 401 Unauthorized). Please verify the API key.",
+          isAuthError: true,
+        },
+      },
+    ]
+
+    const report = formatStatusReport(reports)
+    expect(report).toContain("### Provider: `auth-failed-prov` (Broken Gateway)")
+    expect(report).toContain("- Status: Error (Authentication failed (HTTP 401 Unauthorized). Please verify the API key.)")
+    expect(report).toContain("Hint: Authentication failed. Please verify the API key with /connect.")
+  })
 })

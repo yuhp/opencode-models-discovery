@@ -96,13 +96,26 @@ function mapV1Variant(id: string, value: unknown): {
   }
 }
 
+function hasReasoning(draft: DiscoveredModelDraft): boolean {
+  if (typeof draft.reasoning === 'boolean') return draft.reasoning
+  return draft.raw.supports_reasoning === true || (isRecord(draft.raw.capabilities) && draft.raw.capabilities.reasoning === true)
+}
+
+export function usesGeneratedEfforts(draft: DiscoveredModelDraft): boolean {
+  return hasReasoning(draft) && !(draft.variants && typeof draft.variants === 'object')
+}
+
+export interface MapToDiscoveredV2ModelOptions {
+  readonly smartModelName: boolean
+  readonly declaredEfforts?: readonly string[]
+}
+
 /** Projects a shared discovery draft into the V2 model catalog shape. */
 export function mapToDiscoveredV2Model(
   draft: DiscoveredModelDraft,
-  options: { readonly smartModelName: boolean },
+  options: MapToDiscoveredV2ModelOptions,
 ): DiscoveredV2ModelProjection {
   const resultDraft = draft
-  const rawModel = resultDraft.raw
 
   const name = options.smartModelName ? resultDraft.name : resultDraft.id
 
@@ -135,14 +148,7 @@ export function mapToDiscoveredV2Model(
     limit,
   }
 
-  const isReasoning = typeof resultDraft.reasoning === 'boolean'
-    ? resultDraft.reasoning
-    : (
-        rawModel.supports_reasoning === true ||
-        (rawModel.capabilities && typeof rawModel.capabilities === 'object' && (rawModel.capabilities as Record<string, unknown>).reasoning === true)
-      )
-
-  if (isReasoning) {
+  if (hasReasoning(resultDraft)) {
     mapped.reasoning = true
     mapped.compatibility = {
       ...mapped.compatibility,
@@ -154,12 +160,9 @@ export function mapToDiscoveredV2Model(
     mapped.variants = resultDraft.variants
   } else if (resultDraft.variants && typeof resultDraft.variants === 'object') {
     mapped.variants = Object.entries(resultDraft.variants).map(([id, value]) => mapV1Variant(id, value))
-  } else if (isReasoning && !mapped.variants) {
-    mapped.variants = [
-      { id: 'low', settings: { reasoningEffort: 'low' } },
-      { id: 'medium', settings: { reasoningEffort: 'medium' } },
-      { id: 'high', settings: { reasoningEffort: 'high' } },
-    ]
+  } else if (mapped.reasoning) {
+    const efforts = options.declaredEfforts?.length ? options.declaredEfforts : ['low', 'medium', 'high']
+    mapped.variants = efforts.map(id => ({ id, settings: { reasoningEffort: id } }))
   }
 
   if (typeof resultDraft.attachment === 'boolean') {

@@ -8,6 +8,14 @@ export interface RpcModelValues {
   readonly attachment?: boolean
 }
 
+export interface RpcDiscoveryFailureEvent {
+  readonly providerID: string
+  readonly status?: number
+  readonly statusText?: string
+  readonly message: string
+  readonly isAuthError?: boolean
+}
+
 export interface RpcRefreshInput {
   readonly force?: boolean
 }
@@ -15,6 +23,7 @@ export interface RpcRefreshInput {
 export interface RpcRefreshOutput {
   readonly providers: number
   readonly models: number
+  readonly failures?: readonly RpcDiscoveryFailureEvent[]
 }
 
 export interface RpcStatusInput {
@@ -29,6 +38,7 @@ export interface RpcStatusOutput {
     readonly id: string
     readonly name: string
     readonly modelCount: number
+    readonly error?: RpcDiscoveryFailureEvent
     readonly models: readonly { readonly id: string; readonly name: string; readonly detail: string; readonly override?: RpcModelOverride; readonly defaultValues?: RpcModelValues }[]
   }[]
 }
@@ -118,6 +128,17 @@ export const DiscoveryRpcDefinition = Rpc.define({
                 id: { type: "string" },
                 name: { type: "string" },
                 modelCount: { type: "number" },
+                error: {
+                  type: "object",
+                  properties: {
+                    providerID: { type: "string" },
+                    status: { type: "number" },
+                    statusText: { type: "string" },
+                    message: { type: "string" },
+                    isAuthError: { type: "boolean" },
+                  },
+                  required: ["providerID", "message"],
+                },
                 models: {
                   type: "array",
                   items: {
@@ -152,6 +173,20 @@ export const DiscoveryRpcDefinition = Rpc.define({
         properties: {
           providers: { type: "number" },
           models: { type: "number" },
+          failures: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                providerID: { type: "string" },
+                status: { type: "number" },
+                statusText: { type: "string" },
+                message: { type: "string" },
+                isAuthError: { type: "boolean" },
+              },
+              required: ["providerID", "message"],
+            },
+          },
         },
         required: ["providers", "models"],
       },
@@ -275,5 +310,19 @@ export const DiscoveryRpcDefinition = Rpc.define({
       },
     },
   },
-  events: {},
+  events: {
+    discoveryFailed: {
+      schema: {
+        type: "object",
+        properties: {
+          providerID: { type: "string" },
+          status: { type: "number" },
+          statusText: { type: "string" },
+          message: { type: "string" },
+          isAuthError: { type: "boolean" },
+        },
+        required: ["providerID", "message"],
+      },
+    },
+  },
 })
