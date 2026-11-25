@@ -1,6 +1,14 @@
 import { describe, expect, it, vi } from "vitest"
+import { JsonSchema, Schema, SchemaRepresentation } from "effect"
 import { DiscoveryRpcDefinition } from "../../src/v2/rpc.js"
 import { setupV2 } from "../../src/v2/index.js"
+
+function validateRpcSchema<T>(schema: unknown, value: unknown): T {
+  const doc = JsonSchema.fromSchemaDraft2020_12(schema as any)
+  const rep = SchemaRepresentation.fromJsonSchemaDocument(doc)
+  const codec = SchemaRepresentation.toSchema(rep)
+  return Schema.decodeUnknownSync(codec)(value) as T
+}
 
 describe("DiscoveryRpcDefinition", () => {
   it("defines the required RPC methods with correct schemas", () => {
@@ -23,6 +31,12 @@ describe("DiscoveryRpcDefinition", () => {
       registeredHandlers = handlers
       return { events: { emit: vi.fn() } }
     })
+
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ data: [{ id: "m1" }, { id: "m2" }] }),
+    } as Response)
 
     const mockStorage = new Map<string, unknown>()
     mockStorage.set("opencode.models-discovery.v2:provider:test-prov", {
@@ -95,6 +109,17 @@ describe("DiscoveryRpcDefinition", () => {
     expect(refreshResult).toHaveProperty("providers")
     expect(refreshResult).toHaveProperty("models")
     expect(refreshResult).toHaveProperty("failures")
+    expect(() => validateRpcSchema(DiscoveryRpcDefinition.methods.refresh.output, refreshResult)).not.toThrow()
+
+    // Test status handler on healthy provider conforms to schema and omits error key
+    const statusResult = await registeredHandlers!["status"]({}, {} as any)
+    expect(statusResult).toBeDefined()
+    expect(statusResult.providers[0]).toBeDefined()
+    expect(statusResult.providers[0]?.error).toBeUndefined()
+    expect("error" in statusResult.providers[0]!).toBe(false)
+    expect(() => validateRpcSchema(DiscoveryRpcDefinition.methods.status.output, statusResult)).not.toThrow()
+
+    fetchSpy.mockRestore()
   })
 
   it("reports provider error and emits discoveryFailed event when 401 occurs", async () => {
@@ -176,6 +201,7 @@ describe("DiscoveryRpcDefinition", () => {
       })
       expect(statusResult.report).toContain("Status: Error")
       expect(statusResult.report).toContain("Hint: Authentication failed. Please verify the API key with /connect.")
+      expect(() => validateRpcSchema(DiscoveryRpcDefinition.methods.status.output, statusResult)).not.toThrow()
 
       // Trigger credential.updated event and verify discoveryFailed is emitted
       expect(eventSubscriber).toBeDefined()
@@ -196,5 +222,23 @@ describe("DiscoveryRpcDefinition", () => {
     } finally {
       fetchSpy.mockRestore()
     }
+  })
+
+  it("rejects undefined error property under output schema validation", () => {
+    const invalidStatusOutput = {
+      report: "ok",
+      providers: [
+        {
+          id: "test",
+          name: "test",
+          modelCount: 0,
+          error: undefined,
+          models: [],
+        },
+      ],
+    }
+    expect(() => validateRpcSchema(DiscoveryRpcDefinition.methods.status.output, invalidStatusOutput)).toThrow(
+      /Expected object, got undefined/,
+    )
   })
 })
